@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="Story-pix">
+  <defs>
+    <linearGradient id="sp-icon-grad" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8A2BE2"/>
+      <stop offset="0.45" stop-color="#2196F3"/>
+      <stop offset="1" stop-color="#FF4FA3"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="16" fill="url(#sp-icon-grad)"/>
+  <rect x="14" y="18" width="36" height="28" rx="4" fill="#fff" fill-opacity="0.95"/>
+  <circle cx="24" cy="28" r="4" fill="#8A2BE2"/>
+  <path d="M18 40l10-8 8 6 12-14v12H18z" fill="#d8b4fe"/>
+  <rect x="42" y="14" width="6" height="6" rx="1.5" fill="#FFC233"/>
+  <rect x="50" y="22" width="4" height="4" rx="1" fill="#FF7A45"/>
+</svg>

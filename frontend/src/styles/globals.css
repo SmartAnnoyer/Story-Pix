@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --sp-primary-purple: #8a2be2;
+  --sp-primary-blue: #2196f3;
+  --sp-accent-pink: #ff4fa3;
+  --sp-accent-orange: #ff7a45;
+  --sp-accent-yellow: #ffc233;
+  --sp-bg-dark: #0f0f14;
+  --sp-bg-light: #ffffff;
+  --sp-text-dark: #1a1a1a;
+  --sp-gradient: linear-gradient(
+    135deg,
+    #8a2be2 0%,
+    #2196f3 38%,
+    #ff4fa3 72%,
+    #ff7a45 100%
+  );
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--sp-bg-light);
+  color: var(--sp-text-dark);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.ant-layout-sider .ant-menu-item-selected {
+  font-weight: 600;
+}
