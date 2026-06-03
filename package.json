@@ -4,7 +4,7 @@
   "private": true,
   "description": "Story-pix - Multi-tenant SaaS platform for interactive photo albums",
   "scripts": {
-    "prepare": "husky",
+    "prepare": "node -e \"if(process.env.HUSKY==='0'||!require('fs').existsSync('node_modules/husky'))process.exit(0); require('child_process').execSync('husky',{stdio:'inherit'})\"",
     "lint": "npm run lint --workspaces --if-present",
     "format": "npm run format --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
