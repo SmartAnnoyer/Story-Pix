@@ -5,6 +5,7 @@ import { AlbumsModule } from '../albums/albums.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
 import { ArTargetsModule } from '../ar-targets/ar-targets.module';
 import { MediaModule } from '../media/media.module';
+import { StorageModule } from '../storage/storage.module';
 import { Studio, StudioSchema } from '../studios/schemas/studio.schema';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { ViewerController } from './viewer.controller';
@@ -19,6 +20,7 @@ import { ViewerService } from './viewer.service';
     AlbumsModule,
     ArTargetsModule,
     MediaModule,
+    StorageModule,
     SubscriptionsModule,
     AnalyticsModule,
   ],

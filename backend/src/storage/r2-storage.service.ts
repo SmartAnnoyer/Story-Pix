@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   DeleteObjectCommand,
+  GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -10,6 +11,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import {
   IStorageService,
   PresignedUploadResult,
+  StorageObjectBody,
   StorageObjectMetadata,
 } from './interfaces/storage.interface';
 
@@ -98,6 +100,31 @@ export class R2StorageService extends IStorageService {
       };
     } catch (error) {
       this.logger.warn(`Failed to head object ${key}: ${(error as Error).message}`);
+      return null;
+    }
+  }
+
+  async getObjectBuffer(key: string): Promise<StorageObjectBody | null> {
+    try {
+      const response = await this.client.send(
+        new GetObjectCommand({
+          Bucket: this.bucketName,
+          Key: key,
+        }),
+      );
+
+      if (!response.Body) {
+        return null;
+      }
+
+      const bytes = await response.Body.transformToByteArray();
+
+      return {
+        buffer: Buffer.from(bytes),
+        contentType: response.ContentType ?? 'image/jpeg',
+      };
+    } catch (error) {
+      this.logger.warn(`Failed to get object ${key}: ${(error as Error).message}`);
       return null;
     }
   }

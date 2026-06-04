@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, BadGatewayException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import type { Request } from 'express';
@@ -9,6 +14,7 @@ import { MediaService } from '../media/media.service';
 import { LimitValidationService } from '../subscriptions/limit-validation.service';
 import { UsageService } from '../subscriptions/usage.service';
 import { ArTargetsService } from '../ar-targets/ar-targets.service';
+import { IStorageService, STORAGE_SERVICE } from '../storage/interfaces/storage.interface';
 import { RecordViewerEventDto } from './dto/viewer.dto';
 import { Album, AlbumDocument } from '../albums/schemas/album.schema';
 import { Studio, StudioDocument } from '../studios/schemas/studio.schema';
@@ -19,6 +25,7 @@ export class ViewerService {
   constructor(
     @InjectModel(Album.name) private readonly albumModel: Model<AlbumDocument>,
     @InjectModel(Studio.name) private readonly studioModel: Model<StudioDocument>,
+    @Inject(STORAGE_SERVICE) private readonly storageService: IStorageService,
     private readonly albumsService: AlbumsService,
     private readonly arTargetsService: ArTargetsService,
     private readonly mediaService: MediaService,
@@ -89,20 +96,41 @@ export class ViewerService {
       .findById(target.studioId.toString(), target.photoMediaId.toString())
       .catch(() => null);
 
-    const imageUrl = photo?.publicUrl ?? photo?.thumbnailUrl;
+    if (!photo?.r2ObjectKey) {
+      throw new NotFoundException('Tracking image not available');
+    }
+
+    const fromStorage = await this.storageService.getObjectBuffer(photo.r2ObjectKey);
+    if (fromStorage) {
+      return {
+        buffer: fromStorage.buffer,
+        contentType: fromStorage.contentType,
+      };
+    }
+
+    const imageUrl = photo.publicUrl ?? photo.thumbnailUrl;
     if (!imageUrl) {
       throw new NotFoundException('Tracking image not available');
     }
 
-    const response = await fetch(imageUrl);
-    if (!response.ok) {
-      throw new BadGatewayException('Failed to load tracking image from storage');
+    try {
+      const response = await fetch(imageUrl);
+      if (!response.ok) {
+        throw new BadGatewayException('Failed to load tracking image from storage');
+      }
+
+      const buffer = Buffer.from(await response.arrayBuffer());
+      const contentType = response.headers.get('content-type') ?? photo.mimeType ?? 'image/jpeg';
+
+      return { buffer, contentType };
+    } catch (error) {
+      if (error instanceof BadGatewayException) {
+        throw error;
+      }
+      throw new BadGatewayException(
+        `Failed to load tracking image: ${error instanceof Error ? error.message : 'unknown error'}`,
+      );
     }
-
-    const buffer = Buffer.from(await response.arrayBuffer());
-    const contentType = response.headers.get('content-type') ?? photo?.mimeType ?? 'image/jpeg';
-
-    return { buffer, contentType };
   }
 
   async recordEvent(albumSlug: string, dto: RecordViewerEventDto, req?: Request) {

@@ -11,6 +11,11 @@ export interface StorageObjectMetadata {
   contentType: string;
 }
 
+export interface StorageObjectBody {
+  buffer: Buffer;
+  contentType: string;
+}
+
 export abstract class IStorageService {
   abstract getPresignedUploadUrl(
     key: string,
@@ -24,6 +29,8 @@ export abstract class IStorageService {
   abstract getPublicUrl(key: string): string;
 
   abstract getObjectMetadata(key: string): Promise<StorageObjectMetadata | null>;
+
+  abstract getObjectBuffer(key: string): Promise<StorageObjectBody | null>;
 }
 
 export const STORAGE_SERVICE = Symbol('STORAGE_SERVICE');

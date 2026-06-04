@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, Req, Res } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
 import { Public } from '../decorators';
+import { parseCorsOrigins } from '../bootstrap/cors.middleware';
 import { ViewerService } from './viewer.service';
 import { RecordViewerEventDto } from './dto/viewer.dto';
 
@@ -13,13 +14,13 @@ export class ViewerController {
   ) {}
 
   private applyCors(req: Request, res: Response) {
-    const allowed = this.configService
-      .get<string>('app.corsOrigin', 'http://localhost:5173')
-      .split(',')
-      .map((origin) => origin.trim());
+    const allowed = parseCorsOrigins(
+      this.configService.get<string>('app.corsOrigin', 'http://localhost:5173'),
+    );
     const origin = req.headers.origin;
     if (origin && allowed.includes(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
       res.setHeader('Vary', 'Origin');
     }
   }

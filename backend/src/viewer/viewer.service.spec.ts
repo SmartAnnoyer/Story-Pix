@@ -8,6 +8,7 @@ import { MediaService } from '../media/media.service';
 import { AnalyticsIngestionService } from '../analytics/analytics-ingestion.service';
 import { LimitValidationService } from '../subscriptions/limit-validation.service';
 import { UsageService } from '../subscriptions/usage.service';
+import { STORAGE_SERVICE } from '../storage/interfaces/storage.interface';
 import { ScanEventType } from '../common/enums';
 
 describe('ViewerService', () => {
@@ -19,6 +20,7 @@ describe('ViewerService', () => {
   const analyticsIngestionService = { recordEvent: jest.fn() };
   const limitValidationService = { checkScanLimit: jest.fn() };
   const usageService = { incrementScanUsage: jest.fn() };
+  const storageService = { getObjectBuffer: jest.fn() };
 
   const albumModel = { findOne: jest.fn() };
   const studioModel = { findById: jest.fn() };
@@ -37,6 +39,7 @@ describe('ViewerService', () => {
         { provide: AnalyticsIngestionService, useValue: analyticsIngestionService },
         { provide: LimitValidationService, useValue: limitValidationService },
         { provide: UsageService, useValue: usageService },
+        { provide: STORAGE_SERVICE, useValue: storageService },
       ],
     }).compile();
 

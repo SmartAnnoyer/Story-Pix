@@ -50,4 +50,8 @@ export class MockStorageService extends IStorageService {
     // Mock uploads do not write to object storage — skip HEAD size checks.
     return null;
   }
+
+  async getObjectBuffer(_key: string): Promise<import('./interfaces/storage.interface').StorageObjectBody | null> {
+    return null;
+  }
 }
