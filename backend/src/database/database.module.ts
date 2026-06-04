@@ -10,6 +10,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       useFactory: (configService: ConfigService) => ({
         uri: configService.get<string>('database.uri'),
         autoIndex: configService.get<string>('app.nodeEnv') !== 'production',
+        serverSelectionTimeoutMS: 10_000,
+        connectTimeoutMS: 10_000,
       }),
     }),
   ],

@@ -31,6 +31,7 @@ services:
         generateValue: true
       - key: JWT_REFRESH_SECRET
         generateValue: true
+      # Required — Atlas URI with 0.0.0.0/0 or Render egress allowed
       - key: MONGODB_URI
         sync: false
       - key: CORS_ORIGIN
