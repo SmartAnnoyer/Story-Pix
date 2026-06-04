@@ -10,7 +10,7 @@ import { AppModule } from './modules/app.module';
 import { GlobalExceptionFilter } from './filters/global-exception.filter';
 import { ResponseInterceptor } from './interceptors/response.interceptor';
 import { LoggerService } from './shared/services/logger.service';
-import { applyCorsMiddleware } from './bootstrap/cors.middleware';
+import { applyCorsMiddleware, buildCorsOptions, parseCorsOrigins } from './bootstrap/cors.middleware';
 import {
   legacyApiPrefixMiddleware,
   resolveApiBasePath,
@@ -45,6 +45,9 @@ async function bootstrap() {
   const apiBasePath = resolveApiBasePath(apiPrefixFromEnv);
 
   const corsOrigin = process.env.CORS_ORIGIN ?? 'http://localhost:5173';
+  const corsOptions = buildCorsOptions(corsOrigin);
+  console.log('[Bootstrap] CORS allowed origins:', parseCorsOrigins(corsOrigin).join(', '));
+
   const expressApp = express();
   expressApp.use(legacyApiPrefixMiddleware(apiBasePath));
   applyCorsMiddleware(expressApp, corsOrigin);
@@ -57,6 +60,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, new ExpressAdapter(expressApp), {
     bufferLogs: true,
     rawBody: true,
+    cors: corsOptions,
   });
 
   const configService = app.get(ConfigService);

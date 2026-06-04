@@ -34,9 +34,12 @@ services:
       # Required — Atlas URI with 0.0.0.0/0 or Render egress allowed
       - key: MONGODB_URI
         sync: false
-      # Comma-separated frontend origin(s), e.g. https://story-pix-web.onrender.com
+      # Hostname is OK — API normalizes to https://… at runtime
       - key: CORS_ORIGIN
-        sync: false
+        fromService:
+          type: web
+          name: story-pix-web
+          envVarKey: RENDER_EXTERNAL_URL
       - key: VIEWER_BASE_URL
         sync: false
       - key: SUPER_ADMIN_EMAIL
