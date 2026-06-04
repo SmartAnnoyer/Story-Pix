@@ -1,6 +1,9 @@
 declare global {
   interface Window {
-    AFRAME?: unknown;
+    AFRAME?: {
+      registerComponent?: unknown;
+      scenes?: unknown[];
+    };
     MINDAR?: {
       IMAGE?: {
         Compiler: new () => {
@@ -15,46 +18,52 @@ declare global {
   }
 }
 
+/** Base MindAR image tracking (Compiler + Controller) — no A-Frame dependency */
+const MINDAR_IMAGE_SCRIPT =
+  'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js';
 const AFRAME_SCRIPT = 'https://aframe.io/releases/1.5.0/aframe.min.js';
-const MINDAR_IMAGE_SCRIPT = 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js';
+/** Must load after A-Frame; references global AFRAME at parse time */
 const MINDAR_AFRAME_SCRIPT =
   'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js';
 
 const IMAGE_LOAD_TIMEOUT_MS = 30_000;
 const COMPILE_TIMEOUT_MS = 120_000;
-const SCRIPT_READY_TIMEOUT_MS = 15_000;
+const GLOBAL_READY_TIMEOUT_MS = 30_000;
 
 let compilerScriptsPromise: Promise<void> | null = null;
 let sceneScriptsPromise: Promise<void> | null = null;
 
-const waitUntil = (label: string, predicate: () => boolean, timeoutMs: number): Promise<void> =>
+const waitUntil = (
+  predicate: () => boolean,
+  label: string,
+  timeoutMs = GLOBAL_READY_TIMEOUT_MS,
+): Promise<void> =>
   new Promise((resolve, reject) => {
     const started = Date.now();
-
     const tick = () => {
       if (predicate()) {
         resolve();
         return;
       }
-      if (Date.now() - started >= timeoutMs) {
-        reject(new Error(`${label} was not ready within ${timeoutMs}ms`));
+      if (Date.now() - started > timeoutMs) {
+        reject(new Error(`${label} was not ready in time`));
         return;
       }
       window.setTimeout(tick, 50);
     };
-
     tick();
   });
 
-const loadScriptSequential = (src: string): Promise<void> =>
+const loadScript = (src: string): Promise<void> =>
   new Promise((resolve, reject) => {
-    const existing = document.querySelector<HTMLScriptElement>(`script[src="${src}"]`);
+    const existing = document.querySelector(`script[src="${src}"]`) as HTMLScriptElement | null;
+
+    if (existing?.dataset.mindarLoaded === 'true') {
+      resolve();
+      return;
+    }
 
     if (existing) {
-      if (existing.dataset.loaded === 'true') {
-        resolve();
-        return;
-      }
       existing.addEventListener('load', () => resolve(), { once: true });
       existing.addEventListener('error', () => reject(new Error(`Failed to load ${src}`)), {
         once: true,
@@ -64,52 +73,40 @@ const loadScriptSequential = (src: string): Promise<void> =>
 
     const script = document.createElement('script');
     script.src = src;
-    script.async = false;
-    script.defer = false;
     script.onload = () => {
-      script.dataset.loaded = 'true';
+      script.dataset.mindarLoaded = 'true';
       resolve();
     };
     script.onerror = () => reject(new Error(`Failed to load ${src}`));
     document.head.appendChild(script);
   });
 
-/** MindAR compiler only — does not require A-Frame. */
-const loadMindarCompilerScripts = (): Promise<void> => {
+/** Loads MindAR compiler only (for .mind generation in the browser). */
+export const loadCompilerScript = (): Promise<void> => {
   if (compilerScriptsPromise) return compilerScriptsPromise;
 
   compilerScriptsPromise = (async () => {
-    await loadScriptSequential(MINDAR_IMAGE_SCRIPT);
-    await waitUntil(
-      'MindAR compiler',
-      () => Boolean(window.MINDAR?.IMAGE?.Compiler),
-      SCRIPT_READY_TIMEOUT_MS,
-    );
-  })().catch((error) => {
-    compilerScriptsPromise = null;
-    throw error;
-  });
+    await loadScript(MINDAR_IMAGE_SCRIPT);
+    await waitUntil(() => Boolean(window.MINDAR?.IMAGE?.Compiler), 'MindAR compiler');
+  })();
 
   return compilerScriptsPromise;
 };
 
-/** A-Frame + MindAR A-Frame components for the live AR scene. */
+/** Loads MindAR + A-Frame in order for the live AR scene. */
 export const loadArScripts = (): Promise<void> => {
   if (sceneScriptsPromise) return sceneScriptsPromise;
 
   sceneScriptsPromise = (async () => {
-    await loadScriptSequential(AFRAME_SCRIPT);
-    await waitUntil('A-Frame', () => Boolean(window.AFRAME), SCRIPT_READY_TIMEOUT_MS);
-    await loadScriptSequential(MINDAR_AFRAME_SCRIPT);
-    await waitUntil(
-      'MindAR A-Frame',
-      () => Boolean(window.AFRAME && window.MINDAR),
-      SCRIPT_READY_TIMEOUT_MS,
-    );
-  })().catch((error) => {
-    sceneScriptsPromise = null;
-    throw error;
-  });
+    await loadScript(MINDAR_IMAGE_SCRIPT);
+    await waitUntil(() => Boolean(window.MINDAR?.IMAGE), 'MindAR image core');
+
+    await loadScript(AFRAME_SCRIPT);
+    await waitUntil(() => Boolean(window.AFRAME), 'A-Frame');
+
+    await loadScript(MINDAR_AFRAME_SCRIPT);
+    await waitUntil(() => Boolean(window.AFRAME?.registerComponent), 'MindAR A-Frame integration');
+  })();
 
   return sceneScriptsPromise;
 };
@@ -124,10 +121,6 @@ const loadImage = (url: string): Promise<HTMLImageElement> =>
     img.crossOrigin = 'anonymous';
     img.onload = () => {
       window.clearTimeout(timer);
-      if (img.naturalWidth === 0 || img.naturalHeight === 0) {
-        reject(new Error(`Invalid image dimensions: ${url}`));
-        return;
-      }
       resolve(img);
     };
     img.onerror = () => {
@@ -142,7 +135,7 @@ export const compileMindFile = async (imageUrls: string[]): Promise<string> => {
     throw new Error('No tracking images available');
   }
 
-  await loadMindarCompilerScripts();
+  await loadCompilerScript();
 
   const Compiler = window.MINDAR?.IMAGE?.Compiler;
   if (!Compiler) {
@@ -150,13 +143,12 @@ export const compileMindFile = async (imageUrls: string[]): Promise<string> => {
   }
 
   const images = await Promise.all(imageUrls.map((url) => loadImage(url)));
-
   const compiler = new Compiler();
 
   await Promise.race([
     compiler.compileImageTargets(images, (progress) => {
       if (progress > 0 && progress < 1) {
-        console.debug(`[Story-pix AR] compile progress: ${Math.round(progress * 100)}%`);
+        console.info(`[Story-pix AR] compiling targets: ${Math.round(progress * 100)}%`);
       }
     }),
     new Promise<never>((_, reject) => {
@@ -170,4 +162,4 @@ export const compileMindFile = async (imageUrls: string[]): Promise<string> => {
 };
 
 export const getMindCacheKey = (albumSlug: string, targetIds: string[]) =>
-  `storypix-mind-${albumSlug}-${targetIds.join('-')}`;
+  `storypix-mind-v2-${albumSlug}-${targetIds.join('-')}`;
