@@ -33,10 +33,7 @@ export class JobQueueService implements OnModuleInit, OnModuleDestroy {
     }
 
     const redisUrl = this.configService.get<string>('queue.redisUrl', 'redis://127.0.0.1:6379');
-    this.connectionOptions = {
-      ...this.parseRedisUrl(redisUrl),
-      connectTimeout: 5_000,
-    };
+    this.connectionOptions = this.parseRedisUrl(redisUrl);
 
     Object.values(QUEUE_NAMES).forEach((queueName) => {
       this.queues.set(queueName, new Queue(queueName, { connection: this.connectionOptions! }));
