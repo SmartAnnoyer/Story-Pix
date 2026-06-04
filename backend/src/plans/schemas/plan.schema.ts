@@ -48,5 +48,4 @@ export class Plan {
 
 export const PlanSchema = SchemaFactory.createForClass(Plan);
 
-PlanSchema.index({ code: 1 }, { unique: true });
 PlanSchema.index({ isActive: 1 });

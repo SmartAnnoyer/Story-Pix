@@ -63,7 +63,6 @@ export class Studio {
 
 export const StudioSchema = SchemaFactory.createForClass(Studio);
 
-StudioSchema.index({ studioCode: 1 }, { unique: true });
 StudioSchema.index({ status: 1 });
 StudioSchema.index({ studioName: 'text', ownerName: 'text', email: 'text', studioCode: 'text' });
 StudioSchema.index({ deletedAt: 1 });

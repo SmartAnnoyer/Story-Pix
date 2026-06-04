@@ -9,7 +9,7 @@ export class Invoice {
   @Prop({ type: Types.ObjectId, ref: 'Studio', required: true, index: true })
   studioId!: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'Subscription', required: true, index: true })
+  @Prop({ type: Types.ObjectId, ref: 'Subscription', required: true })
   subscriptionId!: Types.ObjectId;
 
   @Prop({ type: Types.ObjectId, ref: 'Payment' })
