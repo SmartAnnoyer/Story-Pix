@@ -34,6 +34,7 @@ services:
       # Required — Atlas URI with 0.0.0.0/0 or Render egress allowed
       - key: MONGODB_URI
         sync: false
+      # Comma-separated frontend origin(s), e.g. https://story-pix-web.onrender.com
       - key: CORS_ORIGIN
         sync: false
       - key: VIEWER_BASE_URL

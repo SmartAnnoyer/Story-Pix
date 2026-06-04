@@ -10,6 +10,7 @@ import { AppModule } from './modules/app.module';
 import { GlobalExceptionFilter } from './filters/global-exception.filter';
 import { ResponseInterceptor } from './interceptors/response.interceptor';
 import { LoggerService } from './shared/services/logger.service';
+import { applyCorsMiddleware } from './bootstrap/cors.middleware';
 import {
   legacyApiPrefixMiddleware,
   resolveApiBasePath,
@@ -42,8 +43,10 @@ async function bootstrap() {
   const apiPrefixFromEnv = process.env.API_PREFIX ?? 'api/v1';
   const apiBasePath = resolveApiBasePath(apiPrefixFromEnv);
 
+  const corsOrigin = process.env.CORS_ORIGIN ?? 'http://localhost:5173';
   const expressApp = express();
   expressApp.use(legacyApiPrefixMiddleware(apiBasePath));
+  applyCorsMiddleware(expressApp, corsOrigin);
 
   // Open a port immediately so Render's deploy port scan succeeds while Nest boots
   const httpServer = http.createServer(expressApp);
@@ -60,20 +63,13 @@ async function bootstrap() {
   app.useLogger(logger);
 
   const apiPrefix = configService.get<string>('app.apiPrefix', apiPrefixFromEnv);
-  const corsOrigin = configService.get<string>('app.corsOrigin', 'http://localhost:5173');
 
   app.setGlobalPrefix(apiPrefix, {
     exclude: [{ path: '/', method: RequestMethod.GET }],
   });
 
   app.use(cookieParser());
-  app.use(helmet());
-  app.enableCors({
-    origin: corsOrigin.split(',').map((origin) => origin.trim()),
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
-  });
+  app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
   app.useGlobalPipes(
     new ValidationPipe({
