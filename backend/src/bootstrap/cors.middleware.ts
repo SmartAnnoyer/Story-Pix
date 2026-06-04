@@ -1,4 +1,4 @@
-import cors, { type CorsOptions } from 'cors';
+import cors from 'cors';
 import type { Express } from 'express';
 
 /** Browser Origin headers always include a scheme; normalize env values to match. */
@@ -18,11 +18,11 @@ export const parseCorsOrigins = (corsOrigin: string): string[] =>
     .map(normalizeOrigin)
     .filter(Boolean);
 
-export const buildCorsOptions = (corsOrigin: string): CorsOptions => {
+export const createCorsConfig = (corsOrigin: string) => {
   const allowedOrigins = parseCorsOrigins(corsOrigin);
 
   return {
-    origin(origin, callback) {
+    origin(origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
         return;
@@ -41,5 +41,5 @@ export const buildCorsOptions = (corsOrigin: string): CorsOptions => {
  * Register CORS on the raw Express app before Nest mounts routes.
  */
 export const applyCorsMiddleware = (app: Express, corsOrigin: string): void => {
-  app.use(cors(buildCorsOptions(corsOrigin)));
+  app.use(cors(createCorsConfig(corsOrigin)));
 };
