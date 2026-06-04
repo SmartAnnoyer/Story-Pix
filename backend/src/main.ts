@@ -37,6 +37,7 @@ const listenHttpServer = (server: http.Server, port: number): Promise<void> =>
   });
 
 async function bootstrap() {
+  console.log('[Bootstrap] Starting Story-pix API…');
   requireProductionEnv();
 
   const port = parseInt(process.env.PORT ?? '3000', 10);
