@@ -17,7 +17,7 @@ const AR_INIT_TIMEOUT_MS = 20_000;
 export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<Element | null>(null);
-  const [status, setStatus] = useState<ScanOverlayMessage>('loading');
+  const [status, setStatus] = useState<ScanOverlayMessage>('preparing');
   const [activeTarget, setActiveTarget] = useState<ViewerManifestTarget | null>(null);
   const [mindUrl, setMindUrl] = useState<string | null>(null);
   const [prepareError, setPrepareError] = useState<string | null>(null);

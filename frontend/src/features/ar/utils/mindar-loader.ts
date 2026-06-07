@@ -18,17 +18,19 @@ declare global {
   }
 }
 
-/** Base MindAR image tracking (Compiler + Controller) — no A-Frame dependency */
-const MINDAR_IMAGE_SCRIPT =
-  'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js';
-const AFRAME_SCRIPT = 'https://aframe.io/releases/1.5.0/aframe.min.js';
-/** Must load after A-Frame; references global AFRAME at parse time */
-const MINDAR_AFRAME_SCRIPT =
-  'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js';
+/**
+ * MindAR 1.2.x `mindar-image.prod.js` on npm is ESM-only (breaks classic script tags).
+ * Use 1.1.4 IIFE builds from jsDelivr — same as official MindAR HTML examples.
+ * @see https://hiukim.github.io/mind-ar-js-doc/quick-start/compile
+ */
+const MINDAR_VERSION = '1.1.4';
+const MINDAR_IMAGE_SCRIPT = `https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@${MINDAR_VERSION}/dist/mindar-image.prod.js`;
+const AFRAME_SCRIPT = 'https://aframe.io/releases/1.2.0/aframe.min.js';
+const MINDAR_AFRAME_SCRIPT = `https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@${MINDAR_VERSION}/dist/mindar-image-aframe.prod.js`;
 
 const IMAGE_LOAD_TIMEOUT_MS = 30_000;
 const COMPILE_TIMEOUT_MS = 120_000;
-const GLOBAL_READY_TIMEOUT_MS = 30_000;
+const GLOBAL_READY_TIMEOUT_MS = 45_000;
 
 let compilerScriptsPromise: Promise<void> | null = null;
 let sceneScriptsPromise: Promise<void> | null = null;
@@ -63,13 +65,8 @@ const loadScript = (src: string): Promise<void> =>
       return;
     }
 
-    if (existing) {
-      existing.addEventListener('load', () => resolve(), { once: true });
-      existing.addEventListener('error', () => reject(new Error(`Failed to load ${src}`)), {
-        once: true,
-      });
-      return;
-    }
+    // Drop broken/partial tags (e.g. failed ESM load from an older deploy)
+    existing?.remove();
 
     const script = document.createElement('script');
     script.src = src;
@@ -77,23 +74,29 @@ const loadScript = (src: string): Promise<void> =>
       script.dataset.mindarLoaded = 'true';
       resolve();
     };
-    script.onerror = () => reject(new Error(`Failed to load ${src}`));
+    script.onerror = () => {
+      script.remove();
+      reject(new Error(`Failed to load ${src}`));
+    };
     document.head.appendChild(script);
   });
 
-/** Loads MindAR compiler only (for .mind generation in the browser). */
+/** Loads MindAR compiler (browser IIFE build with window.MINDAR.IMAGE.Compiler). */
 export const loadCompilerScript = (): Promise<void> => {
   if (compilerScriptsPromise) return compilerScriptsPromise;
 
   compilerScriptsPromise = (async () => {
     await loadScript(MINDAR_IMAGE_SCRIPT);
     await waitUntil(() => Boolean(window.MINDAR?.IMAGE?.Compiler), 'MindAR compiler');
-  })();
+  })().catch((error) => {
+    compilerScriptsPromise = null;
+    throw error;
+  });
 
   return compilerScriptsPromise;
 };
 
-/** Loads MindAR + A-Frame in order for the live AR scene. */
+/** Loads MindAR + A-Frame in documented order for the live AR scene. */
 export const loadArScripts = (): Promise<void> => {
   if (sceneScriptsPromise) return sceneScriptsPromise;
 
@@ -106,7 +109,10 @@ export const loadArScripts = (): Promise<void> => {
 
     await loadScript(MINDAR_AFRAME_SCRIPT);
     await waitUntil(() => Boolean(window.AFRAME?.registerComponent), 'MindAR A-Frame integration');
-  })();
+  })().catch((error) => {
+    sceneScriptsPromise = null;
+    throw error;
+  });
 
   return sceneScriptsPromise;
 };
@@ -162,4 +168,4 @@ export const compileMindFile = async (imageUrls: string[]): Promise<string> => {
 };
 
 export const getMindCacheKey = (albumSlug: string, targetIds: string[]) =>
-  `storypix-mind-v2-${albumSlug}-${targetIds.join('-')}`;
+  `storypix-mind-v3-${MINDAR_VERSION}-${albumSlug}-${targetIds.join('-')}`;
