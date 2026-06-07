@@ -4,7 +4,7 @@ import { ScanEventType } from '@/types/ar-target.types';
 import { detectDeviceInfo, getViewerSessionId, viewerService } from '@/services/viewer.service';
 import { BrandLogo } from '@/components/BrandLogo';
 import { ScanStatusOverlay } from './ScanStatusOverlay';
-import { VideoOverlay } from './VideoOverlay';
+import { TargetFrameVideo, type VideoDisplayMode } from './TargetFrameVideo';
 import { ViewerControlBar } from './ViewerControlBar';
 import type { ViewerPhase } from './ViewerProgressBar';
 import {
@@ -22,6 +22,7 @@ import {
   isCameraPreviewLive,
   type CameraFacing,
 } from '../utils/mindar-scene';
+import { getTargetAspectRatio } from '../utils/target-projection';
 import './ARViewer.css';
 
 interface ARViewerProps {
@@ -55,10 +56,16 @@ const waitForCameraPreview = async (
 
 export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const targetEntitiesRef = useRef<HTMLElement[]>([]);
+  const targetTrackedRef = useRef(false);
+  const videoModeRef = useRef<VideoDisplayMode>('frame');
   const listenersAttachedRef = useRef(false);
   const targetFoundTimersRef = useRef<Map<number, number>>(new Map());
   const [status, setStatus] = useState<ScanOverlayMessage>('preparing');
   const [activeTarget, setActiveTarget] = useState<ViewerManifestTarget | null>(null);
+  const [activeMindIndex, setActiveMindIndex] = useState<number | null>(null);
+  const [targetAspectRatio, setTargetAspectRatio] = useState(1.414);
+  const [videoMode, setVideoMode] = useState<VideoDisplayMode>('frame');
   const [mindBundle, setMindBundle] = useState<MindBundle | null>(null);
   const [prepareError, setPrepareError] = useState<string | null>(null);
   const [statusDetail, setStatusDetail] = useState<string | null>(null);
@@ -186,6 +193,10 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
   }, [status]);
 
   useEffect(() => {
+    videoModeRef.current = videoMode;
+  }, [videoMode]);
+
+  useEffect(() => {
     void recordEvent(ScanEventType.VIEWER_OPEN);
   }, [recordEvent]);
 
@@ -205,6 +216,9 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
       setStatusDetail(null);
       setProgress(0.05);
       setActiveTarget(null);
+      setActiveMindIndex(null);
+      setVideoMode('frame');
+      targetTrackedRef.current = false;
 
       try {
         const cached = await readMindCache(mindCacheKey);
@@ -290,8 +304,9 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
           targetCount: targets.length,
           facingMode,
         });
+        targetEntitiesRef.current = targetEntities;
 
-        const confirmTargetMatch = (target: ViewerManifestTarget) => {
+        const confirmTargetMatch = (target: ViewerManifestTarget, mindIndex: number) => {
           if (!mounted) return;
 
           if (!scanningEnabledRef.current || !isCameraPreviewLive(host)) {
@@ -315,6 +330,10 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
           }
 
           setActiveTarget(target);
+          setActiveMindIndex(mindIndex);
+          setTargetAspectRatio(getTargetAspectRatio(mindCacheKey, mindIndex));
+          setVideoMode('frame');
+          targetTrackedRef.current = true;
           setStatus('match_found');
           void recordEventRef.current(ScanEventType.SCAN_SUCCESS, target);
         };
@@ -330,13 +349,14 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
             entity.addEventListener('targetFound', () => {
               if (!mounted || !scanningEnabledRef.current) return;
               if (!isCameraPreviewLive(host)) return;
+              targetTrackedRef.current = true;
 
               const pending = targetFoundTimersRef.current.get(mindIndex);
               if (pending) window.clearTimeout(pending);
 
               const timer = window.setTimeout(() => {
                 targetFoundTimersRef.current.delete(mindIndex);
-                confirmTargetMatch(target);
+                confirmTargetMatch(target, mindIndex);
               }, TARGET_FOUND_CONFIRM_MS);
 
               targetFoundTimersRef.current.set(mindIndex, timer);
@@ -351,7 +371,15 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
               }
 
               if (!mounted) return;
+              targetTrackedRef.current = false;
+
+              if (videoModeRef.current === 'fullscreen') {
+                return;
+              }
+
               setActiveTarget((current) => (current?.id === target.id ? null : current));
+              setActiveMindIndex(null);
+              setVideoMode('frame');
               setStatus('scanning');
               setStatusDetail(null);
               setProgress(0.92);
@@ -506,13 +534,41 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
     }
   };
 
+  const stopVideoPlayback = useCallback(() => {
+    setActiveTarget(null);
+    setActiveMindIndex(null);
+    setVideoMode('frame');
+    targetTrackedRef.current = false;
+  }, []);
+
+  const resumeScanningAfterVideo = useCallback(() => {
+    stopVideoPlayback();
+    scanningEnabledRef.current = true;
+    setStatus('scanning');
+    setStatusDetail(null);
+    setProgress(0.92);
+    startScanTimers();
+  }, [startScanTimers, stopVideoPlayback]);
+
+  const handleExitFullscreen = useCallback(() => {
+    if (targetTrackedRef.current) {
+      setVideoMode('frame');
+      return;
+    }
+    resumeScanningAfterVideo();
+  }, [resumeScanningAfterVideo]);
+
+  const handleFullscreenEnded = useCallback(() => {
+    resumeScanningAfterVideo();
+  }, [resumeScanningAfterVideo]);
+
   const handleRetryScan = () => {
     clearScanTimers();
     setStatusDetail(null);
     setPrepareError(null);
     setScanSeconds(0);
     setProgress(0.92);
-    setActiveTarget(null);
+    stopVideoPlayback();
     scanningEnabledRef.current = false;
 
     if (
@@ -542,30 +598,38 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
   };
 
   const showControls =
-    status === 'scanning' ||
-    status === 'move_closer' ||
-    status === 'loading' ||
-    status === 'match_found' ||
-    status === 'no_match' ||
-    status === 'camera_required';
+    videoMode !== 'fullscreen' &&
+    status !== 'recognized' &&
+    (status === 'scanning' ||
+      status === 'move_closer' ||
+      status === 'loading' ||
+      status === 'match_found' ||
+      status === 'no_match' ||
+      status === 'camera_required');
 
   return (
     <div className="relative h-[100dvh] w-full overflow-hidden bg-black">
       <div ref={containerRef} className="ar-scene-host" />
-      <VideoOverlay
-        videoUrl={activeVideoUrl}
+      <TargetFrameVideo
+        host={containerRef.current}
+        targetEntity={
+          activeMindIndex !== null ? (targetEntitiesRef.current[activeMindIndex] ?? null) : null
+        }
+        aspectRatio={targetAspectRatio}
+        primaryUrl={activeVideoUrl}
         fallbackUrl={activeVideoFallbackUrl}
         active={Boolean(
-          activeTarget && activeVideoUrl && (status === 'match_found' || status === 'recognized'),
+          activeTarget?.videoAvailable && (activeVideoUrl || activeVideoFallbackUrl),
         )}
-        showFrame={status === 'recognized'}
+        mode={videoMode}
+        onModeChange={setVideoMode}
         onPlay={() => {
           setStatus('recognized');
           setStatusDetail(null);
           if (activeTarget) void recordEvent(ScanEventType.VIDEO_PLAY, activeTarget);
         }}
         onError={(message) => {
-          setActiveTarget(null);
+          stopVideoPlayback();
           setStatusDetail(message);
           const host = containerRef.current;
           if (host && isCameraPreviewLive(host)) {
@@ -578,6 +642,8 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
           scanningEnabledRef.current = false;
           setStatus('video_unavailable');
         }}
+        onEnded={handleFullscreenEnded}
+        onExitFullscreen={handleExitFullscreen}
       />
       <ScanStatusOverlay
         status={status}
@@ -604,7 +670,11 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
 
       <div
         className={`pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/85 via-black/40 to-transparent p-4 text-white transition-opacity ${
-          activeTarget ? 'opacity-40' : 'opacity-100'
+          videoMode === 'fullscreen'
+            ? 'opacity-0'
+            : activeTarget
+              ? 'opacity-40'
+              : 'opacity-100'
         }`}
       >
         <p className="text-lg font-semibold">{manifest.album.albumName}</p>

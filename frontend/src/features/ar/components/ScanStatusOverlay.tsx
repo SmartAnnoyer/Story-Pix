@@ -91,13 +91,13 @@ export const ScanStatusOverlay = ({
 
         {phase === 'done' && status === 'match_found' ? (
           <p className="mb-0 mt-1 text-center text-xs text-white/65">
-            Match confirmed — loading your video…
+            Video plays on the photo frame — tap the photo if it does not start. Double-tap for full screen.
           </p>
         ) : null}
 
         {status === 'scanning' || status === 'move_closer' ? (
           <p className="mb-0 mt-1 text-center text-xs text-white/65">
-            Hold the printed photo flat, fill most of the screen, and avoid glare. Video plays on the photo when matched.
+            Hold the printed photo flat. Video plays on the photo when matched — double-tap for full screen.
           </p>
         ) : null}
 

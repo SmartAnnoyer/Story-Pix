@@ -32,8 +32,12 @@
   pointer-events: none;
 }
 
-.ar-video-overlay {
-  z-index: 30;
-  object-fit: cover;
+.ar-video-overlay,
+.ar-target-video-frame {
+  z-index: 15;
   background: #000;
+}
+
+.ar-target-video-fullscreen {
+  z-index: 40;
 }
