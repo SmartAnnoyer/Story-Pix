@@ -31,6 +31,12 @@ export abstract class IStorageService {
   abstract getObjectMetadata(key: string): Promise<StorageObjectMetadata | null>;
 
   abstract getObjectBuffer(key: string): Promise<StorageObjectBody | null>;
+
+  abstract putObjectBuffer(
+    key: string,
+    buffer: Buffer,
+    contentType: string,
+  ): Promise<{ key: string; publicUrl: string }>;
 }
 
 export const STORAGE_SERVICE = Symbol('STORAGE_SERVICE');

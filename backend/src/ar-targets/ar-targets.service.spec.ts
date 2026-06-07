@@ -4,6 +4,7 @@ import { ConflictException } from '@nestjs/common';
 import { ArTargetsService } from './ar-targets.service';
 import { AlbumsService } from '../albums/albums.service';
 import { MediaService } from '../media/media.service';
+import { MindArCompilerService } from '../mind-ar/mind-ar-compiler.service';
 import { ArTargetStatus, MediaStatus, MediaType } from '../common/enums';
 
 describe('ArTargetsService', () => {
@@ -51,6 +52,10 @@ describe('ArTargetsService', () => {
         { provide: getModelToken('ArTarget'), useValue: arTargetModel },
         { provide: AlbumsService, useValue: albumsService },
         { provide: MediaService, useValue: mediaService },
+        {
+          provide: MindArCompilerService,
+          useValue: { scheduleAlbumMindRebuild: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 

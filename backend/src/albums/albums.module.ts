@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { MindArModule } from '../mind-ar/mind-ar.module';
 import { Album, AlbumSchema } from './schemas/album.schema';
 import { AlbumsService } from './albums.service';
 
@@ -12,6 +13,7 @@ import { AlbumsService } from './albums.service';
     SubscriptionsModule,
     AnalyticsModule,
     forwardRef(() => NotificationsModule),
+    MindArModule,
   ],
   providers: [AlbumsService],
   exports: [AlbumsService, MongooseModule],

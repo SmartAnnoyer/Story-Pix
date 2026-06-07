@@ -9,6 +9,7 @@ import { FilterQuery, Model, SortOrder } from 'mongoose';
 import { AlbumsService } from '../albums/albums.service';
 import { ArTargetStatus, MediaStatus, MediaType } from '../common/enums';
 import { MediaService } from '../media/media.service';
+import { MindArCompilerService } from '../mind-ar/mind-ar-compiler.service';
 import {
   ArTargetSortField,
   ArTargetSortOrder,
@@ -24,6 +25,7 @@ export class ArTargetsService {
     @InjectModel(ArTarget.name) private readonly arTargetModel: Model<ArTargetDocument>,
     private readonly albumsService: AlbumsService,
     private readonly mediaService: MediaService,
+    private readonly mindArCompilerService: MindArCompilerService,
   ) {}
 
   async findAll(studioId: string, query: QueryArTargetsDto) {
@@ -149,6 +151,7 @@ export class ArTargetsService {
     target.status = ArTargetStatus.ACTIVE;
     await target.save();
 
+    void this.mindArCompilerService.scheduleAlbumMindRebuild(target.albumId.toString());
     return this.serializeWithMedia(studioId, target);
   }
 
@@ -163,6 +166,7 @@ export class ArTargetsService {
     target.targetIndex = null;
     await target.save();
 
+    void this.mindArCompilerService.scheduleAlbumMindRebuild(target.albumId.toString());
     return this.serializeWithMedia(studioId, target);
   }
 

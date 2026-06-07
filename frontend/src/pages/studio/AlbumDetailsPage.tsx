@@ -18,6 +18,7 @@ import { AlbumStatusBadge } from '@/features/albums/components/AlbumStatusBadge'
 import { EventTypeBadge } from '@/features/albums/components/EventTypeBadge';
 import { PublishToggle } from '@/features/albums/components/PublishToggle';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { AlbumViewerQrCard } from '@/features/studio/components/AlbumViewerQrCard';
 import { EVENT_TYPE_LABELS, AlbumStatus } from '@/types/album.types';
 import { ROUTES } from '@/routes/paths';
 
@@ -122,7 +123,12 @@ export const AlbumDetailsPage = () => {
               </Text>
             ) : null}
           </Card>
-          <Card title="Public Viewer">
+          <AlbumViewerQrCard
+            albumName={album.albumName}
+            viewerUrl={album.publicViewerUrl}
+            published={album.status === AlbumStatus.PUBLISHED}
+          />
+          <Card title="Public Viewer Link">
             <Paragraph type="secondary" className="text-sm">
               Share this link with customers once AR mappings are published.
             </Paragraph>

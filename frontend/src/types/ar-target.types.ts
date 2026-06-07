@@ -81,6 +81,13 @@ export interface ViewerManifestTarget {
   videoAvailable: boolean;
 }
 
+export interface ViewerManifestMindFile {
+  url: string;
+  hash: string | null;
+  targetDimensions: Array<{ width: number; height: number }>;
+  compiledAt: string | null;
+}
+
 export interface ViewerManifest {
   album: {
     id: string;
@@ -94,6 +101,7 @@ export interface ViewerManifest {
     studioName: string | null;
     logoUrl: string | null;
   };
+  mindFile: ViewerManifestMindFile | null;
 }
 
 export interface RecordViewerEventPayload {

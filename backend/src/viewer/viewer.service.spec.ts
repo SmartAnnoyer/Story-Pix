@@ -8,6 +8,7 @@ import { MediaService } from '../media/media.service';
 import { AnalyticsIngestionService } from '../analytics/analytics-ingestion.service';
 import { LimitValidationService } from '../subscriptions/limit-validation.service';
 import { UsageService } from '../subscriptions/usage.service';
+import { MindArCompilerService } from '../mind-ar/mind-ar-compiler.service';
 import { STORAGE_SERVICE } from '../storage/interfaces/storage.interface';
 import { ScanEventType } from '../common/enums';
 
@@ -40,6 +41,10 @@ describe('ViewerService', () => {
         { provide: LimitValidationService, useValue: limitValidationService },
         { provide: UsageService, useValue: usageService },
         { provide: STORAGE_SERVICE, useValue: storageService },
+        {
+          provide: MindArCompilerService,
+          useValue: { scheduleAlbumMindRebuild: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 

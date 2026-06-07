@@ -8,6 +8,7 @@ import { MediaModule } from '../media/media.module';
 import { StorageModule } from '../storage/storage.module';
 import { Studio, StudioSchema } from '../studios/schemas/studio.schema';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { MindArModule } from '../mind-ar/mind-ar.module';
 import { ViewerController } from './viewer.controller';
 import { ViewerService } from './viewer.service';
 
@@ -23,6 +24,7 @@ import { ViewerService } from './viewer.service';
     StorageModule,
     SubscriptionsModule,
     AnalyticsModule,
+    MindArModule,
   ],
   controllers: [ViewerController],
   providers: [ViewerService],

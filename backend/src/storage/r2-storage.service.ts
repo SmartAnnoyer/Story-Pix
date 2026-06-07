@@ -128,4 +128,25 @@ export class R2StorageService extends IStorageService {
       return null;
     }
   }
+
+  async putObjectBuffer(
+    key: string,
+    buffer: Buffer,
+    contentType: string,
+  ): Promise<{ key: string; publicUrl: string }> {
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: key,
+        Body: buffer,
+        ContentType: contentType,
+        CacheControl: 'public, max-age=31536000, immutable',
+      }),
+    );
+
+    return {
+      key,
+      publicUrl: this.getPublicUrl(key),
+    };
+  }
 }

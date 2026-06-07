@@ -28,6 +28,8 @@ import './ARViewer.css';
 interface ARViewerProps {
   albumSlug: string;
   manifest: ViewerManifest;
+  /** Populated when welcome-screen warmup finished before Start. */
+  prefetchedMindBundle?: { url: string; cacheKey: string } | null;
 }
 
 type MindBundle = {
@@ -54,27 +56,30 @@ const waitForCameraPreview = async (
   return isCameraPreviewLive(host);
 };
 
-export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
+export const ARViewer = ({ albumSlug, manifest, prefetchedMindBundle }: ARViewerProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const targetEntitiesRef = useRef<HTMLElement[]>([]);
   const targetTrackedRef = useRef(false);
   const videoModeRef = useRef<VideoDisplayMode>('frame');
   const listenersAttachedRef = useRef(false);
   const targetFoundTimersRef = useRef<Map<number, number>>(new Map());
-  const [status, setStatus] = useState<ScanOverlayMessage>('preparing');
+  const [status, setStatus] = useState<ScanOverlayMessage>(
+    prefetchedMindBundle ? 'loading' : 'preparing',
+  );
   const [activeTarget, setActiveTarget] = useState<ViewerManifestTarget | null>(null);
   const [activeMindIndex, setActiveMindIndex] = useState<number | null>(null);
   const [targetAspectRatio, setTargetAspectRatio] = useState(1.414);
   const [videoMode, setVideoMode] = useState<VideoDisplayMode>('frame');
-  const [mindBundle, setMindBundle] = useState<MindBundle | null>(null);
+  const [mindBundle, setMindBundle] = useState<MindBundle | null>(prefetchedMindBundle ?? null);
   const [prepareError, setPrepareError] = useState<string | null>(null);
   const [statusDetail, setStatusDetail] = useState<string | null>(null);
-  const [progress, setProgress] = useState(0.05);
+  const [progress, setProgress] = useState(prefetchedMindBundle ? 0.72 : 0.05);
   const [scanSeconds, setScanSeconds] = useState(0);
   const [facingMode, setFacingMode] = useState<CameraFacing>('environment');
   const [flipping, setFlipping] = useState(false);
   const [sceneGeneration, setSceneGeneration] = useState(0);
   const [prepareGeneration, setPrepareGeneration] = useState(0);
+  const skipWarmupPrepareRef = useRef(Boolean(prefetchedMindBundle));
   const scanHintTimeoutRef = useRef<number | null>(null);
   const scanNoMatchTimeoutRef = useRef<number | null>(null);
   const scanTickRef = useRef<number | null>(null);
@@ -94,8 +99,8 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
   );
 
   const mindCacheKey = useMemo(
-    () => getMindCacheKey(albumSlug, mindCacheTargets),
-    [albumSlug, mindCacheTargets],
+    () => getMindCacheKey(albumSlug, mindCacheTargets, manifest.mindFile?.hash),
+    [albumSlug, mindCacheTargets, manifest.mindFile?.hash],
   );
 
   const trackingImageUrls = useMemo(
@@ -201,6 +206,11 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
   }, [recordEvent]);
 
   useEffect(() => {
+    if (skipWarmupPrepareRef.current) {
+      skipWarmupPrepareRef.current = false;
+      return undefined;
+    }
+
     let cancelled = false;
     let compiledMindUrl: string | null = null;
 
@@ -331,7 +341,12 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
 
           setActiveTarget(target);
           setActiveMindIndex(mindIndex);
-          setTargetAspectRatio(getTargetAspectRatio(mindCacheKey, mindIndex));
+          setTargetAspectRatio(
+            manifest.mindFile?.targetDimensions?.[mindIndex]
+              ? manifest.mindFile.targetDimensions[mindIndex].height /
+                  manifest.mindFile.targetDimensions[mindIndex].width
+              : getTargetAspectRatio(mindCacheKey, mindIndex),
+          );
           setVideoMode('frame');
           targetTrackedRef.current = true;
           setStatus('match_found');

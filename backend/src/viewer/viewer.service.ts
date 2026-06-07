@@ -14,6 +14,7 @@ import { MediaService } from '../media/media.service';
 import { LimitValidationService } from '../subscriptions/limit-validation.service';
 import { UsageService } from '../subscriptions/usage.service';
 import { ArTargetsService } from '../ar-targets/ar-targets.service';
+import { MindArCompilerService } from '../mind-ar/mind-ar-compiler.service';
 import { IStorageService, STORAGE_SERVICE } from '../storage/interfaces/storage.interface';
 import { RecordViewerEventDto } from './dto/viewer.dto';
 import { Album, AlbumDocument } from '../albums/schemas/album.schema';
@@ -32,6 +33,7 @@ export class ViewerService {
     private readonly analyticsIngestionService: AnalyticsIngestionService,
     private readonly limitValidationService: LimitValidationService,
     private readonly usageService: UsageService,
+    private readonly mindArCompilerService: MindArCompilerService,
   ) {}
 
   async getPublicManifest(albumSlug: string) {
@@ -67,6 +69,12 @@ export class ViewerService {
       }),
     );
 
+    const filteredTargets = manifestTargets.filter((target) => target.photoUrl);
+
+    if (!albumDoc.mindFileUrl && filteredTargets.length > 0) {
+      void this.mindArCompilerService.scheduleAlbumMindRebuild(albumDoc._id.toString());
+    }
+
     return {
       album: {
         id: album.id,
@@ -75,11 +83,19 @@ export class ViewerService {
         coverImage: album.coverImage,
         description: album.description,
       },
-      targets: manifestTargets.filter((target) => target.photoUrl),
+      targets: filteredTargets,
       branding: {
         studioName: studio?.studioName ?? null,
         logoUrl: studio?.logo ?? null,
       },
+      mindFile: albumDoc.mindFileUrl
+        ? {
+            url: albumDoc.mindFileUrl,
+            hash: albumDoc.mindFileHash ?? null,
+            targetDimensions: albumDoc.mindFileTargetDimensions ?? [],
+            compiledAt: albumDoc.mindFileCompiledAt?.toISOString() ?? null,
+          }
+        : null,
     };
   }
 

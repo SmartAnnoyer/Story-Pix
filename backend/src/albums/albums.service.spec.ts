@@ -8,6 +8,7 @@ import { Album } from './schemas/album.schema';
 import { UsageService } from '../subscriptions/usage.service';
 import { AnalyticsIngestionService } from '../analytics/analytics-ingestion.service';
 import { EventBusService } from '../notifications/services/event-bus.service';
+import { MindArCompilerService } from '../mind-ar/mind-ar-compiler.service';
 import { AlbumStatus, EventType } from '../common/enums';
 
 const STUDIO_ID = '507f1f77bcf86cd799439011';
@@ -67,6 +68,10 @@ describe('AlbumsService', () => {
         },
         { provide: AnalyticsIngestionService, useValue: { recordEvent: jest.fn().mockResolvedValue({ id: '1' }) } },
         { provide: EventBusService, useValue: { publish: jest.fn() } },
+        {
+          provide: MindArCompilerService,
+          useValue: { scheduleAlbumMindRebuild: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 

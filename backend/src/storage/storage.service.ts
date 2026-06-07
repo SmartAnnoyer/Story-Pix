@@ -54,4 +54,15 @@ export class MockStorageService extends IStorageService {
   async getObjectBuffer(_key: string): Promise<import('./interfaces/storage.interface').StorageObjectBody | null> {
     return null;
   }
+
+  async putObjectBuffer(
+    key: string,
+    buffer: Buffer,
+    contentType: string,
+  ): Promise<{ key: string; publicUrl: string }> {
+    return {
+      key,
+      publicUrl: this.getPublicUrl(key),
+    };
+  }
 }

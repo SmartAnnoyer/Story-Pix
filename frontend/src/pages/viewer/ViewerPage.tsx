@@ -1,59 +1,71 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Result, Spin } from 'antd';
+import { Result } from 'antd';
 import { ARViewer } from '@/features/ar/components/ARViewer';
-import { ScanStatusOverlay } from '@/features/ar/components/ScanStatusOverlay';
-import { viewerService } from '@/services/viewer.service';
-import type { ViewerManifest } from '@/types/ar-target.types';
+import { ViewerWelcomeScreen } from '@/features/ar/components/ViewerWelcomeScreen';
+import {
+  preloadViewerScripts,
+  startViewerWarmup,
+  type WarmupProgress,
+} from '@/features/ar/utils/viewer-warmup';
 import { getErrorMessage } from '@/api/client';
+
+const INITIAL_WARMUP: WarmupProgress = {
+  progress: 0.05,
+  stage: 'manifest',
+  message: 'Opening your album…',
+  ready: false,
+  error: null,
+  manifest: null,
+  mindBundle: null,
+};
 
 export const ViewerPage = () => {
   const { albumSlug = '' } = useParams();
-  const [manifest, setManifest] = useState<ViewerManifest | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [started, setStarted] = useState(false);
+  const [warmup, setWarmup] = useState<WarmupProgress>(INITIAL_WARMUP);
 
   useEffect(() => {
-    let cancelled = false;
+    preloadViewerScripts();
+  }, []);
 
-    const loadManifest = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await viewerService.getManifest(albumSlug);
-        if (!cancelled) setManifest(data);
-      } catch (err) {
-        if (!cancelled) setError(getErrorMessage(err, 'Unable to load album viewer'));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
+  useEffect(() => {
+    if (!albumSlug) return undefined;
 
-    void loadManifest();
+    setStarted(false);
+    setWarmup(INITIAL_WARMUP);
 
-    return () => {
-      cancelled = true;
-    };
+    void startViewerWarmup(albumSlug, setWarmup).catch((error) => {
+      setWarmup((current) => ({
+        ...current,
+        stage: 'error',
+        error: getErrorMessage(error, 'Unable to prepare viewer'),
+        ready: false,
+      }));
+    });
+
+    return undefined;
   }, [albumSlug]);
 
-  if (loading) {
-    return (
-      <div className="relative flex h-[100dvh] items-center justify-center bg-black">
-        <Spin size="large" />
-        <ScanStatusOverlay status="loading" />
-      </div>
-    );
-  }
-
-  if (error || !manifest) {
+  if (warmup.stage === 'error' && !warmup.manifest) {
     return (
       <div className="flex h-[100dvh] items-center justify-center bg-black p-6">
-        <Result status="404" title="Album unavailable" subTitle={error ?? 'This album is not published.'} />
+        <Result status="404" title="Album unavailable" subTitle={warmup.error ?? 'This album is not published.'} />
       </div>
     );
   }
 
-  if (!manifest.targets.length) {
+  if (!started) {
+    return (
+      <ViewerWelcomeScreen
+        manifest={warmup.manifest}
+        warmup={warmup}
+        onStart={() => setStarted(true)}
+      />
+    );
+  }
+
+  if (!warmup.manifest?.targets.length) {
     return (
       <div className="flex h-[100dvh] items-center justify-center bg-black p-6">
         <Result
@@ -65,5 +77,11 @@ export const ViewerPage = () => {
     );
   }
 
-  return <ARViewer albumSlug={albumSlug} manifest={manifest} />;
+  return (
+    <ARViewer
+      albumSlug={albumSlug}
+      manifest={warmup.manifest}
+      prefetchedMindBundle={warmup.mindBundle}
+    />
+  );
 };

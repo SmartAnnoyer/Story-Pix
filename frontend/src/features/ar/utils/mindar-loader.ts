@@ -201,8 +201,9 @@ export const compileMindFile = async (
 export const getMindCacheKey = (
   albumSlug: string,
   targets: Array<{ id: string; photoMediaId: string }>,
+  mindFileHash?: string | null,
 ) =>
-  `storypix-mind-v5-${MINDAR_VERSION}-${albumSlug}-${targets
+  `storypix-mind-v6-${MINDAR_VERSION}-${mindFileHash ?? 'client'}-${albumSlug}-${targets
     .map((target) => `${target.id}:${target.photoMediaId}`)
     .join('|')}`;
 
@@ -219,13 +220,28 @@ export const clearMindCacheForAlbum = (
   }
 };
 
-const isBlobUrlAlive = async (url: string): Promise<boolean> => {
-  try {
-    const response = await fetch(url);
-    return response.ok;
-  } catch {
-    return false;
+const isRemoteMindUrl = (url: string) => url.startsWith('http://') || url.startsWith('https://');
+
+const isMindUrlAlive = async (url: string): Promise<boolean> => {
+  if (url.startsWith('blob:')) {
+    try {
+      const response = await fetch(url);
+      return response.ok;
+    } catch {
+      return false;
+    }
   }
+
+  if (isRemoteMindUrl(url)) {
+    try {
+      const response = await fetch(url, { method: 'HEAD' });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  return false;
 };
 
 export const readMindCache = async (
@@ -237,14 +253,17 @@ export const readMindCache = async (
   try {
     const parsed = JSON.parse(raw) as CompileMindResult;
     if (!parsed.mindUrl) return null;
-    if (!(await isBlobUrlAlive(parsed.mindUrl))) {
+    if (isRemoteMindUrl(parsed.mindUrl)) {
+      return parsed;
+    }
+    if (!(await isMindUrlAlive(parsed.mindUrl))) {
       sessionStorage.removeItem(cacheKey);
       return null;
     }
     return parsed;
   } catch {
     if (raw.startsWith('blob:')) {
-      if (!(await isBlobUrlAlive(raw))) {
+      if (!(await isMindUrlAlive(raw))) {
         sessionStorage.removeItem(cacheKey);
         return null;
       }

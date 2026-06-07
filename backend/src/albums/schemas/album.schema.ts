@@ -48,6 +48,23 @@ export class Album {
   @Prop({ type: Date, default: null })
   publishedAt?: Date | null;
 
+  /** Pre-compiled MindAR target library (.mind) for the public viewer. */
+  @Prop({ type: String, default: null })
+  mindFileKey?: string | null;
+
+  @Prop({ type: String, default: null })
+  mindFileUrl?: string | null;
+
+  /** Bust viewer caches when mappings change. */
+  @Prop({ type: String, default: null })
+  mindFileHash?: string | null;
+
+  @Prop({ type: Date, default: null })
+  mindFileCompiledAt?: Date | null;
+
+  @Prop({ type: [Object], default: null })
+  mindFileTargetDimensions?: Array<{ width: number; height: number }> | null;
+
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   createdBy!: Types.ObjectId;
 

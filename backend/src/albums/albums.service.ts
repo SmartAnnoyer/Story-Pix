@@ -12,6 +12,7 @@ import { PaginatedResult } from '../common/dto/pagination.dto';
 import { AlbumStatus, AnalyticsEventType, DomainEventType } from '../common/enums';
 import { AnalyticsIngestionService } from '../analytics/analytics-ingestion.service';
 import { EventBusService } from '../notifications/services/event-bus.service';
+import { MindArCompilerService } from '../mind-ar/mind-ar-compiler.service';
 import { UsageService } from '../subscriptions/usage.service';
 import { Album, AlbumDocument } from './schemas/album.schema';
 import {
@@ -30,6 +31,7 @@ export class AlbumsService {
     private readonly configService: ConfigService,
     private readonly analyticsIngestionService: AnalyticsIngestionService,
     private readonly eventBus: EventBusService,
+    private readonly mindArCompilerService: MindArCompilerService,
   ) {}
 
   async findAll(studioId: string, query: QueryAlbumsDto): Promise<PaginatedResult<ReturnType<typeof this.serialize>>> {
@@ -154,6 +156,7 @@ export class AlbumsService {
     album.isPublished = true;
     album.publishedAt = new Date();
     await album.save();
+    void this.mindArCompilerService.scheduleAlbumMindRebuild(album._id.toString());
     void this.trackEvent(studioId, album._id.toString(), AnalyticsEventType.ALBUM_PUBLISHED);
     void this.eventBus.publish({
       eventType: DomainEventType.ALBUM_PUBLISHED,
@@ -173,6 +176,7 @@ export class AlbumsService {
     album.status = AlbumStatus.DRAFT;
     album.isPublished = false;
     await album.save();
+    void this.mindArCompilerService.scheduleAlbumMindRebuild(album._id.toString());
     return this.serialize(album);
   }
 
@@ -182,6 +186,7 @@ export class AlbumsService {
     album.status = AlbumStatus.ARCHIVED;
     album.isPublished = false;
     await album.save();
+    void this.mindArCompilerService.scheduleAlbumMindRebuild(album._id.toString());
     void this.trackEvent(studioId, album._id.toString(), AnalyticsEventType.ALBUM_ARCHIVED);
     void this.eventBus.publish({
       eventType: DomainEventType.ALBUM_ARCHIVED,
