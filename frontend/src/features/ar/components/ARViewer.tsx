@@ -19,8 +19,12 @@ import {
   destroyMindArScene,
   flipMindArCamera,
   isCameraPreviewLive,
+  pauseTargetVideos,
+  playTargetVideo,
+  preloadTargetVideos,
   type CameraFacing,
 } from '../utils/mindar-scene';
+import type { TrackingImageDimensions } from '../utils/tracking-image';
 import './ARViewer.css';
 
 interface ARViewerProps {
@@ -37,12 +41,17 @@ const AR_INIT_TIMEOUT_MS = 25_000;
 const SCAN_HINT_DELAY_MS = 8_000;
 const SCAN_NO_MATCH_DELAY_MS = 25_000;
 
+const TARGET_FOUND_CONFIRM_MS = 450;
+
 export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const listenersAttachedRef = useRef(false);
+  const targetFoundTimersRef = useRef<Map<number, number>>(new Map());
   const [status, setStatus] = useState<ScanOverlayMessage>('preparing');
   const [activeTarget, setActiveTarget] = useState<ViewerManifestTarget | null>(null);
+  const [useOverlayFallback, setUseOverlayFallback] = useState(false);
   const [mindBundle, setMindBundle] = useState<MindBundle | null>(null);
+  const [targetDimensions, setTargetDimensions] = useState<TrackingImageDimensions[]>([]);
   const [prepareError, setPrepareError] = useState<string | null>(null);
   const [statusDetail, setStatusDetail] = useState<string | null>(null);
   const [progress, setProgress] = useState(0.05);
@@ -83,17 +92,20 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
 
   const activeVideoUrl = useMemo(() => {
     if (!activeTarget?.videoAvailable) return null;
-    return (
-      activeTarget.videoUrl ??
-      viewerService.getMappingVideoUrl(albumSlug, activeTarget.id, activeTarget.videoMediaId)
+    return viewerService.getMappingVideoUrl(
+      albumSlug,
+      activeTarget.id,
+      activeTarget.videoMediaId,
     );
   }, [activeTarget, albumSlug]);
+
+  const activeVideoFallbackUrl = activeTarget?.videoUrl ?? null;
 
   const viewerPhase: ViewerPhase = useMemo(() => {
     if (status === 'preparing') return 'preparing';
     if (status === 'loading') return 'loading';
     if (status === 'scanning' || status === 'move_closer') return 'scanning';
-    if (status === 'recognized') return 'done';
+    if (status === 'match_found' || status === 'recognized') return 'done';
     if (status === 'compile_failed' || status === 'camera_required' || status === 'no_match') {
       return 'error';
     }
@@ -186,6 +198,7 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
         const cached = await readMindCache(mindCacheKey);
         if (cached && !cancelled) {
           setMindBundle({ url: cached.mindUrl, cacheKey: mindCacheKey });
+          setTargetDimensions(cached.targetDimensions);
           setProgress(0.72);
           setStatus('loading');
           return;
@@ -206,6 +219,7 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
 
         if (!cancelled) {
           setMindBundle({ url: compiled.mindUrl, cacheKey: mindCacheKey });
+          setTargetDimensions(compiled.targetDimensions);
           setProgress(0.72);
           setStatus('loading');
         }
@@ -261,9 +275,46 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
 
         const { scene, targetEntities } = buildMindArScene(host, {
           mindUrl: mindBundle.url,
-          targetCount: targets.length,
+          targets: targets.map((target, index) => ({
+            videoUrl: target.videoAvailable
+              ? viewerService.getMappingVideoUrl(albumSlug, target.id, target.videoMediaId)
+              : null,
+            width: targetDimensions[index]?.width ?? 0,
+            height: targetDimensions[index]?.height ?? 0,
+          })),
           facingMode,
         });
+
+        const confirmTargetMatch = async (target: ViewerManifestTarget, mindIndex: number) => {
+          if (!mounted) return;
+
+          clearScanTimers();
+          setProgress(1);
+          setStatusDetail(null);
+
+          if (!target.videoAvailable) {
+            setStatus('video_unavailable');
+            setStatusDetail('This mapping has no playable video file.');
+            void recordEventRef.current(ScanEventType.SCAN_FAILED, target);
+            return;
+          }
+
+          setActiveTarget(target);
+          setStatus('match_found');
+          void recordEventRef.current(ScanEventType.SCAN_SUCCESS, target);
+
+          const arPlayed = await playTargetVideo(host, mindIndex, true);
+          if (!mounted) return;
+
+          if (arPlayed) {
+            setUseOverlayFallback(false);
+            setStatus('recognized');
+            void recordEventRef.current(ScanEventType.VIDEO_PLAY, target);
+            return;
+          }
+
+          setUseOverlayFallback(true);
+        };
 
         const attachTargetListeners = () => {
           if (listenersAttachedRef.current) return;
@@ -275,26 +326,32 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
 
             entity.addEventListener('targetFound', () => {
               if (!mounted) return;
-              clearScanTimers();
-              setStatusDetail(null);
-              setProgress(1);
 
-              if (!target.videoAvailable || !target.videoUrl) {
-                setStatus('video_unavailable');
-                setStatusDetail('This mapping has no playable video file.');
-                void recordEventRef.current(ScanEventType.SCAN_FAILED, target);
-                return;
-              }
+              const pending = targetFoundTimersRef.current.get(mindIndex);
+              if (pending) window.clearTimeout(pending);
 
-              setActiveTarget(target);
-              setStatus('recognized');
-              void recordEventRef.current(ScanEventType.SCAN_SUCCESS, target);
+              const timer = window.setTimeout(() => {
+                targetFoundTimersRef.current.delete(mindIndex);
+                void confirmTargetMatch(target, mindIndex);
+              }, TARGET_FOUND_CONFIRM_MS);
+
+              targetFoundTimersRef.current.set(mindIndex, timer);
             });
 
             entity.addEventListener('targetLost', () => {
+              const pending = targetFoundTimersRef.current.get(mindIndex);
+              if (pending) {
+                window.clearTimeout(pending);
+                targetFoundTimersRef.current.delete(mindIndex);
+                return;
+              }
+
               if (!mounted) return;
+              pauseTargetVideos(host);
+              setUseOverlayFallback(false);
               setActiveTarget((current) => (current?.id === target.id ? null : current));
               setStatus('scanning');
+              setStatusDetail(null);
               setProgress(0.92);
               startScanTimers();
             });
@@ -302,7 +359,10 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
         };
 
         attachTargetListeners();
-        scene.addEventListener('loaded', attachTargetListeners, { once: true });
+        scene.addEventListener('loaded', () => {
+          attachTargetListeners();
+          void preloadTargetVideos(host);
+        }, { once: true });
 
         scene.addEventListener('arReady', () => {
           if (!mounted) return;
@@ -338,7 +398,12 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
         window.setTimeout(() => {
           if (!mounted) return;
           const current = statusRef.current;
-          if (current === 'scanning' || current === 'recognized' || current === 'move_closer') return;
+          if (
+            current === 'scanning' ||
+            current === 'recognized' ||
+            current === 'match_found' ||
+            current === 'move_closer'
+          ) return;
           if (!isCameraPreviewLive(host)) {
             setStatusDetail('Camera preview did not start. Tap flip camera or reload the page.');
             setStatus('camera_required');
@@ -360,6 +425,8 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
     return () => {
       mounted = false;
       listenersAttachedRef.current = false;
+      targetFoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+      targetFoundTimersRef.current.clear();
       clearScanTimers();
       destroyMindArScene(host);
     };
@@ -369,6 +436,7 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
     mindCacheKey,
     mindCacheTargets,
     targets,
+    targetDimensions,
     sceneGeneration,
     facingMode,
     clearScanTimers,
@@ -425,11 +493,13 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
     setScanSeconds(0);
     setProgress(0.92);
     setActiveTarget(null);
+    setUseOverlayFallback(false);
 
     if (
       status === 'no_match' ||
       status === 'camera_required' ||
-      status === 'compile_failed'
+      status === 'compile_failed' ||
+      status === 'video_unavailable'
     ) {
       clearMindCacheForAlbum(albumSlug, mindCacheTargets);
       setMindBundle(null);
@@ -462,9 +532,18 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
       <div ref={containerRef} className="ar-scene-host" />
       <VideoOverlay
         videoUrl={activeVideoUrl}
-        visible={status === 'recognized' && Boolean(activeVideoUrl)}
+        fallbackUrl={activeVideoFallbackUrl}
+        visible={useOverlayFallback && Boolean(activeTarget && activeVideoUrl)}
         onPlay={() => {
+          setStatus('recognized');
+          setStatusDetail(null);
           if (activeTarget) void recordEvent(ScanEventType.VIDEO_PLAY, activeTarget);
+        }}
+        onError={(message) => {
+          setUseOverlayFallback(false);
+          setActiveTarget(null);
+          setStatus('video_unavailable');
+          setStatusDetail(message);
         }}
       />
       <ScanStatusOverlay
@@ -477,7 +556,12 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
       />
       <ViewerControlBar
         showFlip={showControls}
-        showRetry={status === 'no_match' || status === 'move_closer' || status === 'camera_required'}
+        showRetry={
+          status === 'no_match' ||
+          status === 'move_closer' ||
+          status === 'camera_required' ||
+          status === 'video_unavailable'
+        }
         flipping={flipping}
         facingMode={facingMode}
         onFlip={() => void handleFlipCamera()}

@@ -21,7 +21,7 @@ const statusToPhase = (status: ScanOverlayMessage): ViewerPhase => {
   if (status === 'preparing') return 'preparing';
   if (status === 'loading') return 'loading';
   if (status === 'scanning' || status === 'move_closer') return 'scanning';
-  if (status === 'recognized') return 'done';
+  if (status === 'match_found' || status === 'recognized') return 'done';
   if (status === 'compile_failed' || status === 'camera_required' || status === 'no_match') {
     return 'error';
   }
@@ -62,7 +62,9 @@ export const ScanStatusOverlay = ({
             ? 'Could not prepare AR'
             : status === 'no_targets'
               ? 'No published mappings'
-              : status === 'move_closer'
+              : status === 'match_found'
+        ? 'Match found — starting video…'
+        : status === 'move_closer'
                 ? 'Almost there — move a little closer'
                 : status === 'no_match'
                   ? "We couldn't recognize the photo"
@@ -76,12 +78,22 @@ export const ScanStatusOverlay = ({
   const showTargetHints =
     status === 'scanning' || status === 'move_closer' || status === 'loading' || status === 'no_match';
   const showProgress =
-    status === 'preparing' || status === 'loading' || status === 'scanning' || status === 'move_closer';
+    status === 'preparing' ||
+    status === 'loading' ||
+    status === 'scanning' ||
+    status === 'move_closer' ||
+    status === 'match_found';
 
   return (
     <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center px-3 pt-3 sm:px-4 sm:pt-4">
       <div className="w-full max-w-md rounded-2xl border border-white/10 bg-black/80 px-4 py-4 text-white shadow-2xl backdrop-blur-md">
         <p className="mb-0 text-center text-base font-semibold">{message}</p>
+
+        {phase === 'done' && status === 'match_found' ? (
+          <p className="mb-0 mt-1 text-center text-xs text-white/65">
+            Keep the photo in view. Video plays on the detected frame.
+          </p>
+        ) : null}
 
         {status === 'scanning' || status === 'move_closer' ? (
           <p className="mb-0 mt-1 text-center text-xs text-white/65">

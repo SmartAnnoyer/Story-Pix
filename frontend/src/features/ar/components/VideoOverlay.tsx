@@ -2,76 +2,96 @@ import { useEffect, useRef } from 'react';
 
 interface VideoOverlayProps {
   videoUrl: string | null;
+  fallbackUrl?: string | null;
   visible: boolean;
   onPlay?: () => void;
+  onError?: (message: string) => void;
   onEnded?: () => void;
 }
 
-export const VideoOverlay = ({ videoUrl, visible, onPlay, onEnded }: VideoOverlayProps) => {
+export const VideoOverlay = ({
+  videoUrl,
+  fallbackUrl,
+  visible,
+  onPlay,
+  onError,
+  onEnded,
+}: VideoOverlayProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const triedFallbackRef = useRef(false);
+
+  useEffect(() => {
+    triedFallbackRef.current = false;
+  }, [videoUrl, visible]);
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !videoUrl) return;
+    if (!video) return;
 
-    if (!visible) {
+    if (!visible || !videoUrl) {
       video.pause();
       video.removeAttribute('src');
       video.load();
       return;
     }
 
-    video.src = videoUrl;
-    video.load();
+    const tryPlay = async (source: string) => {
+      video.crossOrigin = 'anonymous';
+      video.src = source;
+      video.load();
+      await new Promise<void>((resolve, reject) => {
+        if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+          resolve();
+          return;
+        }
+        const onReady = () => {
+          cleanup();
+          resolve();
+        };
+        const onFail = () => {
+          cleanup();
+          reject(new Error('Video load failed'));
+        };
+        const cleanup = () => {
+          video.removeEventListener('loadeddata', onReady);
+          video.removeEventListener('error', onFail);
+        };
+        video.addEventListener('loadeddata', onReady);
+        video.addEventListener('error', onFail);
+      });
 
-    const tryPlay = async () => {
       try {
         video.muted = false;
         await video.play();
         onPlay?.();
+        return;
       } catch {
-        try {
-          video.muted = true;
-          await video.play();
-          onPlay?.();
-        } catch {
-          // Browser blocked autoplay — user may need to tap screen
-        }
+        video.muted = true;
+        await video.play();
+        onPlay?.();
       }
     };
 
-    if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-      void tryPlay();
-      return;
-    }
-
-    const onReady = () => {
-      video.removeEventListener('loadeddata', onReady);
-      video.removeEventListener('error', onError);
-      void tryPlay();
-    };
-    const onError = () => {
-      video.removeEventListener('loadeddata', onReady);
-      video.removeEventListener('error', onError);
-    };
-
-    video.addEventListener('loadeddata', onReady);
-    video.addEventListener('error', onError);
-
-    return () => {
-      video.removeEventListener('loadeddata', onReady);
-      video.removeEventListener('error', onError);
-    };
-  }, [videoUrl, visible, onPlay]);
-
-  if (!visible || !videoUrl) {
-    return null;
-  }
+    void tryPlay(videoUrl).catch(async () => {
+      if (fallbackUrl && !triedFallbackRef.current) {
+        triedFallbackRef.current = true;
+        try {
+          await tryPlay(fallbackUrl);
+          return;
+        } catch {
+          // fall through to error
+        }
+      }
+      onError?.('Could not load the mapped video. Check your connection and try again.');
+    });
+  }, [videoUrl, fallbackUrl, visible, onPlay, onError]);
 
   return (
     <video
       ref={videoRef}
-      className="ar-video-overlay pointer-events-none absolute inset-0 z-10 h-full w-full object-contain bg-black/20"
+      className={`ar-video-overlay pointer-events-none absolute inset-0 h-full w-full object-contain ${
+        visible && videoUrl ? 'opacity-100' : 'opacity-0'
+      }`}
       playsInline
       autoPlay
       loop

@@ -110,6 +110,7 @@ export interface RecordViewerEventPayload {
 export type ScanOverlayMessage =
   | 'idle'
   | 'scanning'
+  | 'match_found'
   | 'recognized'
   | 'move_closer'
   | 'no_match'
