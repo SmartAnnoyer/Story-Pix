@@ -47,14 +47,14 @@ export const buildMindArScene = (
       'uiError: no',
       'filterMinCF: 0.001',
       'filterBeta: 1000',
-      'warmupTolerance: 2',
+      'warmupTolerance: 3',
       'missTolerance: 5',
     ].join('; '),
   );
   scene.setAttribute('color-space', 'sRGB');
   scene.setAttribute('embedded', '');
-  scene.setAttribute('renderer', 'alpha: true; premultipliedAlpha: false; colorManagement: true');
-  scene.setAttribute('background', 'color: transparent');
+  scene.setAttribute('renderer', 'alpha: true; colorManagement: true, physicallyCorrectLights');
+  scene.setAttribute('background', 'color: #000000');
   scene.setAttribute('vr-mode-ui', 'enabled: false');
   scene.setAttribute('device-orientation-permission-ui', 'enabled: false');
   scene.dataset.cameraFacing = options.facingMode ?? 'environment';
@@ -93,7 +93,9 @@ export const getCameraVideo = (host: HTMLElement): HTMLVideoElement | null => {
 
 export const isCameraPreviewLive = (host: HTMLElement): boolean => {
   const video = getCameraVideo(host);
-  return Boolean(video && video.videoWidth > 0 && !video.paused);
+  if (!video || video.videoWidth === 0) return false;
+  // MindAR may briefly pause the stream during init; readyState is enough.
+  return video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
 };
 
 export const flipMindArCamera = async (

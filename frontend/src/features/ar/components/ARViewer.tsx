@@ -37,7 +37,19 @@ const AR_INIT_TIMEOUT_MS = 25_000;
 const SCAN_HINT_DELAY_MS = 8_000;
 const SCAN_NO_MATCH_DELAY_MS = 25_000;
 
-const TARGET_FOUND_CONFIRM_MS = 450;
+const TARGET_FOUND_CONFIRM_MS = 800;
+
+const waitForCameraPreview = async (
+  host: HTMLElement,
+  attempts = 15,
+  delayMs = 300,
+): Promise<boolean> => {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (isCameraPreviewLive(host)) return true;
+    await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+  }
+  return isCameraPreviewLive(host);
+};
 
 export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -58,6 +70,7 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
   const scanNoMatchTimeoutRef = useRef<number | null>(null);
   const scanTickRef = useRef<number | null>(null);
   const statusRef = useRef<ScanOverlayMessage>(status);
+  const scanningEnabledRef = useRef(false);
   const deviceInfo = useMemo(() => detectDeviceInfo(), []);
   const sessionId = useMemo(() => getViewerSessionId(), []);
 
@@ -262,6 +275,7 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
     let mounted = true;
     const host = containerRef.current;
     listenersAttachedRef.current = false;
+    scanningEnabledRef.current = false;
 
     const initScene = async () => {
       try {
@@ -276,6 +290,15 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
 
         const confirmTargetMatch = (target: ViewerManifestTarget) => {
           if (!mounted) return;
+
+          if (!scanningEnabledRef.current || !isCameraPreviewLive(host)) {
+            return;
+          }
+
+          const current = statusRef.current;
+          if (current !== 'scanning' && current !== 'move_closer') {
+            return;
+          }
 
           clearScanTimers();
           setProgress(1);
@@ -302,7 +325,8 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
             if (!entity) return;
 
             entity.addEventListener('targetFound', () => {
-              if (!mounted) return;
+              if (!mounted || !scanningEnabledRef.current) return;
+              if (!isCameraPreviewLive(host)) return;
 
               const pending = targetFoundTimersRef.current.get(mindIndex);
               if (pending) window.clearTimeout(pending);
@@ -339,8 +363,21 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
         scene.addEventListener('arReady', () => {
           if (!mounted) return;
 
-          const beginScanning = () => {
+          const beginScanning = async () => {
+            if (!mounted || !containerRef.current) return;
+
+            const cameraLive = await waitForCameraPreview(containerRef.current);
             if (!mounted) return;
+
+            if (!cameraLive) {
+              setStatusDetail('Allow camera access, then tap Try again or reload.');
+              setStatus('camera_required');
+              setProgress(0);
+              scanningEnabledRef.current = false;
+              return;
+            }
+
+            scanningEnabledRef.current = true;
             setProgress(0.92);
             setStatus('scanning');
             setStatusDetail(null);
@@ -349,17 +386,18 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
 
           if (facingMode === 'user' && containerRef.current) {
             void flipMindArCamera(containerRef.current, 'user')
-              .then(beginScanning)
-              .catch(() => beginScanning());
+              .then(() => void beginScanning())
+              .catch(() => void beginScanning());
             return;
           }
 
-          beginScanning();
+          void beginScanning();
         });
 
         scene.addEventListener('arError', (event) => {
           if (!mounted) return;
           console.error('[Story-pix AR] arError:', event);
+          scanningEnabledRef.current = false;
           clearMindCacheForAlbum(albumSlug, mindCacheTargets);
           setStatusDetail('AR failed to load targets. Tap Try again to rebuild.');
           setStatus('camera_required');
@@ -396,6 +434,7 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
 
     return () => {
       mounted = false;
+      scanningEnabledRef.current = false;
       listenersAttachedRef.current = false;
       targetFoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
       targetFoundTimersRef.current.clear();
@@ -464,9 +503,11 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
     setScanSeconds(0);
     setProgress(0.92);
     setActiveTarget(null);
+    scanningEnabledRef.current = false;
 
     if (
       status === 'no_match' ||
+      status === 'match_found' ||
       status === 'camera_required' ||
       status === 'compile_failed' ||
       status === 'video_unavailable'
@@ -494,15 +535,13 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
     status === 'scanning' ||
     status === 'move_closer' ||
     status === 'loading' ||
+    status === 'match_found' ||
     status === 'no_match' ||
     status === 'camera_required';
 
   return (
     <div className="relative h-[100dvh] w-full overflow-hidden bg-black">
-      <div
-        ref={containerRef}
-        className={`ar-scene-host${status === 'recognized' ? ' is-video-playing' : ''}`}
-      />
+      <div ref={containerRef} className="ar-scene-host" />
       <VideoOverlay
         videoUrl={activeVideoUrl}
         fallbackUrl={activeVideoFallbackUrl}
@@ -517,8 +556,17 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
         }}
         onError={(message) => {
           setActiveTarget(null);
-          setStatus('video_unavailable');
           setStatusDetail(message);
+          const host = containerRef.current;
+          if (host && isCameraPreviewLive(host)) {
+            scanningEnabledRef.current = true;
+            setStatus('scanning');
+            setProgress(0.92);
+            startScanTimers();
+            return;
+          }
+          scanningEnabledRef.current = false;
+          setStatus('video_unavailable');
         }}
       />
       <ScanStatusOverlay
@@ -533,6 +581,7 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
         showFlip={showControls}
         showRetry={
           status === 'no_match' ||
+          status === 'match_found' ||
           status === 'move_closer' ||
           status === 'camera_required' ||
           status === 'video_unavailable'
