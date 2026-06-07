@@ -54,7 +54,7 @@ export const buildMindArScene = (
   scene.setAttribute('color-space', 'sRGB');
   scene.setAttribute('embedded', '');
   scene.setAttribute('renderer', 'alpha: true; colorManagement: true, physicallyCorrectLights');
-  scene.setAttribute('background', 'color: #000000');
+  scene.setAttribute('background', 'transparent');
   scene.setAttribute('vr-mode-ui', 'enabled: false');
   scene.setAttribute('device-orientation-permission-ui', 'enabled: false');
   scene.dataset.cameraFacing = options.facingMode ?? 'environment';
@@ -82,6 +82,11 @@ export const buildMindArScene = (
 };
 
 export const getCameraVideo = (host: HTMLElement): HTMLVideoElement | null => {
+  const arSystem = getMindArSystem(host);
+  if (arSystem?.video?.srcObject) {
+    return arSystem.video;
+  }
+
   for (const element of host.querySelectorAll('video')) {
     const video = element as HTMLVideoElement;
     if (video.srcObject) {
@@ -91,10 +96,34 @@ export const getCameraVideo = (host: HTMLElement): HTMLVideoElement | null => {
   return null;
 };
 
+/** Style and play the MindAR camera feed (must sit above the hidden tracking canvas). */
+export const ensureCameraPreviewVisible = (host: HTMLElement): HTMLVideoElement | null => {
+  const video = getCameraVideo(host);
+  if (!video) return null;
+
+  video.setAttribute('playsinline', '');
+  video.setAttribute('webkit-playsinline', '');
+  video.muted = true;
+  video.autoplay = true;
+  video.style.objectFit = 'cover';
+  video.style.width = '100%';
+  video.style.height = '100%';
+  video.style.position = 'absolute';
+  video.style.inset = '0';
+  video.style.zIndex = '1';
+  video.style.pointerEvents = 'none';
+
+  if (video.paused) {
+    void video.play().catch(() => undefined);
+  }
+
+  return video;
+};
+
 export const isCameraPreviewLive = (host: HTMLElement): boolean => {
+  ensureCameraPreviewVisible(host);
   const video = getCameraVideo(host);
   if (!video || video.videoWidth === 0) return false;
-  // MindAR may briefly pause the stream during init; readyState is enough.
   return video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
 };
 
@@ -124,6 +153,7 @@ export const flipMindArCamera = async (
     video.onerror = () => reject(new Error('Camera stream failed'));
   });
   await video.play();
+  ensureCameraPreviewVisible(host);
 
   arSystem.controller.inputWidth = video.videoWidth;
   arSystem.controller.inputHeight = video.videoHeight;

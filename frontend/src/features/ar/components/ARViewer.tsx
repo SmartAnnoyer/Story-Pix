@@ -17,6 +17,7 @@ import {
 import {
   buildMindArScene,
   destroyMindArScene,
+  ensureCameraPreviewVisible,
   flipMindArCamera,
   isCameraPreviewLive,
   type CameraFacing,
@@ -45,6 +46,7 @@ const waitForCameraPreview = async (
   delayMs = 300,
 ): Promise<boolean> => {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
+    ensureCameraPreviewVisible(host);
     if (isCameraPreviewLive(host)) return true;
     await new Promise((resolve) => window.setTimeout(resolve, delayMs));
   }
@@ -274,6 +276,7 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
 
     let mounted = true;
     const host = containerRef.current;
+    let cameraObserver: MutationObserver | null = null;
     listenersAttachedRef.current = false;
     scanningEnabledRef.current = false;
 
@@ -360,8 +363,14 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
         attachTargetListeners();
         scene.addEventListener('loaded', attachTargetListeners, { once: true });
 
+        cameraObserver = new MutationObserver(() => {
+          ensureCameraPreviewVisible(host);
+        });
+        cameraObserver.observe(host, { childList: true, subtree: true });
+
         scene.addEventListener('arReady', () => {
           if (!mounted) return;
+          ensureCameraPreviewVisible(host);
 
           const beginScanning = async () => {
             if (!mounted || !containerRef.current) return;
@@ -439,6 +448,7 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
       targetFoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
       targetFoundTimersRef.current.clear();
       clearScanTimers();
+      cameraObserver?.disconnect();
       destroyMindArScene(host);
     };
   }, [
