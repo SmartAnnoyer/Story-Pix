@@ -103,12 +103,7 @@ export const ScanStatusOverlay = ({
 
         {showProgress ? (
           <div className="mt-4">
-            <ViewerProgressBar
-              phase={viewerPhase}
-              progress={progress}
-              scanSeconds={scanSeconds}
-              statusLabel={status === 'recognized' ? 'Video playing' : undefined}
-            />
+            <ViewerProgressBar phase={viewerPhase} progress={progress} scanSeconds={scanSeconds} />
           </div>
         ) : null}
 
