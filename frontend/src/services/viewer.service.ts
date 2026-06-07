@@ -18,6 +18,11 @@ export const viewerService = {
     return `${env.apiBaseUrl}/viewer/public/${albumSlug}/targets/${targetId}/tracking-image?${params}`;
   },
 
+  getMappingVideoUrl(albumSlug: string, targetId: string, videoMediaId: string) {
+    const params = new URLSearchParams({ media: videoMediaId });
+    return `${env.apiBaseUrl}/viewer/public/${albumSlug}/targets/${targetId}/mapping-video?${params}`;
+  },
+
   async getManifest(albumSlug: string): Promise<ViewerManifest> {
     const { data } = await publicClient.get<ApiResponse<ViewerManifest>>(
       `/viewer/public/${albumSlug}/manifest`,

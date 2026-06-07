@@ -4,6 +4,7 @@ import { ScanEventType } from '@/types/ar-target.types';
 import { detectDeviceInfo, getViewerSessionId, viewerService } from '@/services/viewer.service';
 import { BrandLogo } from '@/components/BrandLogo';
 import { ScanStatusOverlay } from './ScanStatusOverlay';
+import { VideoOverlay } from './VideoOverlay';
 import { ViewerControlBar } from './ViewerControlBar';
 import type { ViewerPhase } from './ViewerProgressBar';
 import { compileMindFile, getMindCacheKey, loadArScripts } from '../utils/mindar-loader';
@@ -12,8 +13,6 @@ import {
   destroyMindArScene,
   flipMindArCamera,
   isCameraPreviewLive,
-  pauseTargetVideos,
-  playTargetVideo,
   type CameraFacing,
 } from '../utils/mindar-scene';
 import type { TrackingImageDimensions } from '../utils/tracking-image';
@@ -89,6 +88,14 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
       ),
     [albumSlug, targets],
   );
+
+  const activeVideoUrl = useMemo(() => {
+    if (!activeTarget?.videoAvailable) return null;
+    return (
+      activeTarget.videoUrl ??
+      viewerService.getMappingVideoUrl(albumSlug, activeTarget.id, activeTarget.videoMediaId)
+    );
+  }, [activeTarget, albumSlug]);
 
   const viewerPhase: ViewerPhase = useMemo(() => {
     if (status === 'preparing') return 'preparing';
@@ -261,8 +268,7 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
         await loadArScripts();
         if (!mounted || !containerRef.current) return;
 
-        const sceneTargets = targets.map((target, index) => ({
-          videoUrl: target.videoAvailable ? target.videoUrl : null,
+        const sceneTargets = targets.map((_target, index) => ({
           width: targetDimensions[index]?.width ?? 0,
           height: targetDimensions[index]?.height ?? 0,
         }));
@@ -291,16 +297,13 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
                 return;
               }
 
-              playTargetVideo(host, mindIndex, true);
               setActiveTarget(target);
               setStatus('recognized');
               void recordEventRef.current(ScanEventType.SCAN_SUCCESS, target);
-              void recordEventRef.current(ScanEventType.VIDEO_PLAY, target);
             });
 
             entity.addEventListener('targetLost', () => {
               if (!mounted) return;
-              pauseTargetVideos(host);
               setActiveTarget((current) => (current?.id === target.id ? null : current));
               setStatus('scanning');
               setProgress(0.92);
@@ -425,10 +428,6 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
     setProgress(0.92);
     setActiveTarget(null);
 
-    if (containerRef.current) {
-      pauseTargetVideos(containerRef.current);
-    }
-
     if (containerRef.current && isCameraPreviewLive(containerRef.current)) {
       setStatus('scanning');
       startScanTimers();
@@ -449,6 +448,13 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
   return (
     <div className="relative h-[100dvh] w-full overflow-hidden bg-black">
       <div ref={containerRef} className="ar-scene-host" />
+      <VideoOverlay
+        videoUrl={activeVideoUrl}
+        visible={status === 'recognized' && Boolean(activeVideoUrl)}
+        onPlay={() => {
+          if (activeTarget) void recordEvent(ScanEventType.VIDEO_PLAY, activeTarget);
+        }}
+      />
       <ScanStatusOverlay
         status={status}
         detail={prepareError ?? statusDetail}

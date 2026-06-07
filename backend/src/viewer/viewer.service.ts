@@ -84,13 +84,7 @@ export class ViewerService {
   }
 
   async getTrackingImageBuffer(albumSlug: string, targetId: string) {
-    const album = await this.albumsService.findPublicBySlug(albumSlug);
-    const targets = await this.arTargetsService.findActiveByAlbumId(album.id);
-    const target = targets.find((item) => item._id.toString() === targetId);
-
-    if (!target) {
-      throw new NotFoundException('AR target not found');
-    }
+    const target = await this.findActiveTarget(albumSlug, targetId);
 
     const photo = await this.mediaService
       .findById(target.studioId.toString(), target.photoMediaId.toString())
@@ -100,37 +94,25 @@ export class ViewerService {
       throw new NotFoundException('Tracking image not available');
     }
 
-    const fromStorage = await this.storageService.getObjectBuffer(photo.r2ObjectKey);
-    if (fromStorage) {
-      return {
-        buffer: fromStorage.buffer,
-        contentType: fromStorage.contentType,
-      };
+    return this.loadMediaBuffer(photo.r2ObjectKey, photo.publicUrl ?? photo.thumbnailUrl, photo.mimeType);
+  }
+
+  async getMappingVideoBuffer(albumSlug: string, targetId: string) {
+    const target = await this.findActiveTarget(albumSlug, targetId);
+
+    const video = await this.mediaService
+      .findById(target.studioId.toString(), target.videoMediaId.toString())
+      .catch(() => null);
+
+    if (!video?.r2ObjectKey) {
+      throw new NotFoundException('Mapping video not available');
     }
 
-    const imageUrl = photo.publicUrl ?? photo.thumbnailUrl;
-    if (!imageUrl) {
-      throw new NotFoundException('Tracking image not available');
-    }
-
-    try {
-      const response = await fetch(imageUrl);
-      if (!response.ok) {
-        throw new BadGatewayException('Failed to load tracking image from storage');
-      }
-
-      const buffer = Buffer.from(await response.arrayBuffer());
-      const contentType = response.headers.get('content-type') ?? photo.mimeType ?? 'image/jpeg';
-
-      return { buffer, contentType };
-    } catch (error) {
-      if (error instanceof BadGatewayException) {
-        throw error;
-      }
-      throw new BadGatewayException(
-        `Failed to load tracking image: ${error instanceof Error ? error.message : 'unknown error'}`,
-      );
-    }
+    return this.loadMediaBuffer(
+      video.r2ObjectKey,
+      video.publicUrl ?? video.thumbnailUrl,
+      video.mimeType ?? 'video/mp4',
+    );
   }
 
   async recordEvent(albumSlug: string, dto: RecordViewerEventDto, req?: Request) {
@@ -158,6 +140,55 @@ export class ViewerService {
       ipAddress: this.extractIp(req),
       metadata: dto.metadata,
     });
+  }
+
+  private async findActiveTarget(albumSlug: string, targetId: string) {
+    const album = await this.albumsService.findPublicBySlug(albumSlug);
+    const targets = await this.arTargetsService.findActiveByAlbumId(album.id);
+    const target = targets.find((item) => item._id.toString() === targetId);
+
+    if (!target) {
+      throw new NotFoundException('AR target not found');
+    }
+
+    return target;
+  }
+
+  private async loadMediaBuffer(
+    r2ObjectKey: string,
+    fallbackUrl: string | null | undefined,
+    fallbackMimeType?: string | null,
+  ) {
+    const fromStorage = await this.storageService.getObjectBuffer(r2ObjectKey);
+    if (fromStorage) {
+      return {
+        buffer: fromStorage.buffer,
+        contentType: fromStorage.contentType,
+      };
+    }
+
+    if (!fallbackUrl) {
+      throw new NotFoundException('Media not available');
+    }
+
+    try {
+      const response = await fetch(fallbackUrl);
+      if (!response.ok) {
+        throw new BadGatewayException('Failed to load media from storage');
+      }
+
+      const buffer = Buffer.from(await response.arrayBuffer());
+      const contentType = response.headers.get('content-type') ?? fallbackMimeType ?? 'application/octet-stream';
+
+      return { buffer, contentType };
+    } catch (error) {
+      if (error instanceof BadGatewayException) {
+        throw error;
+      }
+      throw new BadGatewayException(
+        `Failed to load media: ${error instanceof Error ? error.message : 'unknown error'}`,
+      );
+    }
   }
 
   private resolveEventType(eventType: RecordViewerEventDto['eventType']) {

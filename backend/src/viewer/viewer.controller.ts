@@ -21,6 +21,7 @@ export class ViewerController {
     if (origin && allowed.includes(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Accept-Ranges');
       res.setHeader('Vary', 'Origin');
     }
   }
@@ -45,6 +46,25 @@ export class ViewerController {
     );
     this.applyCors(req, res);
     res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(buffer);
+  }
+
+  @Get('public/:albumSlug/targets/:targetId/mapping-video')
+  @Public()
+  async getMappingVideo(
+    @Param('albumSlug') albumSlug: string,
+    @Param('targetId') targetId: string,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const { buffer, contentType } = await this.viewerService.getMappingVideoBuffer(
+      albumSlug,
+      targetId,
+    );
+    this.applyCors(req, res);
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.send(buffer);
   }

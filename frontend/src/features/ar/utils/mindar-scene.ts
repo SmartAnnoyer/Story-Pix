@@ -1,7 +1,6 @@
 export type CameraFacing = 'environment' | 'user';
 
 export type MindArSceneTarget = {
-  videoUrl: string | null;
   width: number;
   height: number;
 };
@@ -32,6 +31,7 @@ export const getMindArSystem = (host: HTMLElement): MindArImageSystem | null => 
   return scene?.systems?.['mindar-image-system'] ?? null;
 };
 
+/** Tracking-only scene — video plays via HTML overlay (avoids WebGL CORS black textures). */
 export const buildMindArScene = (
   host: HTMLElement,
   options: {
@@ -50,7 +50,6 @@ export const buildMindArScene = (
       'uiLoading: no',
       'uiScanning: no',
       'uiError: no',
-      // MindAR defaults: filterMinCF 0.001, filterBeta 1000 — do not use tiny filterBeta values.
       'filterMinCF: 0.001',
       'filterBeta: 1000',
       'warmupTolerance: 1',
@@ -71,69 +70,19 @@ export const buildMindArScene = (
   camera.setAttribute('look-controls', 'enabled: false');
   scene.appendChild(camera);
 
-  const assets = document.createElement('a-assets');
   const targetEntities: HTMLElement[] = [];
 
-  options.targets.forEach((target, mindIndex) => {
+  options.targets.forEach((_target, mindIndex) => {
     const entity = document.createElement('a-entity');
     entity.setAttribute('mindar-image-target', `targetIndex: ${mindIndex}`);
-
-    if (target.videoUrl) {
-      const videoEl = document.createElement('video');
-      videoEl.id = `mindar-target-video-${mindIndex}`;
-      videoEl.setAttribute('src', target.videoUrl);
-      videoEl.setAttribute('crossorigin', 'anonymous');
-      videoEl.setAttribute('loop', 'true');
-      videoEl.setAttribute('playsinline', 'true');
-      videoEl.setAttribute('webkit-playsinline', 'true');
-      videoEl.muted = true;
-      assets.appendChild(videoEl);
-
-      const aspect =
-        target.width > 0 && target.height > 0 ? target.width / target.height : 35 / 45;
-      const planeHeight = 1;
-      const planeWidth = planeHeight * aspect;
-
-      const plane = document.createElement('a-video');
-      plane.setAttribute('src', `#mindar-target-video-${mindIndex}`);
-      plane.setAttribute('position', '0 0 0');
-      plane.setAttribute('height', String(planeHeight));
-      plane.setAttribute('width', String(planeWidth));
-      plane.setAttribute('rotation', '0 0 0');
-      entity.appendChild(plane);
-    }
-
     scene.appendChild(entity);
     targetEntities.push(entity);
   });
-
-  if (assets.childElementCount > 0) {
-    scene.insertBefore(assets, scene.firstChild);
-  }
 
   host.replaceChildren();
   host.appendChild(scene);
 
   return { scene, targetEntities };
-};
-
-export const playTargetVideo = (host: HTMLElement, mindIndex: number, withSound = true): void => {
-  const video = host.querySelector(`#mindar-target-video-${mindIndex}`) as HTMLVideoElement | null;
-  if (!video) return;
-
-  video.muted = !withSound;
-  void video.play().catch(() => {
-    video.muted = true;
-    void video.play().catch(() => undefined);
-  });
-};
-
-export const pauseTargetVideos = (host: HTMLElement): void => {
-  host.querySelectorAll('video[id^="mindar-target-video-"]').forEach((element) => {
-    const video = element as HTMLVideoElement;
-    video.pause();
-    video.currentTime = 0;
-  });
 };
 
 export const getCameraVideo = (host: HTMLElement): HTMLVideoElement | null => {
@@ -193,7 +142,6 @@ export const destroyMindArScene = (host: HTMLElement): void => {
   const arSystem = getMindArSystem(host);
   const video = getCameraVideo(host);
   try {
-    pauseTargetVideos(host);
     arSystem?.controller?.stopProcessVideo();
     const stream = video?.srcObject as MediaStream | null;
     stream?.getTracks().forEach((track) => track.stop());

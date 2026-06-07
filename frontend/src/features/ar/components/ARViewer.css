@@ -23,3 +23,7 @@
 .ar-scene-host .a-canvas {
   background: transparent !important;
 }
+
+.ar-video-overlay {
+  z-index: 10;
+}
