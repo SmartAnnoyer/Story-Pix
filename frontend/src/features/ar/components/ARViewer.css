@@ -24,6 +24,12 @@
   background: transparent !important;
 }
 
+.ar-scene-host a-scene {
+  background: transparent !important;
+}
+
 .ar-video-overlay {
-  z-index: 15;
+  z-index: 12;
+  object-fit: cover;
+  background: transparent;
 }

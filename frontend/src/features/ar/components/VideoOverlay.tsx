@@ -9,6 +9,16 @@ interface VideoOverlayProps {
   onEnded?: () => void;
 }
 
+const applyVideoSource = (video: HTMLVideoElement, source: string) => {
+  if (source.includes('/viewer/public/')) {
+    video.crossOrigin = 'anonymous';
+  } else {
+    video.removeAttribute('crossorigin');
+  }
+  video.src = source;
+  video.load();
+};
+
 export const VideoOverlay = ({
   videoUrl,
   fallbackUrl,
@@ -36,9 +46,7 @@ export const VideoOverlay = ({
     }
 
     const tryPlay = async (source: string) => {
-      video.crossOrigin = 'anonymous';
-      video.src = source;
-      video.load();
+      applyVideoSource(video, source);
       await new Promise<void>((resolve, reject) => {
         if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
           resolve();
@@ -64,7 +72,6 @@ export const VideoOverlay = ({
         video.muted = false;
         await video.play();
         onPlay?.();
-        return;
       } catch {
         video.muted = true;
         await video.play();
@@ -79,7 +86,7 @@ export const VideoOverlay = ({
           await tryPlay(fallbackUrl);
           return;
         } catch {
-          // fall through to error
+          // fall through
         }
       }
       onError?.('Could not load the mapped video. Check your connection and try again.');
@@ -89,7 +96,7 @@ export const VideoOverlay = ({
   return (
     <video
       ref={videoRef}
-      className={`ar-video-overlay pointer-events-none absolute inset-0 h-full w-full object-contain ${
+      className={`ar-video-overlay pointer-events-none absolute inset-0 h-full w-full ${
         visible && videoUrl ? 'opacity-100' : 'opacity-0'
       }`}
       playsInline

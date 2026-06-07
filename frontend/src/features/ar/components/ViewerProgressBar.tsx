@@ -33,7 +33,7 @@ export const ViewerProgressBar = ({ phase, progress, scanSeconds = 0 }: ViewerPr
 
       <div className="h-2 overflow-hidden rounded-full bg-white/15">
         <div
-          className="h-full rounded-full bg-gradient-to-r from-[#8A2BE2] via-[#2196F3] to-[#FF4FA3] transition-[width] duration-300 ease-out"
+          className="h-full rounded-full bg-gradient-to-r from-[#8A2BE2] to-[#FF4FA3] transition-[width] duration-300 ease-out"
           style={{ width: `${percent}%` }}
         />
       </div>

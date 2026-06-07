@@ -91,7 +91,7 @@ export const ScanStatusOverlay = ({
 
         {phase === 'done' && status === 'match_found' ? (
           <p className="mb-0 mt-1 text-center text-xs text-white/65">
-            Keep the photo in view. Video plays on the detected frame.
+            Hold steady — your video is loading…
           </p>
         ) : null}
 
