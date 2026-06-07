@@ -3,9 +3,9 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { AlbumStatus, ArTargetStatus } from '../common/enums';
-import { MediaService } from '../media/media.service';
 import { Album, AlbumDocument } from '../albums/schemas/album.schema';
 import { ArTarget, ArTargetDocument } from '../ar-targets/schemas/ar-target.schema';
+import { Media, MediaDocument } from '../media/schemas/media.schema';
 import { IStorageService, STORAGE_SERVICE } from '../storage/interfaces/storage.interface';
 import { compileAlbumMindFile } from './compile-album-mind';
 
@@ -17,8 +17,8 @@ export class MindArCompilerService {
   constructor(
     @InjectModel(Album.name) private readonly albumModel: Model<AlbumDocument>,
     @InjectModel(ArTarget.name) private readonly arTargetModel: Model<ArTargetDocument>,
+    @InjectModel(Media.name) private readonly mediaModel: Model<MediaDocument>,
     @Inject(STORAGE_SERVICE) private readonly storageService: IStorageService,
-    private readonly mediaService: MediaService,
   ) {}
 
   scheduleAlbumMindRebuild(albumId: string) {
@@ -69,9 +69,14 @@ export class MindArCompilerService {
     const imageBuffers: Buffer[] = [];
 
     for (const target of targets) {
-      const photo = await this.mediaService
-        .findById(studioId, target.photoMediaId.toString())
-        .catch(() => null);
+      const photo = await this.mediaModel
+        .findOne({
+          _id: target.photoMediaId,
+          studioId,
+          deletedAt: null,
+        })
+        .select('r2ObjectKey')
+        .exec();
 
       if (!photo?.r2ObjectKey) {
         throw new Error(`Tracking photo unavailable for target ${target._id.toString()}`);
