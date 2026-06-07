@@ -53,7 +53,7 @@ export const buildMindArScene = (
   );
   scene.setAttribute('color-space', 'sRGB');
   scene.setAttribute('embedded', '');
-  scene.setAttribute('renderer', 'alpha: true; colorManagement: true, physicallyCorrectLights');
+  scene.setAttribute('renderer', 'alpha: true; premultipliedAlpha: false; colorManagement: true');
   scene.setAttribute('background', 'color: transparent');
   scene.setAttribute('vr-mode-ui', 'enabled: false');
   scene.setAttribute('device-orientation-permission-ui', 'enabled: false');

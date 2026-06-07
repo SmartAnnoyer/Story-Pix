@@ -10,9 +10,15 @@ interface ViewerProgressBarProps {
   phase: ViewerPhase;
   progress: number;
   scanSeconds?: number;
+  statusLabel?: string;
 }
 
-export const ViewerProgressBar = ({ phase, progress, scanSeconds = 0 }: ViewerProgressBarProps) => {
+export const ViewerProgressBar = ({
+  phase,
+  progress,
+  scanSeconds = 0,
+  statusLabel,
+}: ViewerProgressBarProps) => {
   const activeIndex = phase === 'done' ? 3 : phase === 'error' ? -1 : PHASE_STEPS.findIndex((s) => s.key === phase);
   const percent = Math.min(100, Math.max(0, Math.round(progress * 100)));
 
@@ -42,7 +48,7 @@ export const ViewerProgressBar = ({ phase, progress, scanSeconds = 0 }: ViewerPr
         {phase === 'preparing' && `Building AR targets… ${percent}%`}
         {phase === 'loading' && `Starting camera… ${percent}%`}
         {phase === 'scanning' && `Looking for your photo… ${scanSeconds}s`}
-        {phase === 'done' && 'Match found — playing video'}
+        {phase === 'done' && (statusLabel ?? 'Match found — loading video')}
         {phase === 'error' && 'Needs your attention'}
       </p>
     </div>

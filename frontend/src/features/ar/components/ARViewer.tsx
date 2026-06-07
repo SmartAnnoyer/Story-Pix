@@ -21,7 +21,6 @@ import {
   isCameraPreviewLive,
   type CameraFacing,
 } from '../utils/mindar-scene';
-import type { TrackingImageDimensions } from '../utils/tracking-image';
 import './ARViewer.css';
 
 interface ARViewerProps {
@@ -47,7 +46,6 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
   const [status, setStatus] = useState<ScanOverlayMessage>('preparing');
   const [activeTarget, setActiveTarget] = useState<ViewerManifestTarget | null>(null);
   const [mindBundle, setMindBundle] = useState<MindBundle | null>(null);
-  const [targetDimensions, setTargetDimensions] = useState<TrackingImageDimensions[]>([]);
   const [prepareError, setPrepareError] = useState<string | null>(null);
   const [statusDetail, setStatusDetail] = useState<string | null>(null);
   const [progress, setProgress] = useState(0.05);
@@ -88,17 +86,17 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
 
   const activeVideoUrl = useMemo(() => {
     if (!activeTarget?.videoAvailable) return null;
-    return activeTarget.videoUrl ?? null;
-  }, [activeTarget]);
-
-  const activeVideoFallbackUrl = useMemo(() => {
-    if (!activeTarget?.videoAvailable) return null;
     return viewerService.getMappingVideoUrl(
       albumSlug,
       activeTarget.id,
       activeTarget.videoMediaId,
     );
   }, [activeTarget, albumSlug]);
+
+  const activeVideoFallbackUrl = useMemo(() => {
+    if (!activeTarget?.videoAvailable) return null;
+    return activeTarget.videoUrl;
+  }, [activeTarget]);
 
   const viewerPhase: ViewerPhase = useMemo(() => {
     if (status === 'preparing') return 'preparing';
@@ -197,7 +195,6 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
         const cached = await readMindCache(mindCacheKey);
         if (cached && !cancelled) {
           setMindBundle({ url: cached.mindUrl, cacheKey: mindCacheKey });
-          setTargetDimensions(cached.targetDimensions);
           setProgress(0.72);
           setStatus('loading');
           return;
@@ -218,7 +215,6 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
 
         if (!cancelled) {
           setMindBundle({ url: compiled.mindUrl, cacheKey: mindCacheKey });
-          setTargetDimensions(compiled.targetDimensions);
           setProgress(0.72);
           setStatus('loading');
         }
@@ -285,7 +281,7 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
           setProgress(1);
           setStatusDetail(null);
 
-          if (!target.videoAvailable || !target.videoUrl) {
+          if (!target.videoAvailable) {
             setStatus('video_unavailable');
             setStatusDetail('This mapping has no playable video file.');
             void recordEventRef.current(ScanEventType.SCAN_FAILED, target);
@@ -503,15 +499,17 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
 
   return (
     <div className="relative h-[100dvh] w-full overflow-hidden bg-black">
-      <div ref={containerRef} className="ar-scene-host" />
+      <div
+        ref={containerRef}
+        className={`ar-scene-host${status === 'recognized' ? ' is-video-playing' : ''}`}
+      />
       <VideoOverlay
         videoUrl={activeVideoUrl}
         fallbackUrl={activeVideoFallbackUrl}
-        visible={Boolean(
-          activeTarget &&
-            activeVideoUrl &&
-            (status === 'match_found' || status === 'recognized'),
+        active={Boolean(
+          activeTarget && activeVideoUrl && (status === 'match_found' || status === 'recognized'),
         )}
+        showFrame={status === 'recognized'}
         onPlay={() => {
           setStatus('recognized');
           setStatusDetail(null);

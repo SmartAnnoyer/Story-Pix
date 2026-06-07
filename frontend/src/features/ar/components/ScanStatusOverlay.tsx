@@ -91,7 +91,7 @@ export const ScanStatusOverlay = ({
 
         {phase === 'done' && status === 'match_found' ? (
           <p className="mb-0 mt-1 text-center text-xs text-white/65">
-            Hold steady — your video is loading…
+            Match confirmed — loading your video…
           </p>
         ) : null}
 
@@ -103,7 +103,12 @@ export const ScanStatusOverlay = ({
 
         {showProgress ? (
           <div className="mt-4">
-            <ViewerProgressBar phase={viewerPhase} progress={progress} scanSeconds={scanSeconds} />
+            <ViewerProgressBar
+              phase={viewerPhase}
+              progress={progress}
+              scanSeconds={scanSeconds}
+              statusLabel={status === 'recognized' ? 'Video playing' : undefined}
+            />
           </div>
         ) : null}
 
