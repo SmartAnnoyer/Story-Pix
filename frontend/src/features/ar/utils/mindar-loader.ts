@@ -1,3 +1,5 @@
+import { prepareTrackingImage, type TrackingImageDimensions } from './tracking-image';
+
 declare global {
   interface Window {
     AFRAME?: {
@@ -8,7 +10,7 @@ declare global {
       IMAGE?: {
         Compiler: new () => {
           compileImageTargets: (
-            images: HTMLImageElement[],
+            images: Array<HTMLImageElement | HTMLCanvasElement>,
             progressCallback?: (progress: number) => void,
           ) => Promise<void>;
           exportData: () => Promise<ArrayBuffer>;
@@ -136,10 +138,15 @@ const loadImage = (url: string): Promise<HTMLImageElement> =>
     img.src = url;
   });
 
+export type CompileMindResult = {
+  mindUrl: string;
+  targetDimensions: TrackingImageDimensions[];
+};
+
 export const compileMindFile = async (
   imageUrls: string[],
   onProgress?: (progress: number) => void,
-): Promise<string> => {
+): Promise<CompileMindResult> => {
   if (!imageUrls.length) {
     throw new Error('No tracking images available');
   }
@@ -154,20 +161,27 @@ export const compileMindFile = async (
   }
 
   onProgress?.(0.12);
-  const images = await Promise.all(
+  const preparedTargets = await Promise.all(
     imageUrls.map(async (url, index) => {
       const image = await loadImage(url);
+      const canvas = prepareTrackingImage(image);
       onProgress?.(0.12 + ((index + 1) / imageUrls.length) * 0.18);
-      return image;
+      return {
+        canvas,
+        dimensions: { width: canvas.width, height: canvas.height },
+      };
     }),
   );
 
   const compiler = new Compiler();
 
   await Promise.race([
-    compiler.compileImageTargets(images, (progress) => {
-      onProgress?.(0.3 + progress * 0.55);
-    }),
+    compiler.compileImageTargets(
+      preparedTargets.map((target) => target.canvas),
+      (progress) => {
+        onProgress?.(0.3 + progress * 0.55);
+      },
+    ),
     new Promise<never>((_, reject) => {
       window.setTimeout(() => reject(new Error('MindAR compile timed out')), COMPILE_TIMEOUT_MS);
     }),
@@ -177,8 +191,17 @@ export const compileMindFile = async (
   const buffer = await compiler.exportData();
   onProgress?.(1);
   const blob = new Blob([buffer]);
-  return URL.createObjectURL(blob);
+
+  return {
+    mindUrl: URL.createObjectURL(blob),
+    targetDimensions: preparedTargets.map((target) => target.dimensions),
+  };
 };
 
-export const getMindCacheKey = (albumSlug: string, targetIds: string[]) =>
-  `storypix-mind-v3-${MINDAR_VERSION}-${albumSlug}-${targetIds.join('-')}`;
+export const getMindCacheKey = (
+  albumSlug: string,
+  targets: Array<{ id: string; photoMediaId: string }>,
+) =>
+  `storypix-mind-v4-${MINDAR_VERSION}-${albumSlug}-${targets
+    .map((target) => `${target.id}:${target.photoMediaId}`)
+    .join('|')}`;

@@ -1,5 +1,16 @@
 export type CameraFacing = 'environment' | 'user';
 
+export type MindArSceneTarget = {
+  videoUrl: string | null;
+  width: number;
+  height: number;
+};
+
+export type MindArSceneResult = {
+  scene: Element;
+  targetEntities: HTMLElement[];
+};
+
 type MindArImageSystem = {
   pause: (keepVideo?: boolean) => void;
   unpause: () => void;
@@ -25,24 +36,25 @@ export const buildMindArScene = (
   host: HTMLElement,
   options: {
     mindUrl: string;
-    targetCount: number;
+    targets: MindArSceneTarget[];
     facingMode?: CameraFacing;
   },
-): Element => {
+): MindArSceneResult => {
   const scene = document.createElement('a-scene');
   scene.setAttribute(
     'mindar-image',
     [
       `imageTargetSrc: ${options.mindUrl}`,
       'autoStart: true',
-      `maxTrack: ${Math.max(options.targetCount, 1)}`,
+      `maxTrack: ${Math.max(options.targets.length, 1)}`,
       'uiLoading: no',
       'uiScanning: no',
       'uiError: no',
+      // MindAR defaults: filterMinCF 0.001, filterBeta 1000 — do not use tiny filterBeta values.
       'filterMinCF: 0.001',
-      'filterBeta: 0.01',
-      'warmupTolerance: 2',
-      'missTolerance: 3',
+      'filterBeta: 1000',
+      'warmupTolerance: 1',
+      'missTolerance: 5',
     ].join('; '),
   );
   scene.setAttribute('color-space', 'sRGB');
@@ -59,19 +71,83 @@ export const buildMindArScene = (
   camera.setAttribute('look-controls', 'enabled: false');
   scene.appendChild(camera);
 
-  for (let mindIndex = 0; mindIndex < options.targetCount; mindIndex += 1) {
+  const assets = document.createElement('a-assets');
+  const targetEntities: HTMLElement[] = [];
+
+  options.targets.forEach((target, mindIndex) => {
     const entity = document.createElement('a-entity');
     entity.setAttribute('mindar-image-target', `targetIndex: ${mindIndex}`);
+
+    if (target.videoUrl) {
+      const videoEl = document.createElement('video');
+      videoEl.id = `mindar-target-video-${mindIndex}`;
+      videoEl.setAttribute('src', target.videoUrl);
+      videoEl.setAttribute('crossorigin', 'anonymous');
+      videoEl.setAttribute('loop', 'true');
+      videoEl.setAttribute('playsinline', 'true');
+      videoEl.setAttribute('webkit-playsinline', 'true');
+      videoEl.muted = true;
+      assets.appendChild(videoEl);
+
+      const aspect =
+        target.width > 0 && target.height > 0 ? target.width / target.height : 35 / 45;
+      const planeHeight = 1;
+      const planeWidth = planeHeight * aspect;
+
+      const plane = document.createElement('a-video');
+      plane.setAttribute('src', `#mindar-target-video-${mindIndex}`);
+      plane.setAttribute('position', '0 0 0');
+      plane.setAttribute('height', String(planeHeight));
+      plane.setAttribute('width', String(planeWidth));
+      plane.setAttribute('rotation', '0 0 0');
+      entity.appendChild(plane);
+    }
+
     scene.appendChild(entity);
+    targetEntities.push(entity);
+  });
+
+  if (assets.childElementCount > 0) {
+    scene.insertBefore(assets, scene.firstChild);
   }
 
   host.replaceChildren();
   host.appendChild(scene);
-  return scene;
+
+  return { scene, targetEntities };
+};
+
+export const playTargetVideo = (host: HTMLElement, mindIndex: number, withSound = true): void => {
+  const video = host.querySelector(`#mindar-target-video-${mindIndex}`) as HTMLVideoElement | null;
+  if (!video) return;
+
+  video.muted = !withSound;
+  void video.play().catch(() => {
+    video.muted = true;
+    void video.play().catch(() => undefined);
+  });
+};
+
+export const pauseTargetVideos = (host: HTMLElement): void => {
+  host.querySelectorAll('video[id^="mindar-target-video-"]').forEach((element) => {
+    const video = element as HTMLVideoElement;
+    video.pause();
+    video.currentTime = 0;
+  });
+};
+
+export const getCameraVideo = (host: HTMLElement): HTMLVideoElement | null => {
+  for (const element of host.querySelectorAll('video')) {
+    const video = element as HTMLVideoElement;
+    if (video.srcObject) {
+      return video;
+    }
+  }
+  return null;
 };
 
 export const isCameraPreviewLive = (host: HTMLElement): boolean => {
-  const video = host.querySelector('video');
+  const video = getCameraVideo(host);
   return Boolean(video && video.videoWidth > 0 && !video.paused);
 };
 
@@ -80,7 +156,7 @@ export const flipMindArCamera = async (
   host: HTMLElement,
   nextFacing: CameraFacing,
 ): Promise<void> => {
-  const video = host.querySelector('video');
+  const video = getCameraVideo(host);
   const arSystem = getMindArSystem(host);
   if (!video || !arSystem?.controller) {
     throw new Error('AR camera is not ready yet');
@@ -115,8 +191,9 @@ export const flipMindArCamera = async (
 
 export const destroyMindArScene = (host: HTMLElement): void => {
   const arSystem = getMindArSystem(host);
-  const video = host.querySelector('video');
+  const video = getCameraVideo(host);
   try {
+    pauseTargetVideos(host);
     arSystem?.controller?.stopProcessVideo();
     const stream = video?.srcObject as MediaStream | null;
     stream?.getTracks().forEach((track) => track.stop());

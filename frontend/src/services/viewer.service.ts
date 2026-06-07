@@ -13,8 +13,9 @@ const publicClient = axios.create({
 });
 
 export const viewerService = {
-  getTrackingImageUrl(albumSlug: string, targetId: string) {
-    return `${env.apiBaseUrl}/viewer/public/${albumSlug}/targets/${targetId}/tracking-image`;
+  getTrackingImageUrl(albumSlug: string, targetId: string, photoMediaId: string) {
+    const params = new URLSearchParams({ media: photoMediaId });
+    return `${env.apiBaseUrl}/viewer/public/${albumSlug}/targets/${targetId}/tracking-image?${params}`;
   },
 
   async getManifest(albumSlug: string): Promise<ViewerManifest> {

@@ -85,7 +85,7 @@ export const ScanStatusOverlay = ({
 
         {status === 'scanning' || status === 'move_closer' ? (
           <p className="mb-0 mt-1 text-center text-xs text-white/65">
-            Video plays automatically when the photo matches (typically 2–8 seconds).
+            Hold the printed photo flat, fill most of the screen, and avoid glare. Video plays on the photo when matched.
           </p>
         ) : null}
 
