@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
-import { Layout, Menu, Button, Avatar, Dropdown, Typography, theme } from 'antd';
+import { Layout, Menu, Button, Avatar, Dropdown, Typography, theme, Drawer, Grid } from 'antd';
 import { BrandLogo } from '@/components/BrandLogo';
 import {
   BarChartOutlined,
   BellOutlined,
+  CloseOutlined,
   DashboardOutlined,
   LockOutlined,
   LogoutOutlined,
@@ -25,79 +26,91 @@ import { NotificationBell } from '@/features/notifications/components/Notificati
 import { NotificationDrawer } from '@/features/notifications/components/NotificationDrawer';
 import { ROUTES } from '@/routes/paths';
 import { UserRole } from '@/types/auth.types';
+import type { MenuProps } from 'antd';
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
+const { useBreakpoint } = Grid;
 
 export const DashboardLayout = () => {
-  const [collapsed, setCollapsed] = useState(false);
+  const [desktopCollapsed, setDesktopCollapsed] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuthStore();
   const logoutMutation = useLogoutMutation();
   const { token } = theme.useToken();
+  const screens = useBreakpoint();
+  const isMobile = !screens.lg;
   const { data: unreadNotifications = [] } = useUnreadNotificationsQuery();
   const markReadMutation = useMarkNotificationReadMutation();
 
   const isSuperAdmin = user?.role === UserRole.SUPER_ADMIN;
 
-  const menuItems = useMemo(() => {
+  const closeMobileNav = () => setMobileNavOpen(false);
+
+  const goTo = (path: string) => {
+    navigate(path);
+    closeMobileNav();
+  };
+
+  const menuItems: MenuProps['items'] = useMemo(() => {
     if (isSuperAdmin) {
       return [
         {
           key: ROUTES.ADMIN_DASHBOARD,
           icon: <DashboardOutlined />,
           label: 'Dashboard',
-          onClick: () => navigate(ROUTES.ADMIN_DASHBOARD),
+          onClick: () => goTo(ROUTES.ADMIN_DASHBOARD),
         },
         {
           key: ROUTES.STUDIOS,
           icon: <TeamOutlined />,
           label: 'Studios',
-          onClick: () => navigate(ROUTES.STUDIOS),
+          onClick: () => goTo(ROUTES.STUDIOS),
         },
         {
           key: ROUTES.PLANS,
           icon: <CrownOutlined />,
           label: 'Plans',
-          onClick: () => navigate(ROUTES.PLANS),
+          onClick: () => goTo(ROUTES.PLANS),
         },
         {
           key: ROUTES.SUBSCRIPTIONS,
           icon: <CrownOutlined />,
           label: 'Subscriptions',
-          onClick: () => navigate(ROUTES.SUBSCRIPTIONS),
+          onClick: () => goTo(ROUTES.SUBSCRIPTIONS),
         },
         {
           key: ROUTES.ADMIN_BILLING,
           icon: <DollarOutlined />,
           label: 'Billing',
-          onClick: () => navigate(ROUTES.ADMIN_BILLING),
+          onClick: () => goTo(ROUTES.ADMIN_BILLING),
         },
         {
           key: ROUTES.ADMIN_JOBS,
           icon: <BellOutlined />,
           label: 'Jobs',
-          onClick: () => navigate(ROUTES.ADMIN_JOBS),
+          onClick: () => goTo(ROUTES.ADMIN_JOBS),
         },
         {
           key: ROUTES.ADMIN_NOTIFICATIONS,
           icon: <BellOutlined />,
           label: 'Notifications',
-          onClick: () => navigate(ROUTES.ADMIN_NOTIFICATIONS),
+          onClick: () => goTo(ROUTES.ADMIN_NOTIFICATIONS),
         },
         {
           key: ROUTES.ADMIN_ANALYTICS,
           icon: <BarChartOutlined />,
           label: 'Analytics',
-          onClick: () => navigate(ROUTES.ADMIN_ANALYTICS),
+          onClick: () => goTo(ROUTES.ADMIN_ANALYTICS),
         },
         {
           key: ROUTES.CHANGE_PASSWORD,
           icon: <LockOutlined />,
           label: 'Change Password',
-          onClick: () => navigate(ROUTES.CHANGE_PASSWORD),
+          onClick: () => goTo(ROUTES.CHANGE_PASSWORD),
         },
       ];
     }
@@ -107,97 +120,150 @@ export const DashboardLayout = () => {
         key: ROUTES.DASHBOARD,
         icon: <DashboardOutlined />,
         label: 'Dashboard',
-        onClick: () => navigate(ROUTES.DASHBOARD),
+        onClick: () => goTo(ROUTES.DASHBOARD),
       },
       {
         key: ROUTES.STUDIO_PROFILE,
         icon: <ShopOutlined />,
         label: 'Studio Profile',
-        onClick: () => navigate(ROUTES.STUDIO_PROFILE),
+        onClick: () => goTo(ROUTES.STUDIO_PROFILE),
       },
       {
         key: ROUTES.STUDIO_BILLING,
         icon: <CreditCardOutlined />,
         label: 'Billing',
-        onClick: () => navigate(ROUTES.STUDIO_BILLING),
+        onClick: () => goTo(ROUTES.STUDIO_BILLING),
       },
       {
         key: ROUTES.STUDIO_PLAN,
         icon: <CrownOutlined />,
         label: 'Plan & Usage',
-        onClick: () => navigate(ROUTES.STUDIO_PLAN),
+        onClick: () => goTo(ROUTES.STUDIO_PLAN),
       },
       {
         key: ROUTES.ALBUMS,
         icon: <PictureOutlined />,
         label: 'Albums',
-        onClick: () => navigate(ROUTES.ALBUMS),
+        onClick: () => goTo(ROUTES.ALBUMS),
       },
       {
         key: ROUTES.STUDIO_ANALYTICS,
         icon: <BarChartOutlined />,
         label: 'Analytics',
-        onClick: () => navigate(ROUTES.STUDIO_ANALYTICS),
+        onClick: () => goTo(ROUTES.STUDIO_ANALYTICS),
       },
       {
         key: ROUTES.NOTIFICATIONS,
         icon: <BellOutlined />,
         label: 'Notifications',
-        onClick: () => navigate(ROUTES.NOTIFICATIONS),
+        onClick: () => goTo(ROUTES.NOTIFICATIONS),
       },
       {
         key: ROUTES.CHANGE_PASSWORD,
         icon: <LockOutlined />,
         label: 'Change Password',
-        onClick: () => navigate(ROUTES.CHANGE_PASSWORD),
+        onClick: () => goTo(ROUTES.CHANGE_PASSWORD),
       },
     ];
   }, [isSuperAdmin, navigate]);
 
-  const selectedKey = menuItems.find((item) => location.pathname.startsWith(item.key))?.key;
+  const selectedKey = menuItems?.find(
+    (item) => item && 'key' in item && location.pathname.startsWith(String(item.key)),
+  )?.key as string | undefined;
 
   const handleLogout = async () => {
     try {
       await logoutMutation.mutateAsync();
     } finally {
+      closeMobileNav();
       navigate(ROUTES.LOGIN);
     }
   };
 
+  const navMenu = (
+    <Menu mode="inline" selectedKeys={selectedKey ? [selectedKey] : []} items={menuItems} />
+  );
+
+  const brandHeader = (showClose: boolean) => (
+    <div className="flex h-16 items-center justify-between px-3">
+      <BrandLogo variant="full" height={32} />
+      {showClose ? (
+        <Button
+          type="text"
+          aria-label="Close menu"
+          icon={<CloseOutlined />}
+          onClick={closeMobileNav}
+        />
+      ) : null}
+    </div>
+  );
+
   return (
     <Layout className="min-h-screen">
-      <Sider
-        trigger={null}
-        collapsible
-        collapsed={collapsed}
-        breakpoint="lg"
-        collapsedWidth={0}
-        onBreakpoint={(broken) => {
-          if (broken) setCollapsed(true);
-        }}
-        className="!fixed bottom-0 left-0 top-0 z-20 h-screen overflow-auto"
-        style={{ background: token.colorBgContainer }}
-      >
-        <div className="flex h-16 items-center justify-center px-3">
-          {collapsed ? (
-            <BrandLogo variant="mark" height={32} />
-          ) : (
-            <BrandLogo variant="full" height={32} />
-          )}
-        </div>
-        <Menu mode="inline" selectedKeys={selectedKey ? [selectedKey] : []} items={menuItems} />
-      </Sider>
+      {!isMobile ? (
+        <Sider
+          trigger={null}
+          collapsible
+          collapsed={desktopCollapsed}
+          collapsedWidth={64}
+          width={200}
+          className="!fixed bottom-0 left-0 top-0 z-20 h-screen overflow-auto"
+          style={{ background: token.colorBgContainer }}
+        >
+          <div className="flex h-16 items-center justify-center px-3">
+            {desktopCollapsed ? (
+              <BrandLogo variant="mark" height={32} />
+            ) : (
+              <BrandLogo variant="full" height={32} />
+            )}
+          </div>
+          {navMenu}
+        </Sider>
+      ) : (
+        <Drawer
+          title={null}
+          placement="left"
+          closable={false}
+          onClose={closeMobileNav}
+          open={mobileNavOpen}
+          width={260}
+          styles={{ body: { padding: 0 } }}
+        >
+          {brandHeader(true)}
+          {navMenu}
+        </Drawer>
+      )}
 
-      <Layout className={`transition-all ${collapsed ? 'lg:ml-0' : 'lg:ml-[200px]'}`}>
+      <Layout
+        className={`transition-all ${!isMobile && !desktopCollapsed ? 'lg:ml-[200px]' : !isMobile ? 'lg:ml-[64px]' : ''}`}
+      >
         <Header
-          className="sticky top-0 z-10 flex items-center justify-between px-4 sm:px-6"
+          className="sticky top-0 z-30 flex items-center justify-between gap-2 px-4 sm:px-6"
           style={{ background: token.colorBgContainer }}
         >
           <Button
             type="text"
-            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-            onClick={() => setCollapsed(!collapsed)}
-            className="lg:hidden"
+            aria-label={isMobile ? 'Open menu' : desktopCollapsed ? 'Expand menu' : 'Collapse menu'}
+            icon={
+              isMobile ? (
+                mobileNavOpen ? (
+                  <CloseOutlined />
+                ) : (
+                  <MenuUnfoldOutlined />
+                )
+              ) : desktopCollapsed ? (
+                <MenuUnfoldOutlined />
+              ) : (
+                <MenuFoldOutlined />
+              )
+            }
+            onClick={() => {
+              if (isMobile) {
+                setMobileNavOpen((open) => !open);
+              } else {
+                setDesktopCollapsed((collapsed) => !collapsed);
+              }
+            }}
           />
 
           <div className="ml-auto flex items-center gap-3">

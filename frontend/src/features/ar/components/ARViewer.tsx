@@ -14,7 +14,8 @@ interface ARViewerProps {
 }
 
 const AR_INIT_TIMEOUT_MS = 25_000;
-const SCAN_HINT_DELAY_MS = 20_000;
+const SCAN_HINT_DELAY_MS = 12_000;
+const SCAN_NO_MATCH_DELAY_MS = 30_000;
 
 export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -23,7 +24,9 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
   const [activeTarget, setActiveTarget] = useState<ViewerManifestTarget | null>(null);
   const [mindUrl, setMindUrl] = useState<string | null>(null);
   const [prepareError, setPrepareError] = useState<string | null>(null);
+  const [statusDetail, setStatusDetail] = useState<string | null>(null);
   const scanHintTimeoutRef = useRef<number | null>(null);
+  const scanNoMatchTimeoutRef = useRef<number | null>(null);
   const deviceInfo = useMemo(() => detectDeviceInfo(), []);
   const sessionId = useMemo(() => getViewerSessionId(), []);
 
@@ -172,6 +175,7 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
 
         scene.addEventListener('arError', () => {
           if (!mounted) return;
+          setStatusDetail('MindAR could not access the camera stream.');
           setStatus('camera_required');
           void recordEvent(ScanEventType.SCAN_FAILED, null);
         });
@@ -181,6 +185,8 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
           entity?.addEventListener('targetFound', () => {
             if (!mounted) return;
             if (scanHintTimeoutRef.current) window.clearTimeout(scanHintTimeoutRef.current);
+            if (scanNoMatchTimeoutRef.current) window.clearTimeout(scanNoMatchTimeoutRef.current);
+            setStatusDetail(null);
             if (!target.videoAvailable || !target.videoUrl) {
               setStatus('video_unavailable');
               void recordEvent(ScanEventType.SCAN_FAILED, target);
@@ -200,12 +206,16 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
         window.setTimeout(() => {
           if (!mounted) return;
           if (!isCameraLive()) {
+            setStatusDetail('Camera preview did not start. Check browser permissions and reload.');
             setStatus('camera_required');
           }
         }, AR_INIT_TIMEOUT_MS);
       } catch (error) {
         console.error('[Story-pix AR] scene init failed:', error);
-        if (mounted) setStatus('camera_required');
+        if (mounted) {
+          setStatusDetail(error instanceof Error ? error.message : 'Scene failed to load');
+          setStatus('camera_required');
+        }
       }
     };
 
@@ -222,6 +232,7 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
     if (!mindUrl || status !== 'loading') return;
 
     const timer = window.setTimeout(() => {
+      setStatusDetail('Camera or AR scene did not start in time.');
       setStatus('camera_required');
     }, AR_INIT_TIMEOUT_MS);
 
@@ -229,21 +240,29 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
   }, [mindUrl, status]);
 
   useEffect(() => {
-    if (status !== 'scanning') {
+    if (status !== 'scanning' && status !== 'move_closer') {
       if (scanHintTimeoutRef.current) window.clearTimeout(scanHintTimeoutRef.current);
+      if (scanNoMatchTimeoutRef.current) window.clearTimeout(scanNoMatchTimeoutRef.current);
       return;
     }
 
-    scanHintTimeoutRef.current = window.setTimeout(() => {
-      const video = containerRef.current?.querySelector('video');
-      if (video && video.videoWidth > 0) {
-        setStatus('move_closer');
+    if (status === 'scanning') {
+      scanHintTimeoutRef.current = window.setTimeout(() => {
+        const video = containerRef.current?.querySelector('video');
+        if (video && video.videoWidth > 0) {
+          setStatus('move_closer');
+        }
+      }, SCAN_HINT_DELAY_MS);
+
+      scanNoMatchTimeoutRef.current = window.setTimeout(() => {
+        setStatus('no_match');
         void recordEvent(ScanEventType.SCAN_FAILED);
-      }
-    }, SCAN_HINT_DELAY_MS);
+      }, SCAN_NO_MATCH_DELAY_MS);
+    }
 
     return () => {
       if (scanHintTimeoutRef.current) window.clearTimeout(scanHintTimeoutRef.current);
+      if (scanNoMatchTimeoutRef.current) window.clearTimeout(scanNoMatchTimeoutRef.current);
     };
   }, [status, recordEvent]);
 
@@ -257,7 +276,7 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
           if (activeTarget) void recordEvent(ScanEventType.VIDEO_PLAY, activeTarget);
         }}
       />
-      <ScanStatusOverlay status={status} detail={prepareError} />
+      <ScanStatusOverlay status={status} detail={prepareError ?? statusDetail} targets={targets} />
 
       <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/80 to-transparent p-4 text-white">
         <p className="text-lg font-semibold">{manifest.album.albumName}</p>

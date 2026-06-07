@@ -112,6 +112,7 @@ export type ScanOverlayMessage =
   | 'scanning'
   | 'recognized'
   | 'move_closer'
+  | 'no_match'
   | 'video_unavailable'
   | 'camera_required'
   | 'loading'
