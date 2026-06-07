@@ -109,7 +109,7 @@ export const flipMindArCamera = async (
   await arSystem.controller.dummyRun(video);
   arSystem.controller.processVideo(video);
 
-  const scene = host.querySelector('a-scene');
+  const scene = host.querySelector('a-scene') as HTMLElement | null;
   if (scene) scene.dataset.cameraFacing = nextFacing;
 };
 
