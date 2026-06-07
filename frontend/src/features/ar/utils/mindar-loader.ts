@@ -136,33 +136,46 @@ const loadImage = (url: string): Promise<HTMLImageElement> =>
     img.src = url;
   });
 
-export const compileMindFile = async (imageUrls: string[]): Promise<string> => {
+export const compileMindFile = async (
+  imageUrls: string[],
+  onProgress?: (progress: number) => void,
+): Promise<string> => {
   if (!imageUrls.length) {
     throw new Error('No tracking images available');
   }
 
+  onProgress?.(0.02);
   await loadCompilerScript();
+  onProgress?.(0.08);
 
   const Compiler = window.MINDAR?.IMAGE?.Compiler;
   if (!Compiler) {
     throw new Error('MindAR compiler unavailable');
   }
 
-  const images = await Promise.all(imageUrls.map((url) => loadImage(url)));
+  onProgress?.(0.12);
+  const images = await Promise.all(
+    imageUrls.map(async (url, index) => {
+      const image = await loadImage(url);
+      onProgress?.(0.12 + ((index + 1) / imageUrls.length) * 0.18);
+      return image;
+    }),
+  );
+
   const compiler = new Compiler();
 
   await Promise.race([
     compiler.compileImageTargets(images, (progress) => {
-      if (progress > 0 && progress < 1) {
-        console.info(`[Story-pix AR] compiling targets: ${Math.round(progress * 100)}%`);
-      }
+      onProgress?.(0.3 + progress * 0.55);
     }),
     new Promise<never>((_, reject) => {
       window.setTimeout(() => reject(new Error('MindAR compile timed out')), COMPILE_TIMEOUT_MS);
     }),
   ]);
 
+  onProgress?.(0.92);
   const buffer = await compiler.exportData();
+  onProgress?.(1);
   const blob = new Blob([buffer]);
   return URL.createObjectURL(blob);
 };

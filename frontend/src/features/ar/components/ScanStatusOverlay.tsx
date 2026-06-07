@@ -1,22 +1,46 @@
 import type { ScanOverlayMessage, ViewerManifestTarget } from '@/types/ar-target.types';
+import { ViewerProgressBar, type ViewerPhase } from './ViewerProgressBar';
 
 interface ScanStatusOverlayProps {
   status: ScanOverlayMessage;
   detail?: string | null;
   targets?: ViewerManifestTarget[];
+  progress?: number;
+  phase?: ViewerPhase;
+  scanSeconds?: number;
 }
 
 const SCAN_FAILURE_REASONS = [
-  'Point at the same printed photo you used in the AR mapping (not the video).',
-  'Hold steady — recognition usually takes 1–5 seconds when aligned.',
-  'Move closer so the photo fills most of the screen.',
-  'Use good lighting and avoid glare on glossy prints.',
+  'Use the exact mapped photo (printed or on another screen) — not the video.',
+  'Fill the frame with the photo and hold steady for a few seconds.',
+  'Improve lighting; avoid glare on glossy passport/laminated prints.',
+  'Tap “Try again” or flip camera if the preview looks wrong.',
 ];
 
-export const ScanStatusOverlay = ({ status, detail, targets = [] }: ScanStatusOverlayProps) => {
+const statusToPhase = (status: ScanOverlayMessage): ViewerPhase => {
+  if (status === 'preparing') return 'preparing';
+  if (status === 'loading') return 'loading';
+  if (status === 'scanning' || status === 'move_closer') return 'scanning';
+  if (status === 'recognized') return 'done';
+  if (status === 'compile_failed' || status === 'camera_required' || status === 'no_match') {
+    return 'error';
+  }
+  return 'scanning';
+};
+
+export const ScanStatusOverlay = ({
+  status,
+  detail,
+  targets = [],
+  progress = 0,
+  phase,
+  scanSeconds = 0,
+}: ScanStatusOverlayProps) => {
   if (status === 'idle' || status === 'recognized') {
     return null;
   }
+
+  const viewerPhase = phase ?? statusToPhase(status);
 
   const targetLabel =
     targets.length === 1
@@ -28,42 +52,51 @@ export const ScanStatusOverlay = ({ status, detail, targets = [] }: ScanStatusOv
   const message =
     status === 'scanning'
       ? targetLabel
-        ? `Point camera at: ${targetLabel}`
-        : 'Point camera at your mapped photo'
+        ? `Aim at: ${targetLabel}`
+        : 'Aim at your mapped photo'
       : status === 'preparing'
-        ? 'Preparing AR (first visit may take up to a minute)...'
+        ? 'Setting up your AR experience'
         : status === 'loading'
-          ? 'Starting camera...'
+          ? 'Activating camera…'
           : status === 'compile_failed'
-            ? 'Could not prepare AR — refresh and try again'
+            ? 'Could not prepare AR'
             : status === 'no_targets'
-              ? 'No published photo mappings for this album'
+              ? 'No published mappings'
               : status === 'move_closer'
-                ? 'Still looking — try moving closer'
+                ? 'Almost there — move a little closer'
                 : status === 'no_match'
-                  ? 'Photo not recognized'
+                  ? "We couldn't recognize the photo"
                   : status === 'video_unavailable'
                     ? 'Video unavailable for this mapping'
                     : status === 'camera_required'
-                      ? 'Camera not available — allow access in browser settings'
-                      : 'Scanning...';
+                      ? 'Camera access needed'
+                      : 'Working…';
 
   const showReasons = status === 'move_closer' || status === 'no_match';
-  const showTargetHints = status === 'scanning' || status === 'move_closer' || status === 'no_match';
+  const showTargetHints =
+    status === 'scanning' || status === 'move_closer' || status === 'loading' || status === 'no_match';
+  const showProgress =
+    status === 'preparing' || status === 'loading' || status === 'scanning' || status === 'move_closer';
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-4 z-20 flex justify-center px-4">
-      <div className="max-w-md rounded-2xl bg-black/75 px-4 py-3 text-center text-sm text-white backdrop-blur">
-        <p className="mb-0 font-medium">{message}</p>
+    <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center px-3 pt-3 sm:px-4 sm:pt-4">
+      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-black/80 px-4 py-4 text-white shadow-2xl backdrop-blur-md">
+        <p className="mb-0 text-center text-base font-semibold">{message}</p>
 
-        {status === 'scanning' ? (
-          <p className="mb-0 mt-1 text-xs text-white/70">
-            When the photo matches, the video plays automatically (usually within a few seconds).
+        {status === 'scanning' || status === 'move_closer' ? (
+          <p className="mb-0 mt-1 text-center text-xs text-white/65">
+            Video plays automatically when the photo matches (typically 2–8 seconds).
           </p>
         ) : null}
 
+        {showProgress ? (
+          <div className="mt-4">
+            <ViewerProgressBar phase={viewerPhase} progress={progress} scanSeconds={scanSeconds} />
+          </div>
+        ) : null}
+
         {showTargetHints && targets.length > 0 ? (
-          <div className="mt-3 flex flex-wrap justify-center gap-2">
+          <div className="mt-4 flex flex-wrap justify-center gap-3">
             {targets.slice(0, 4).map((target) => {
               const preview = target.photoThumbnailUrl ?? target.photoUrl;
               return (
@@ -72,14 +105,14 @@ export const ScanStatusOverlay = ({ status, detail, targets = [] }: ScanStatusOv
                     <img
                       src={preview}
                       alt={target.targetName}
-                      className="h-14 w-14 rounded-lg border border-white/30 object-cover"
+                      className="h-16 w-16 rounded-xl border-2 border-[#8A2BE2]/50 object-cover shadow-md"
                     />
                   ) : (
-                    <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-white/30 bg-white/10 text-[10px]">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-white/30 bg-white/10 text-[10px]">
                       Photo
                     </div>
                   )}
-                  <span className="max-w-[72px] truncate text-[10px] text-white/80">
+                  <span className="max-w-[80px] truncate text-[10px] font-medium text-white/85">
                     {target.targetName}
                   </span>
                 </div>
@@ -89,20 +122,25 @@ export const ScanStatusOverlay = ({ status, detail, targets = [] }: ScanStatusOv
         ) : null}
 
         {showReasons ? (
-          <ul className="mb-0 mt-3 list-none space-y-1 text-left text-xs text-white/75">
+          <ul className="mb-0 mt-4 space-y-1.5 text-left text-xs leading-relaxed text-white/75">
             {SCAN_FAILURE_REASONS.map((reason) => (
-              <li key={reason}>• {reason}</li>
+              <li key={reason} className="flex gap-2">
+                <span className="text-[#FF4FA3]">•</span>
+                <span>{reason}</span>
+              </li>
             ))}
           </ul>
         ) : null}
 
-        {(status === 'compile_failed' || status === 'camera_required') && detail ? (
-          <p className="mb-0 mt-2 text-xs text-white/70">{detail}</p>
+        {(status === 'compile_failed' || status === 'camera_required' || status === 'no_match') && detail ? (
+          <p className="mb-0 mt-3 rounded-lg bg-white/5 px-3 py-2 text-center text-xs text-amber-100/90">
+            {detail}
+          </p>
         ) : null}
 
         {status === 'no_match' ? (
-          <p className="mb-0 mt-2 text-xs text-amber-200/90">
-            Tip: open the mapped photo on another phone or print it, then scan that screen/paper.
+          <p className="mb-0 mt-3 text-center text-xs text-white/60">
+            Tap <strong className="text-white/90">Try again</strong> below or flip the camera.
           </p>
         ) : null}
       </div>
