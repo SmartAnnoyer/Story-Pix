@@ -202,6 +202,55 @@ export const getMindCacheKey = (
   albumSlug: string,
   targets: Array<{ id: string; photoMediaId: string }>,
 ) =>
-  `storypix-mind-v4-${MINDAR_VERSION}-${albumSlug}-${targets
+  `storypix-mind-v5-${MINDAR_VERSION}-${albumSlug}-${targets
     .map((target) => `${target.id}:${target.photoMediaId}`)
     .join('|')}`;
+
+/** Drop stale compiled targets from older cache formats or revoked blob URLs. */
+export const clearMindCacheForAlbum = (
+  albumSlug: string,
+  targets: Array<{ id: string; photoMediaId: string }>,
+) => {
+  sessionStorage.removeItem(getMindCacheKey(albumSlug, targets));
+  for (let version = 3; version <= 4; version += 1) {
+    sessionStorage.removeItem(
+      `storypix-mind-v${version}-${MINDAR_VERSION}-${albumSlug}-${targets.map((t) => t.id).join('-')}`,
+    );
+  }
+};
+
+const isBlobUrlAlive = async (url: string): Promise<boolean> => {
+  try {
+    const response = await fetch(url);
+    return response.ok;
+  } catch {
+    return false;
+  }
+};
+
+export const readMindCache = async (
+  cacheKey: string,
+): Promise<CompileMindResult | null> => {
+  const raw = sessionStorage.getItem(cacheKey);
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as CompileMindResult;
+    if (!parsed.mindUrl) return null;
+    if (!(await isBlobUrlAlive(parsed.mindUrl))) {
+      sessionStorage.removeItem(cacheKey);
+      return null;
+    }
+    return parsed;
+  } catch {
+    if (raw.startsWith('blob:')) {
+      if (!(await isBlobUrlAlive(raw))) {
+        sessionStorage.removeItem(cacheKey);
+        return null;
+      }
+      return { mindUrl: raw, targetDimensions: [] };
+    }
+  }
+
+  return null;
+};

@@ -7,7 +7,13 @@ import { ScanStatusOverlay } from './ScanStatusOverlay';
 import { VideoOverlay } from './VideoOverlay';
 import { ViewerControlBar } from './ViewerControlBar';
 import type { ViewerPhase } from './ViewerProgressBar';
-import { compileMindFile, getMindCacheKey, loadArScripts } from '../utils/mindar-loader';
+import {
+  clearMindCacheForAlbum,
+  compileMindFile,
+  getMindCacheKey,
+  loadArScripts,
+  readMindCache,
+} from '../utils/mindar-loader';
 import {
   buildMindArScene,
   destroyMindArScene,
@@ -15,7 +21,6 @@ import {
   isCameraPreviewLive,
   type CameraFacing,
 } from '../utils/mindar-scene';
-import type { TrackingImageDimensions } from '../utils/tracking-image';
 import './ARViewer.css';
 
 interface ARViewerProps {
@@ -23,40 +28,21 @@ interface ARViewerProps {
   manifest: ViewerManifest;
 }
 
-type MindCachePayload = {
-  mindUrl: string;
-  targetDimensions: TrackingImageDimensions[];
+type MindBundle = {
+  url: string;
+  cacheKey: string;
 };
 
 const AR_INIT_TIMEOUT_MS = 25_000;
 const SCAN_HINT_DELAY_MS = 8_000;
 const SCAN_NO_MATCH_DELAY_MS = 25_000;
 
-const readMindCache = (cacheKey: string): MindCachePayload | null => {
-  const raw = sessionStorage.getItem(cacheKey);
-  if (!raw) return null;
-
-  try {
-    const parsed = JSON.parse(raw) as MindCachePayload;
-    if (parsed.mindUrl && Array.isArray(parsed.targetDimensions)) {
-      return parsed;
-    }
-  } catch {
-    // Legacy cache stored only the blob URL string.
-    if (raw.startsWith('blob:')) {
-      return { mindUrl: raw, targetDimensions: [] };
-    }
-  }
-
-  return null;
-};
-
 export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const listenersAttachedRef = useRef(false);
   const [status, setStatus] = useState<ScanOverlayMessage>('preparing');
   const [activeTarget, setActiveTarget] = useState<ViewerManifestTarget | null>(null);
-  const [mindUrl, setMindUrl] = useState<string | null>(null);
-  const [targetDimensions, setTargetDimensions] = useState<TrackingImageDimensions[]>([]);
+  const [mindBundle, setMindBundle] = useState<MindBundle | null>(null);
   const [prepareError, setPrepareError] = useState<string | null>(null);
   const [statusDetail, setStatusDetail] = useState<string | null>(null);
   const [progress, setProgress] = useState(0.05);
@@ -64,6 +50,7 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
   const [facingMode, setFacingMode] = useState<CameraFacing>('environment');
   const [flipping, setFlipping] = useState(false);
   const [sceneGeneration, setSceneGeneration] = useState(0);
+  const [prepareGeneration, setPrepareGeneration] = useState(0);
   const scanHintTimeoutRef = useRef<number | null>(null);
   const scanNoMatchTimeoutRef = useRef<number | null>(null);
   const scanTickRef = useRef<number | null>(null);
@@ -79,6 +66,11 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
   const mindCacheTargets = useMemo(
     () => targets.map((target) => ({ id: target.id, photoMediaId: target.photoMediaId })),
     [targets],
+  );
+
+  const mindCacheKey = useMemo(
+    () => getMindCacheKey(albumSlug, mindCacheTargets),
+    [albumSlug, mindCacheTargets],
   );
 
   const trackingImageUrls = useMemo(
@@ -183,22 +175,19 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
         return;
       }
 
+      setMindBundle(null);
       setStatus('preparing');
       setPrepareError(null);
       setStatusDetail(null);
       setProgress(0.05);
-
-      const cacheKey = getMindCacheKey(albumSlug, mindCacheTargets);
+      setActiveTarget(null);
 
       try {
-        const cached = readMindCache(cacheKey);
-        if (cached) {
-          if (!cancelled) {
-            setMindUrl(cached.mindUrl);
-            setTargetDimensions(cached.targetDimensions);
-            setProgress(0.72);
-            setStatus('loading');
-          }
+        const cached = await readMindCache(mindCacheKey);
+        if (cached && !cancelled) {
+          setMindBundle({ url: cached.mindUrl, cacheKey: mindCacheKey });
+          setProgress(0.72);
+          setStatus('loading');
           return;
         }
 
@@ -208,7 +197,7 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
         compiledMindUrl = compiled.mindUrl;
 
         sessionStorage.setItem(
-          cacheKey,
+          mindCacheKey,
           JSON.stringify({
             mindUrl: compiled.mindUrl,
             targetDimensions: compiled.targetDimensions,
@@ -216,15 +205,14 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
         );
 
         if (!cancelled) {
-          setMindUrl(compiled.mindUrl);
-          setTargetDimensions(compiled.targetDimensions);
+          setMindBundle({ url: compiled.mindUrl, cacheKey: mindCacheKey });
           setProgress(0.72);
           setStatus('loading');
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         console.error('[Story-pix AR] prepare failed:', error);
-        sessionStorage.removeItem(cacheKey);
+        clearMindCacheForAlbum(albumSlug, mindCacheTargets);
         if (!cancelled) {
           setPrepareError(message);
           setStatusDetail(message);
@@ -239,13 +227,13 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
     return () => {
       cancelled = true;
       if (compiledMindUrl) {
-        const cached = readMindCache(getMindCacheKey(albumSlug, mindCacheTargets));
-        if (cached?.mindUrl !== compiledMindUrl) {
+        const cached = sessionStorage.getItem(mindCacheKey);
+        if (cached && !cached.includes(compiledMindUrl)) {
           URL.revokeObjectURL(compiledMindUrl);
         }
       }
     };
-  }, [albumSlug, mindCacheTargets, targets.length, trackingImageUrls]);
+  }, [albumSlug, mindCacheKey, mindCacheTargets, prepareGeneration, targets.length, trackingImageUrls]);
 
   useEffect(() => {
     if (status !== 'loading') return undefined;
@@ -258,28 +246,29 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
   }, [status]);
 
   useEffect(() => {
-    if (!mindUrl || !containerRef.current) return undefined;
+    if (!mindBundle || mindBundle.cacheKey !== mindCacheKey || !containerRef.current) {
+      return undefined;
+    }
 
     let mounted = true;
     const host = containerRef.current;
+    listenersAttachedRef.current = false;
 
     const initScene = async () => {
       try {
         await loadArScripts();
         if (!mounted || !containerRef.current) return;
 
-        const sceneTargets = targets.map((_target, index) => ({
-          width: targetDimensions[index]?.width ?? 0,
-          height: targetDimensions[index]?.height ?? 0,
-        }));
-
         const { scene, targetEntities } = buildMindArScene(host, {
-          mindUrl,
-          targets: sceneTargets,
+          mindUrl: mindBundle.url,
+          targetCount: targets.length,
           facingMode,
         });
 
         const attachTargetListeners = () => {
+          if (listenersAttachedRef.current) return;
+          listenersAttachedRef.current = true;
+
           targets.forEach((target, mindIndex) => {
             const entity = targetEntities[mindIndex];
             if (!entity) return;
@@ -312,12 +301,8 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
           });
         };
 
-        const sceneElement = scene as HTMLElement & { hasLoaded?: boolean };
-        if (sceneElement.hasLoaded) {
-          attachTargetListeners();
-        } else {
-          scene.addEventListener('loaded', attachTargetListeners, { once: true });
-        }
+        attachTargetListeners();
+        scene.addEventListener('loaded', attachTargetListeners, { once: true });
 
         scene.addEventListener('arReady', () => {
           if (!mounted) return;
@@ -340,9 +325,11 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
           beginScanning();
         });
 
-        scene.addEventListener('arError', () => {
+        scene.addEventListener('arError', (event) => {
           if (!mounted) return;
-          setStatusDetail('MindAR could not access the camera. Allow camera permission and reload.');
+          console.error('[Story-pix AR] arError:', event);
+          clearMindCacheForAlbum(albumSlug, mindCacheTargets);
+          setStatusDetail('AR failed to load targets. Tap Try again to rebuild.');
           setStatus('camera_required');
           setProgress(0);
           void recordEventRef.current(ScanEventType.SCAN_FAILED, null);
@@ -372,10 +359,21 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
 
     return () => {
       mounted = false;
+      listenersAttachedRef.current = false;
       clearScanTimers();
       destroyMindArScene(host);
     };
-  }, [mindUrl, targets, targetDimensions, sceneGeneration, facingMode, clearScanTimers, startScanTimers]);
+  }, [
+    albumSlug,
+    mindBundle,
+    mindCacheKey,
+    mindCacheTargets,
+    targets,
+    sceneGeneration,
+    facingMode,
+    clearScanTimers,
+    startScanTimers,
+  ]);
 
   useEffect(() => {
     if (status !== 'scanning' && status !== 'move_closer') return undefined;
@@ -384,7 +382,7 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
   }, [scanSeconds, status]);
 
   useEffect(() => {
-    if (!mindUrl || status !== 'loading') return undefined;
+    if (!mindBundle || status !== 'loading') return undefined;
 
     const timer = window.setTimeout(() => {
       setStatusDetail('Camera or AR scene did not start in time.');
@@ -393,7 +391,7 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
     }, AR_INIT_TIMEOUT_MS);
 
     return () => window.clearTimeout(timer);
-  }, [mindUrl, status]);
+  }, [mindBundle, status]);
 
   const handleFlipCamera = async () => {
     const host = containerRef.current;
@@ -428,14 +426,28 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
     setProgress(0.92);
     setActiveTarget(null);
 
+    if (
+      status === 'no_match' ||
+      status === 'camera_required' ||
+      status === 'compile_failed'
+    ) {
+      clearMindCacheForAlbum(albumSlug, mindCacheTargets);
+      setMindBundle(null);
+      setStatus('preparing');
+      setPrepareGeneration((value) => value + 1);
+      return;
+    }
+
     if (containerRef.current && isCameraPreviewLive(containerRef.current)) {
       setStatus('scanning');
       startScanTimers();
       return;
     }
 
-    setStatus('loading');
-    setSceneGeneration((value) => value + 1);
+    clearMindCacheForAlbum(albumSlug, mindCacheTargets);
+    setMindBundle(null);
+    setStatus('preparing');
+    setPrepareGeneration((value) => value + 1);
   };
 
   const showControls =

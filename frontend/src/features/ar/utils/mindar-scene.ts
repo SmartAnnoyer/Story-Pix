@@ -1,10 +1,5 @@
 export type CameraFacing = 'environment' | 'user';
 
-export type MindArSceneTarget = {
-  width: number;
-  height: number;
-};
-
 export type MindArSceneResult = {
   scene: Element;
   targetEntities: HTMLElement[];
@@ -31,12 +26,11 @@ export const getMindArSystem = (host: HTMLElement): MindArImageSystem | null => 
   return scene?.systems?.['mindar-image-system'] ?? null;
 };
 
-/** Tracking-only scene — video plays via HTML overlay (avoids WebGL CORS black textures). */
 export const buildMindArScene = (
   host: HTMLElement,
   options: {
     mindUrl: string;
-    targets: MindArSceneTarget[];
+    targetCount: number;
     facingMode?: CameraFacing;
   },
 ): MindArSceneResult => {
@@ -46,13 +40,13 @@ export const buildMindArScene = (
     [
       `imageTargetSrc: ${options.mindUrl}`,
       'autoStart: true',
-      `maxTrack: ${Math.max(options.targets.length, 1)}`,
+      `maxTrack: ${Math.max(options.targetCount, 1)}`,
       'uiLoading: no',
       'uiScanning: no',
       'uiError: no',
       'filterMinCF: 0.001',
       'filterBeta: 1000',
-      'warmupTolerance: 1',
+      'warmupTolerance: 2',
       'missTolerance: 5',
     ].join('; '),
   );
@@ -72,12 +66,12 @@ export const buildMindArScene = (
 
   const targetEntities: HTMLElement[] = [];
 
-  options.targets.forEach((_target, mindIndex) => {
+  for (let mindIndex = 0; mindIndex < options.targetCount; mindIndex += 1) {
     const entity = document.createElement('a-entity');
     entity.setAttribute('mindar-image-target', `targetIndex: ${mindIndex}`);
     scene.appendChild(entity);
     targetEntities.push(entity);
-  });
+  }
 
   host.replaceChildren();
   host.appendChild(scene);
@@ -100,7 +94,6 @@ export const isCameraPreviewLive = (host: HTMLElement): boolean => {
   return Boolean(video && video.videoWidth > 0 && !video.paused);
 };
 
-/** Swap front/back camera without rebuilding the whole scene. */
 export const flipMindArCamera = async (
   host: HTMLElement,
   nextFacing: CameraFacing,

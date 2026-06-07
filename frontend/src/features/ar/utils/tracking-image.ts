@@ -33,7 +33,7 @@ export const prepareTrackingImage = (source: HTMLImageElement): HTMLCanvasElemen
 
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
-  ctx.filter = 'contrast(1.15) saturate(1.1) brightness(1.02)';
+  ctx.filter = 'contrast(1.08) saturate(1.05)';
   ctx.drawImage(source, 0, 0, width, height);
 
   return canvas;
