@@ -1,0 +1,25 @@
+/* MindAR attaches <video> as a sibling of <a-scene> with z-index: -2 (see mind-ar aframe.js).
+   A-Frame's canvas defaults to opaque black — use alpha renderer + raise video stacking. */
+.ar-scene-host {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #000;
+}
+
+.ar-scene-host > video {
+  z-index: 0 !important;
+  object-fit: cover;
+}
+
+.ar-scene-host > a-scene {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  z-index: 1 !important;
+}
+
+.ar-scene-host .a-canvas {
+  background: transparent !important;
+}

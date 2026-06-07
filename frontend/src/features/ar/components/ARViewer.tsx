@@ -6,13 +6,15 @@ import { BrandLogo } from '@/components/BrandLogo';
 import { ScanStatusOverlay } from './ScanStatusOverlay';
 import { VideoOverlay } from './VideoOverlay';
 import { compileMindFile, getMindCacheKey, loadArScripts } from '../utils/mindar-loader';
+import './ARViewer.css';
 
 interface ARViewerProps {
   albumSlug: string;
   manifest: ViewerManifest;
 }
 
-const AR_INIT_TIMEOUT_MS = 20_000;
+const AR_INIT_TIMEOUT_MS = 25_000;
+const SCAN_HINT_DELAY_MS = 20_000;
 
 export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -21,7 +23,7 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
   const [activeTarget, setActiveTarget] = useState<ViewerManifestTarget | null>(null);
   const [mindUrl, setMindUrl] = useState<string | null>(null);
   const [prepareError, setPrepareError] = useState<string | null>(null);
-  const scanTimeoutRef = useRef<number | null>(null);
+  const scanHintTimeoutRef = useRef<number | null>(null);
   const deviceInfo = useMemo(() => detectDeviceInfo(), []);
   const sessionId = useMemo(() => getViewerSessionId(), []);
 
@@ -123,53 +125,62 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
     if (!mindUrl || !containerRef.current) return;
 
     let mounted = true;
+    const host = containerRef.current;
 
     const initScene = async () => {
       try {
         await loadArScripts();
         if (!mounted || !containerRef.current) return;
 
-        containerRef.current.innerHTML = `
-          <a-scene
-            mindar-image="imageTargetSrc: ${mindUrl}; autoStart: true; uiLoading: no; uiScanning: no; uiError: no;"
-            color-space="sRGB"
-            embedded
-            renderer="colorManagement: true, physicallyCorrectLights"
-            vr-mode-ui="enabled: false"
-            device-orientation-permission-ui="enabled: false"
-            style="position:absolute; inset:0;"
-          >
-            <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-            ${targets
-              .map(
-                (target) =>
-                  `<a-entity mindar-image-target="targetIndex: ${target.targetIndex}"></a-entity>`,
-              )
-              .join('')}
-          </a-scene>
-        `;
+        host.replaceChildren();
 
-        const scene = containerRef.current.querySelector('a-scene');
+        const scene = document.createElement('a-scene');
+        scene.setAttribute(
+          'mindar-image',
+          `imageTargetSrc: ${mindUrl}; autoStart: true; maxTrack: ${Math.max(targets.length, 1)}; uiLoading: no; uiScanning: no; uiError: no;`,
+        );
+        scene.setAttribute('color-space', 'sRGB');
+        scene.setAttribute('embedded', '');
+        scene.setAttribute('renderer', 'alpha: true; colorManagement: true, physicallyCorrectLights');
+        scene.setAttribute('vr-mode-ui', 'enabled: false');
+        scene.setAttribute('device-orientation-permission-ui', 'enabled: false');
+        scene.style.position = 'absolute';
+        scene.style.inset = '0';
+
+        const camera = document.createElement('a-camera');
+        camera.setAttribute('position', '0 0 0');
+        camera.setAttribute('look-controls', 'enabled: false');
+        scene.appendChild(camera);
+
+        targets.forEach((_target, mindIndex) => {
+          const entity = document.createElement('a-entity');
+          entity.setAttribute('mindar-image-target', `targetIndex: ${mindIndex}`);
+          scene.appendChild(entity);
+        });
+
+        host.appendChild(scene);
         sceneRef.current = scene;
 
-        scene?.addEventListener('arReady', () => {
+        const isCameraLive = () => {
+          const video = host.querySelector('video');
+          return Boolean(video && video.videoWidth > 0 && !video.paused);
+        };
+
+        scene.addEventListener('arReady', () => {
           if (mounted) setStatus('scanning');
         });
 
-        scene?.addEventListener('arError', () => {
-          if (mounted) {
-            setStatus('camera_required');
-            void recordEvent(ScanEventType.SCAN_FAILED, null);
-          }
+        scene.addEventListener('arError', () => {
+          if (!mounted) return;
+          setStatus('camera_required');
+          void recordEvent(ScanEventType.SCAN_FAILED, null);
         });
 
-        targets.forEach((target) => {
-          const entity = containerRef.current?.querySelector(
-            `[mindar-image-target="targetIndex: ${target.targetIndex}"]`,
-          );
+        targets.forEach((target, mindIndex) => {
+          const entity = host.querySelector(`[mindar-image-target="targetIndex: ${mindIndex}"]`);
           entity?.addEventListener('targetFound', () => {
             if (!mounted) return;
-            if (scanTimeoutRef.current) window.clearTimeout(scanTimeoutRef.current);
+            if (scanHintTimeoutRef.current) window.clearTimeout(scanHintTimeoutRef.current);
             if (!target.videoAvailable || !target.videoUrl) {
               setStatus('video_unavailable');
               void recordEvent(ScanEventType.SCAN_FAILED, target);
@@ -185,7 +196,15 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
             setStatus('scanning');
           });
         });
-      } catch {
+
+        window.setTimeout(() => {
+          if (!mounted) return;
+          if (!isCameraLive()) {
+            setStatus('camera_required');
+          }
+        }, AR_INIT_TIMEOUT_MS);
+      } catch (error) {
+        console.error('[Story-pix AR] scene init failed:', error);
         if (mounted) setStatus('camera_required');
       }
     };
@@ -194,7 +213,7 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
 
     return () => {
       mounted = false;
-      if (containerRef.current) containerRef.current.innerHTML = '';
+      host.replaceChildren();
       sceneRef.current = null;
     };
   }, [mindUrl, targets, recordEvent]);
@@ -211,23 +230,26 @@ export const ARViewer = ({ albumSlug, manifest }: ARViewerProps) => {
 
   useEffect(() => {
     if (status !== 'scanning') {
-      if (scanTimeoutRef.current) window.clearTimeout(scanTimeoutRef.current);
+      if (scanHintTimeoutRef.current) window.clearTimeout(scanHintTimeoutRef.current);
       return;
     }
 
-    scanTimeoutRef.current = window.setTimeout(() => {
-      setStatus('move_closer');
-      void recordEvent(ScanEventType.SCAN_FAILED);
-    }, 12000);
+    scanHintTimeoutRef.current = window.setTimeout(() => {
+      const video = containerRef.current?.querySelector('video');
+      if (video && video.videoWidth > 0) {
+        setStatus('move_closer');
+        void recordEvent(ScanEventType.SCAN_FAILED);
+      }
+    }, SCAN_HINT_DELAY_MS);
 
     return () => {
-      if (scanTimeoutRef.current) window.clearTimeout(scanTimeoutRef.current);
+      if (scanHintTimeoutRef.current) window.clearTimeout(scanHintTimeoutRef.current);
     };
   }, [status, recordEvent]);
 
   return (
     <div className="relative h-[100dvh] w-full overflow-hidden bg-black">
-      <div ref={containerRef} className="absolute inset-0" />
+      <div ref={containerRef} className="ar-scene-host" />
       <VideoOverlay
         videoUrl={activeTarget?.videoUrl ?? null}
         visible={Boolean(activeTarget?.videoUrl)}
