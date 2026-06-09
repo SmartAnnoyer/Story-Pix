@@ -10,8 +10,52 @@
     <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
     <link rel="preconnect" href="https://aframe.io" crossorigin />
     <title>Story-pix</title>
+    <style>
+      #viewer-boot {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        background: linear-gradient(180deg, #1a0a2e 0%, #120818 45%, #000 100%);
+        color: #fff;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      }
+      html.viewer-route #viewer-boot {
+        display: flex;
+      }
+      #viewer-boot .boot-logo {
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        background: linear-gradient(135deg, #8a2be2, #ff4fa3);
+        box-shadow: 0 8px 32px rgba(138, 43, 226, 0.35);
+        animation: boot-pulse 1.6s ease-in-out infinite;
+      }
+      #viewer-boot p {
+        margin: 0;
+        font-size: 0.95rem;
+        color: rgba(255, 255, 255, 0.75);
+      }
+      @keyframes boot-pulse {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.06); opacity: 0.85; }
+      }
+    </style>
+    <script>
+      if (/^\/viewer\/[^/]+/.test(location.pathname)) {
+        document.documentElement.classList.add('viewer-route');
+      }
+    </script>
   </head>
   <body>
+    <div id="viewer-boot" aria-hidden="true">
+      <div class="boot-logo"></div>
+      <p>Opening your album…</p>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

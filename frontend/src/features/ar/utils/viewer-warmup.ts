@@ -7,13 +7,17 @@ import {
   loadCompilerScript,
   readMindCache,
 } from './mindar-loader';
+import { readCachedManifest, writeCachedManifest } from './viewer-manifest-cache';
 
 export type WarmupStage = 'manifest' | 'scripts' | 'targets' | 'ready' | 'error';
 
 export type WarmupProgress = {
   progress: number;
-  stage: WarmupStage;
+  /** User-facing intro line (not technical). */
   message: string;
+  /** Optional technical detail — hidden in intro UI. */
+  detail?: string | null;
+  stage: WarmupStage;
   ready: boolean;
   error: string | null;
   manifest: ViewerManifest | null;
@@ -24,14 +28,15 @@ export type WarmupResult = WarmupProgress;
 
 const warmupPromises = new Map<string, Promise<WarmupResult>>();
 
-const prefetchImage = (url: string): Promise<void> =>
-  new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve();
-    img.onerror = () => resolve();
-    img.src = url;
-  });
+const prefetchImage = (url: string): void => {
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.src = url;
+};
+
+const prefetchMindFile = (url: string): void => {
+  void fetch(url, { mode: 'cors', credentials: 'omit' }).catch(() => undefined);
+};
 
 const clampProgress = (value: number) => Math.min(1, Math.max(0, value > 1 ? value / 100 : value));
 
@@ -56,32 +61,67 @@ const cacheMindBundle = (
   );
 };
 
+const prefetchAlbumAssets = (
+  albumSlug: string,
+  manifest: ViewerManifest,
+  mindUrl?: string | null,
+) => {
+  const sortedTargets = [...manifest.targets].sort((a, b) => a.targetIndex - b.targetIndex);
+
+  if (manifest.album.coverImage) {
+    prefetchImage(manifest.album.coverImage);
+  }
+
+  for (const target of sortedTargets) {
+    const preview = target.photoThumbnailUrl ?? target.photoUrl;
+    if (preview) prefetchImage(preview);
+    prefetchImage(viewerService.getTrackingImageUrl(albumSlug, target.id, target.photoMediaId));
+  }
+
+  if (mindUrl) prefetchMindFile(mindUrl);
+};
+
 const runWarmup = async (
   albumSlug: string,
   onUpdate?: (state: WarmupProgress) => void,
 ): Promise<WarmupResult> => {
+  const cachedManifest = readCachedManifest(albumSlug);
+
   let state: WarmupProgress = {
-    progress: 0.05,
+    progress: cachedManifest ? 0.18 : 0.08,
     stage: 'manifest',
-    message: 'Opening your album…',
+    message: cachedManifest
+      ? `Welcome to ${cachedManifest.album.albumName}`
+      : 'Opening your album…',
+    detail: null,
     ready: false,
     error: null,
-    manifest: null,
+    manifest: cachedManifest,
     mindBundle: null,
   };
   emit(onUpdate, state);
 
   try {
+    const scriptsPromise = loadArScripts();
+
     const manifest = await viewerService.getManifest(albumSlug);
+    writeCachedManifest(albumSlug, manifest);
+
     if (!manifest.targets.length) {
       throw new Error('No published AR mappings for this album yet.');
     }
 
+    const albumName = manifest.album.albumName;
+
     state = {
       ...state,
-      progress: 0.2,
+      progress: 0.35,
       manifest,
-      message: `Loading ${manifest.album.albumName}…`,
+      stage: 'manifest',
+      message: `Welcome to ${albumName}`,
+      detail: manifest.branding.studioName
+        ? `A special experience from ${manifest.branding.studioName}`
+        : 'Your photos are about to come alive',
     };
     emit(onUpdate, state);
 
@@ -96,24 +136,19 @@ const runWarmup = async (
       manifest.mindFile?.hash,
     );
 
+    prefetchAlbumAssets(albumSlug, manifest, manifest.mindFile?.url);
+
     state = {
       ...state,
       stage: 'scripts',
-      progress: 0.28,
-      message: manifest.mindFile?.url ? 'Loading AR scanner…' : 'Preparing AR engine…',
+      progress: 0.5,
+      message: 'Preparing your AR experience…',
+      detail: 'Hold your printed photo nearby',
     };
     emit(onUpdate, state);
 
     if (manifest.mindFile?.url) {
-      await loadArScripts();
-
-      state = {
-        ...state,
-        stage: 'targets',
-        progress: 0.72,
-        message: 'Scan targets ready…',
-      };
-      emit(onUpdate, state);
+      await scriptsPromise;
 
       cacheMindBundle(
         mindCacheKey,
@@ -121,82 +156,64 @@ const runWarmup = async (
         manifest.mindFile.targetDimensions ?? [],
       );
 
-      await Promise.all(
-        sortedTargets
-          .map((target) => target.photoThumbnailUrl ?? target.photoUrl)
-          .filter(Boolean)
-          .map((url) => prefetchImage(url as string)),
-      );
-    } else {
-      await Promise.all([loadArScripts(), loadCompilerScript()]);
-
-      state = {
-        ...state,
-        progress: 0.42,
-        message: 'Analyzing your photos for scanning…',
-        stage: 'targets',
-      };
-      emit(onUpdate, state);
-
-      const trackingImageUrls = sortedTargets.map((target) =>
-        viewerService.getTrackingImageUrl(albumSlug, target.id, target.photoMediaId),
-      );
-
-      const cached = await readMindCache(mindCacheKey);
-      let mindUrl = cached?.mindUrl ?? null;
-
-      if (!mindUrl) {
-        const compiled = await compileMindFile(trackingImageUrls, (value) => {
-          state = {
-            ...state,
-            progress: 0.42 + value * 0.38,
-            message: 'Building scan targets…',
-          };
-          emit(onUpdate, state);
-        });
-
-        mindUrl = compiled.mindUrl;
-        cacheMindBundle(mindCacheKey, compiled.mindUrl, compiled.targetDimensions);
-      } else {
-        state = {
-          ...state,
-          progress: 0.72,
-          message: 'Scan targets ready…',
-        };
-        emit(onUpdate, state);
-      }
-
-      await Promise.all(trackingImageUrls.map((url) => prefetchImage(url)));
-
-      state = {
-        ...state,
-        progress: 0.92,
-        message: 'Finishing up…',
-        mindBundle: { url: mindUrl, cacheKey: mindCacheKey },
-      };
-      emit(onUpdate, state);
-
       state = {
         progress: 1,
         stage: 'ready',
-        message: 'Ready to scan',
+        message: 'Your album is ready',
+        detail: 'Tap Start, then point your camera at your photo',
         ready: true,
         error: null,
         manifest,
-        mindBundle: { url: mindUrl, cacheKey: mindCacheKey },
+        mindBundle: { url: manifest.mindFile.url, cacheKey: mindCacheKey },
       };
       emit(onUpdate, state);
       return state;
     }
 
+    const compilerPromise = loadCompilerScript();
+    await Promise.all([scriptsPromise, compilerPromise]);
+
+    state = {
+      ...state,
+      progress: 0.55,
+      message: 'Analyzing your photos…',
+      detail: 'First visit may take a little longer',
+      stage: 'targets',
+    };
+    emit(onUpdate, state);
+
+    const trackingImageUrls = sortedTargets.map((target) =>
+      viewerService.getTrackingImageUrl(albumSlug, target.id, target.photoMediaId),
+    );
+
+    const cachedMind = await readMindCache(mindCacheKey);
+    let mindUrl = cachedMind?.mindUrl ?? null;
+
+    if (!mindUrl) {
+      const compiled = await compileMindFile(trackingImageUrls, (value) => {
+        state = {
+          ...state,
+          progress: 0.55 + value * 0.4,
+          message: 'Almost ready…',
+          detail: 'Building your scan experience',
+          stage: 'targets',
+        };
+        emit(onUpdate, state);
+      });
+
+      mindUrl = compiled.mindUrl;
+      cacheMindBundle(mindCacheKey, compiled.mindUrl, compiled.targetDimensions);
+    }
+
     state = {
       progress: 1,
       stage: 'ready',
-      message: 'Ready to scan',
+      message: 'Your album is ready',
+      detail: 'Tap Start, then point your camera at your photo',
       ready: true,
       error: null,
       manifest,
-      mindBundle: { url: manifest.mindFile.url, cacheKey: mindCacheKey },
+      mindBundle: { url: mindUrl, cacheKey: mindCacheKey },
     };
     emit(onUpdate, state);
     return state;
@@ -206,7 +223,8 @@ const runWarmup = async (
       ...state,
       progress: 0,
       stage: 'error',
-      message,
+      message: 'Something went wrong',
+      detail: message,
       ready: false,
       error: message,
     };
@@ -233,4 +251,13 @@ export const startViewerWarmup = (
 
 export const preloadViewerScripts = (): void => {
   void loadArScripts().catch(() => undefined);
+};
+
+/** Call as early as possible on viewer routes (before React paints). */
+export const bootstrapViewerRoute = (albumSlug: string): void => {
+  preloadViewerScripts();
+  const cached = readCachedManifest(albumSlug);
+  if (cached) {
+    prefetchAlbumAssets(albumSlug, cached, cached.mindFile?.url ?? null);
+  }
 };
