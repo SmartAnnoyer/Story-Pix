@@ -1,8 +1,10 @@
 import { BrandLogo } from '@/components/BrandLogo';
 import type { ViewerManifest } from '@/types/ar-target.types';
 import type { WarmupProgress } from '../utils/viewer-warmup';
+import { MappingPreviewImage } from './MappingPreviewImage';
 
 interface ViewerWelcomeScreenProps {
+  albumSlug: string;
   manifest: ViewerManifest | null;
   warmup: WarmupProgress;
   onStart: () => void;
@@ -14,13 +16,22 @@ const TIPS = [
   'Video plays on the photo; double-tap for full screen.',
 ];
 
-export const ViewerWelcomeScreen = ({ manifest, warmup, onStart }: ViewerWelcomeScreenProps) => {
+const clampPercent = (progress: number) =>
+  Math.min(100, Math.max(0, Math.round(progress > 1 ? progress : progress * 100)));
+
+export const ViewerWelcomeScreen = ({
+  albumSlug,
+  manifest,
+  warmup,
+  onStart,
+}: ViewerWelcomeScreenProps) => {
   const albumName = manifest?.album.albumName ?? 'Your Story-pix Album';
   const studioName = manifest?.branding.studioName;
   const cover = manifest?.album.coverImage;
-  const targets = manifest?.targets ?? [];
-  const percent = Math.round(warmup.progress * 100);
-  const canStart = warmup.ready && Boolean(manifest?.targets.length);
+  const targets = [...(manifest?.targets ?? [])].sort((a, b) => a.targetIndex - b.targetIndex);
+  const percent = clampPercent(warmup.progress);
+  const canStart = warmup.ready && Boolean(targets.length);
+  const primaryTarget = targets[0] ?? null;
 
   return (
     <div className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-gradient-to-b from-[#1a0a2e] via-[#120818] to-black text-white">
@@ -35,7 +46,21 @@ export const ViewerWelcomeScreen = ({ manifest, warmup, onStart }: ViewerWelcome
         </div>
 
         <div className="mx-auto w-full max-w-md flex-1">
-          {cover ? (
+          {primaryTarget ? (
+            <div className="mx-auto mb-5 flex flex-col items-center">
+              <div className="relative overflow-hidden rounded-2xl border border-white/15 bg-black/30 p-3 shadow-2xl">
+                <MappingPreviewImage
+                  albumSlug={albumSlug}
+                  target={primaryTarget}
+                  size="lg"
+                  className="!h-auto !w-full max-h-48 max-w-[240px] sm:max-w-[280px]"
+                />
+              </div>
+              <p className="mt-3 text-center text-sm font-medium text-white/90">
+                Scan this photo: {primaryTarget.targetName}
+              </p>
+            </div>
+          ) : cover ? (
             <div className="mx-auto mb-5 aspect-[4/3] w-full max-w-xs overflow-hidden rounded-2xl border border-white/10 shadow-2xl">
               <img src={cover} alt={albumName} className="h-full w-full object-cover" />
             </div>
@@ -52,29 +77,21 @@ export const ViewerWelcomeScreen = ({ manifest, warmup, onStart }: ViewerWelcome
                 : 'We are preparing your AR experience while you wait — no typing needed.'}
           </p>
 
-          {targets.length > 0 ? (
-            <div className="mb-6 flex flex-wrap justify-center gap-3">
-              {targets.slice(0, 4).map((target) => {
-                const preview = target.photoThumbnailUrl ?? target.photoUrl;
-                return (
-                  <div key={target.id} className="flex flex-col items-center gap-1">
-                    {preview ? (
-                      <img
-                        src={preview}
-                        alt={target.targetName}
-                        className="h-14 w-14 rounded-xl border border-[#8A2BE2]/40 object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-white/20 bg-white/5 text-[10px]">
-                        Photo
-                      </div>
-                    )}
-                    <span className="max-w-[72px] truncate text-[10px] text-white/70">
+          {targets.length > 1 ? (
+            <div className="mb-6">
+              <p className="mb-3 text-center text-xs font-medium uppercase tracking-wide text-white/50">
+                {targets.length} photos to scan
+              </p>
+              <div className="flex flex-wrap justify-center gap-4">
+                {targets.slice(0, 6).map((target) => (
+                  <div key={target.id} className="flex flex-col items-center gap-1.5">
+                    <MappingPreviewImage albumSlug={albumSlug} target={target} size="sm" />
+                    <span className="max-w-[88px] truncate text-center text-[10px] text-white/75">
                       {target.targetName}
                     </span>
                   </div>
-                );
-              })}
+                ))}
+              </div>
             </div>
           ) : null}
 

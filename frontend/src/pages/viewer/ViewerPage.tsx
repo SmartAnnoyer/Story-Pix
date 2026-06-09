@@ -58,6 +58,7 @@ export const ViewerPage = () => {
   if (!started) {
     return (
       <ViewerWelcomeScreen
+        albumSlug={albumSlug}
         manifest={warmup.manifest}
         warmup={warmup}
         onStart={() => setStarted(true)}

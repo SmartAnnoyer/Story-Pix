@@ -1,7 +1,9 @@
 import type { ScanOverlayMessage, ViewerManifestTarget } from '@/types/ar-target.types';
+import { MappingPreviewImage } from './MappingPreviewImage';
 import { ViewerProgressBar, type ViewerPhase } from './ViewerProgressBar';
 
 interface ScanStatusOverlayProps {
+  albumSlug?: string;
   status: ScanOverlayMessage;
   detail?: string | null;
   targets?: ViewerManifestTarget[];
@@ -29,6 +31,7 @@ const statusToPhase = (status: ScanOverlayMessage): ViewerPhase => {
 };
 
 export const ScanStatusOverlay = ({
+  albumSlug = '',
   status,
   detail,
   targets = [],
@@ -107,29 +110,16 @@ export const ScanStatusOverlay = ({
           </div>
         ) : null}
 
-        {showTargetHints && targets.length > 0 ? (
+        {showTargetHints && targets.length > 0 && albumSlug ? (
           <div className="mt-4 flex flex-wrap justify-center gap-3">
-            {targets.slice(0, 4).map((target) => {
-              const preview = target.photoThumbnailUrl ?? target.photoUrl;
-              return (
-                <div key={target.id} className="flex flex-col items-center gap-1">
-                  {preview ? (
-                    <img
-                      src={preview}
-                      alt={target.targetName}
-                      className="h-16 w-16 rounded-xl border-2 border-[#8A2BE2]/50 object-cover shadow-md"
-                    />
-                  ) : (
-                    <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-white/30 bg-white/10 text-[10px]">
-                      Photo
-                    </div>
-                  )}
-                  <span className="max-w-[80px] truncate text-[10px] font-medium text-white/85">
-                    {target.targetName}
-                  </span>
-                </div>
-              );
-            })}
+            {targets.slice(0, 4).map((target) => (
+              <div key={target.id} className="flex flex-col items-center gap-1">
+                <MappingPreviewImage albumSlug={albumSlug} target={target} size="sm" />
+                <span className="max-w-[80px] truncate text-[10px] font-medium text-white/85">
+                  {target.targetName}
+                </span>
+              </div>
+            ))}
           </div>
         ) : null}
 

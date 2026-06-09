@@ -179,7 +179,8 @@ export const compileMindFile = async (
     compiler.compileImageTargets(
       preparedTargets.map((target) => target.canvas),
       (progress) => {
-        onProgress?.(0.3 + progress * 0.55);
+        const normalized = progress > 1 ? progress / 100 : progress;
+        onProgress?.(0.3 + normalized * 0.55);
       },
     ),
     new Promise<never>((_, reject) => {

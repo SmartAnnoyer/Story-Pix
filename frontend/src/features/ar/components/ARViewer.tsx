@@ -661,6 +661,7 @@ export const ARViewer = ({ albumSlug, manifest, prefetchedMindBundle }: ARViewer
         onExitFullscreen={handleExitFullscreen}
       />
       <ScanStatusOverlay
+        albumSlug={albumSlug}
         status={status}
         detail={prepareError ?? statusDetail}
         targets={targets}

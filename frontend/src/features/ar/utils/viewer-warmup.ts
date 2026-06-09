@@ -33,11 +33,13 @@ const prefetchImage = (url: string): Promise<void> =>
     img.src = url;
   });
 
+const clampProgress = (value: number) => Math.min(1, Math.max(0, value > 1 ? value / 100 : value));
+
 const emit = (
   onUpdate: ((state: WarmupProgress) => void) | undefined,
   state: WarmupProgress,
 ) => {
-  onUpdate?.(state);
+  onUpdate?.({ ...state, progress: clampProgress(state.progress) });
 };
 
 const cacheMindBundle = (

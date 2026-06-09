@@ -75,8 +75,8 @@ const prepareVideoElement = (video: HTMLVideoElement) => {
   video.setAttribute('playsinline', '');
   video.setAttribute('webkit-playsinline', '');
   video.playsInline = true;
-  video.muted = true;
   video.preload = 'auto';
+  video.volume = 1;
 };
 
 export const TargetFrameVideo = ({
@@ -104,12 +104,23 @@ export const TargetFrameVideo = ({
   const [needsTap, setNeedsTap] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [soundOn, setSoundOn] = useState(false);
 
   useEffect(() => {
     onPlayRef.current = onPlay;
     onErrorRef.current = onError;
     onEndedRef.current = onEnded;
   }, [onPlay, onError, onEnded]);
+
+  const enableSound = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return false;
+
+    video.muted = false;
+    video.volume = 1;
+    setSoundOn(true);
+    return true;
+  }, []);
 
   const notifyPlay = useCallback(() => {
     if (hasNotifiedPlayRef.current) return;
@@ -118,27 +129,48 @@ export const TargetFrameVideo = ({
     onPlayRef.current?.();
   }, []);
 
-  const tryPlay = useCallback(async () => {
-    const video = videoRef.current;
-    if (!video || video.videoWidth === 0) return false;
+  const tryPlay = useCallback(
+    async (withSound = false) => {
+      const video = videoRef.current;
+      if (!video || video.videoWidth === 0) return false;
 
-    video.muted = true;
-    try {
-      await video.play();
-    } catch {
-      setNeedsTap(true);
-      return false;
-    }
+      video.muted = !withSound;
+      if (withSound) {
+        video.volume = 1;
+      }
 
-    if (video.paused || video.videoWidth === 0) {
-      setNeedsTap(true);
-      return false;
-    }
+      try {
+        await video.play();
+      } catch {
+        if (withSound) {
+          video.muted = true;
+          try {
+            await video.play();
+          } catch {
+            setNeedsTap(true);
+            return false;
+          }
+        } else {
+          setNeedsTap(true);
+          return false;
+        }
+      }
 
-    setNeedsTap(false);
-    notifyPlay();
-    return true;
-  }, [notifyPlay]);
+      if (video.paused || video.videoWidth === 0) {
+        setNeedsTap(true);
+        return false;
+      }
+
+      if (withSound && !video.muted) {
+        setSoundOn(true);
+      }
+
+      setNeedsTap(false);
+      notifyPlay();
+      return true;
+    },
+    [notifyPlay],
+  );
 
   const loadAndPlay = useCallback(
     async (sources: string[]) => {
@@ -148,6 +180,7 @@ export const TargetFrameVideo = ({
       }
 
       prepareVideoElement(video);
+      video.muted = true;
       let lastError: unknown;
 
       for (const source of sources) {
@@ -155,7 +188,7 @@ export const TargetFrameVideo = ({
           video.src = source;
           video.load();
           await waitForVideoReady(video);
-          const played = await tryPlay();
+          const played = await tryPlay(false);
           if (played) return;
         } catch (error) {
           lastError = error;
@@ -176,6 +209,7 @@ export const TargetFrameVideo = ({
       setNeedsTap(false);
       setLoading(false);
       setIsPlaying(false);
+      setSoundOn(false);
       video.pause();
       video.removeAttribute('src');
       video.load();
@@ -187,6 +221,7 @@ export const TargetFrameVideo = ({
     setNeedsTap(false);
     hasNotifiedPlayRef.current = false;
     setIsPlaying(false);
+    setSoundOn(false);
 
     const sources = buildSourceList(primaryUrl, fallbackUrl, preferDirectUrl);
 
@@ -209,7 +244,11 @@ export const TargetFrameVideo = ({
     const video = videoRef.current;
     if (!video) return;
     video.loop = mode === 'frame';
-  }, [mode]);
+    if (mode === 'fullscreen' && isPlaying) {
+      enableSound();
+      void video.play().catch(() => undefined);
+    }
+  }, [mode, isPlaying, enableSound]);
 
   useEffect(() => {
     if (!active || mode !== 'frame' || !host || !targetEntity) {
@@ -230,8 +269,9 @@ export const TargetFrameVideo = ({
 
   const handleDoubleTap = useCallback(() => {
     if (!isPlaying && !needsTap) return;
+    enableSound();
     onModeChange('fullscreen');
-  }, [isPlaying, needsTap, onModeChange]);
+  }, [isPlaying, needsTap, enableSound, onModeChange]);
 
   const handleTap = useCallback(
     (event: React.MouseEvent | React.TouchEvent) => {
@@ -247,8 +287,32 @@ export const TargetFrameVideo = ({
         return;
       }
       lastTapRef.current = now;
+
+      if (isPlaying && !soundOn) {
+        enableSound();
+        void videoRef.current?.play().catch(() => undefined);
+      }
     },
-    [handleDoubleTap],
+    [handleDoubleTap, isPlaying, soundOn, enableSound],
+  );
+
+  const handleTapPlay = useCallback(() => {
+    void tryPlay(true);
+  }, [tryPlay]);
+
+  const handleSoundToggle = useCallback(
+    (event: React.MouseEvent) => {
+      event.stopPropagation();
+      if (soundOn) {
+        const video = videoRef.current;
+        if (video) video.muted = true;
+        setSoundOn(false);
+        return;
+      }
+      enableSound();
+      void videoRef.current?.play().catch(() => undefined);
+    },
+    [soundOn, enableSound],
   );
 
   if (!active) return null;
@@ -281,7 +345,7 @@ export const TargetFrameVideo = ({
         ref={videoRef}
         className={showFullscreen ? 'h-full w-full flex-1 object-contain' : 'h-full w-full object-cover'}
         playsInline
-        muted
+        muted={!soundOn}
         autoPlay
         onEnded={() => {
           if (mode === 'fullscreen') onEndedRef.current?.();
@@ -294,7 +358,7 @@ export const TargetFrameVideo = ({
           className="absolute inset-0 flex items-center justify-center bg-black/45 text-sm font-semibold text-white"
           onClick={(event) => {
             event.stopPropagation();
-            void tryPlay();
+            handleTapPlay();
           }}
         >
           Tap to play
@@ -302,9 +366,27 @@ export const TargetFrameVideo = ({
       ) : null}
 
       {showFrame && isPlaying ? (
-        <span className="pointer-events-none absolute bottom-1 right-1 rounded bg-black/50 px-1.5 py-0.5 text-[10px] text-white/80">
-          Double-tap for full screen
-        </span>
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 p-1">
+          <span className="rounded bg-black/50 px-1.5 py-0.5 text-[10px] text-white/80">
+            Double-tap for full screen
+          </span>
+          {!soundOn ? (
+            <span className="rounded bg-black/50 px-1.5 py-0.5 text-[10px] text-white/80">
+              Tap for sound
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
+      {(showFrame || showFullscreen) && isPlaying ? (
+        <button
+          type="button"
+          aria-label={soundOn ? 'Mute video' : 'Unmute video'}
+          className="absolute right-2 top-2 z-[42] flex h-9 w-9 items-center justify-center rounded-full bg-black/65 text-base text-white backdrop-blur-sm"
+          onClick={handleSoundToggle}
+        >
+          {soundOn ? '🔊' : '🔇'}
+        </button>
       ) : null}
 
       {showFullscreen ? (
