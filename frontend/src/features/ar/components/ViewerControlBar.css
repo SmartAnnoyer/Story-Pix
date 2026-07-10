@@ -1,0 +1,51 @@
+.viewer-control-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.viewer-control-btn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.8);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.viewer-control-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.viewer-control-btn-primary {
+  border: none;
+  background: #8a2be2;
+  box-shadow: 0 8px 24px rgba(138, 43, 226, 0.35);
+}
+
+.viewer-control-btn-primary:hover:not(:disabled) {
+  background: #7a24cc;
+}
+
+.viewer-control-icon {
+  display: inline-block;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.viewer-control-icon.is-spinning {
+  animation: viewer-control-spin 0.8s linear infinite;
+}
+
+@keyframes viewer-control-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

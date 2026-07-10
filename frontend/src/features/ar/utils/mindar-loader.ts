@@ -1,3 +1,9 @@
+import {
+  AFRAME_SCRIPT,
+  MINDAR_AFRAME_SCRIPT,
+  MINDAR_IMAGE_SCRIPT,
+  MINDAR_VERSION,
+} from './mindar-cdn';
 import { prepareTrackingImage, type TrackingImageDimensions } from './tracking-image';
 
 declare global {
@@ -19,16 +25,6 @@ declare global {
     };
   }
 }
-
-/**
- * MindAR 1.2.x `mindar-image.prod.js` on npm is ESM-only (breaks classic script tags).
- * Use 1.1.4 IIFE builds from jsDelivr — same as official MindAR HTML examples.
- * @see https://hiukim.github.io/mind-ar-js-doc/quick-start/compile
- */
-const MINDAR_VERSION = '1.1.4';
-const MINDAR_IMAGE_SCRIPT = `https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@${MINDAR_VERSION}/dist/mindar-image.prod.js`;
-const AFRAME_SCRIPT = 'https://aframe.io/releases/1.2.0/aframe.min.js';
-const MINDAR_AFRAME_SCRIPT = `https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@${MINDAR_VERSION}/dist/mindar-image-aframe.prod.js`;
 
 const IMAGE_LOAD_TIMEOUT_MS = 30_000;
 const COMPILE_TIMEOUT_MS = 120_000;
@@ -67,11 +63,19 @@ const loadScript = (src: string): Promise<void> =>
       return;
     }
 
-    // Drop broken/partial tags (e.g. failed ESM load from an older deploy)
-    existing?.remove();
+    if (existing) {
+      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener(
+        'error',
+        () => reject(new Error(`Failed to load ${src}`)),
+        { once: true },
+      );
+      return;
+    }
 
     const script = document.createElement('script');
     script.src = src;
+    script.crossOrigin = 'anonymous';
     script.onload = () => {
       script.dataset.mindarLoaded = 'true';
       resolve();

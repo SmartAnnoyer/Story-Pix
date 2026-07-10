@@ -19,6 +19,7 @@ import { EventTypeBadge } from '@/features/albums/components/EventTypeBadge';
 import { PublishToggle } from '@/features/albums/components/PublishToggle';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { AlbumViewerQrCard } from '@/features/studio/components/AlbumViewerQrCard';
+import { ArScanFileStatus } from '@/features/albums/components/ArScanFileStatus';
 import { EVENT_TYPE_LABELS, AlbumStatus } from '@/types/album.types';
 import { ROUTES } from '@/routes/paths';
 
@@ -122,11 +123,19 @@ export const AlbumDetailsPage = () => {
                 Published on {new Date(album.publishedAt).toLocaleString()}
               </Text>
             ) : null}
+            <div className="mt-4">
+              <ArScanFileStatus
+                status={album.status}
+                ready={album.arScanFileReady}
+                compiledAt={album.arScanFileCompiledAt}
+              />
+            </div>
           </Card>
           <AlbumViewerQrCard
             albumName={album.albumName}
             viewerUrl={album.publicViewerUrl}
             published={album.status === AlbumStatus.PUBLISHED}
+            arScanFileReady={album.arScanFileReady}
           />
           <Card title="Public Viewer Link">
             <Paragraph type="secondary" className="text-sm">

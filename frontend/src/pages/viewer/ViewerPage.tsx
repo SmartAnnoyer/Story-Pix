@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Result } from 'antd';
 import { ARViewer } from '@/features/ar/components/ARViewer';
 import { ViewerWelcomeScreen } from '@/features/ar/components/ViewerWelcomeScreen';
 import {
@@ -11,6 +10,7 @@ import {
 } from '@/features/ar/utils/viewer-warmup';
 import { readCachedManifest } from '@/features/ar/utils/viewer-manifest-cache';
 import { getErrorMessage } from '@/api/client';
+import { ViewerErrorState } from './ViewerErrorState';
 
 const buildInitialWarmup = (albumSlug: string): WarmupProgress => {
   const cached = readCachedManifest(albumSlug);
@@ -68,39 +68,41 @@ export const ViewerPage = () => {
 
   if (warmup.stage === 'error' && !warmup.manifest) {
     return (
-      <div className="flex h-[100dvh] items-center justify-center bg-black p-6">
-        <Result status="404" title="Album unavailable" subTitle={warmup.error ?? 'This album is not published.'} />
-      </div>
+      <ViewerErrorState
+        title="Album unavailable"
+        message={warmup.error ?? 'This album is not published.'}
+      />
     );
   }
+
+  const manifest = warmup.manifest;
+  const hasTargets = Boolean(manifest?.targets.length);
 
   if (!started) {
     return (
       <ViewerWelcomeScreen
         albumSlug={albumSlug}
-        manifest={warmup.manifest}
+        manifest={manifest}
         warmup={warmup}
         onStart={() => setStarted(true)}
       />
     );
   }
 
-  if (!warmup.manifest?.targets.length) {
+  if (!hasTargets) {
     return (
-      <div className="flex h-[100dvh] items-center justify-center bg-black p-6">
-        <Result
-          status="warning"
-          title="No AR mappings yet"
-          subTitle="Publish at least one photo–video mapping for this album, then reopen this link."
-        />
-      </div>
+      <ViewerErrorState
+        variant="warning"
+        title="No AR mappings yet"
+        message="Publish at least one photo–video mapping for this album, then reopen this link."
+      />
     );
   }
 
   return (
     <ARViewer
       albumSlug={albumSlug}
-      manifest={warmup.manifest}
+      manifest={manifest!}
       prefetchedMindBundle={warmup.mindBundle}
     />
   );

@@ -16,11 +16,22 @@ export default defineConfig({
   build: {
     sourcemap: true,
     rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+      },
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom'],
-          antd: ['antd', '@ant-design/icons'],
-          query: ['@tanstack/react-query'],
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('antd') || id.includes('@ant-design')) return 'antd';
+            if (id.includes('@tanstack/react-query')) return 'query';
+            if (
+              id.includes('react-router') ||
+              id.includes('react-dom') ||
+              id.includes('/react/')
+            ) {
+              return 'vendor';
+            }
+          }
         },
       },
     },

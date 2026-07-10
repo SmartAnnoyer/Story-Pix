@@ -46,9 +46,34 @@
       }
     </style>
     <script>
-      if (/^\/viewer\/[^/]+/.test(location.pathname)) {
+      (function () {
+        var isViewer = /^\/viewer\/[^/]+/.test(location.pathname);
+        if (!isViewer) return;
+
         document.documentElement.classList.add('viewer-route');
-      }
+
+        // MindAR 1.1.4 — keep in sync with src/features/ar/utils/mindar-cdn.ts
+        var scripts = [
+          'https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.1.4/dist/mindar-image.prod.js',
+          'https://aframe.io/releases/1.2.0/aframe.min.js',
+          'https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.1.4/dist/mindar-image-aframe.prod.js',
+        ];
+
+        scripts.forEach(function (src) {
+          var preload = document.createElement('link');
+          preload.rel = 'preload';
+          preload.as = 'script';
+          preload.href = src;
+          preload.crossOrigin = 'anonymous';
+          document.head.appendChild(preload);
+
+          var tag = document.createElement('script');
+          tag.src = src;
+          tag.async = true;
+          tag.crossOrigin = 'anonymous';
+          document.head.appendChild(tag);
+        });
+      })();
     </script>
   </head>
   <body>
@@ -57,6 +82,13 @@
       <p>Opening your album…</p>
     </div>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module">
+      const isViewer = /^\/viewer\/[^/]+/.test(location.pathname);
+      if (isViewer) {
+        import('/src/viewer-main.tsx');
+      } else {
+        import('/src/main.tsx');
+      }
+    </script>
   </body>
 </html>

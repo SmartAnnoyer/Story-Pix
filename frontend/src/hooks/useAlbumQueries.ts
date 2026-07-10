@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { albumService } from '@/services/album.service';
-import type { AlbumQueryParams, CreateAlbumPayload, UpdateAlbumPayload } from '@/types/album.types';
+import { AlbumStatus, type AlbumQueryParams, type CreateAlbumPayload, type UpdateAlbumPayload } from '@/types/album.types';
 
 export const albumKeys = {
   all: ['albums'] as const,
@@ -26,6 +26,14 @@ export const useAlbumQuery = (id: string, enabled = true) =>
     queryKey: albumKeys.detail(id),
     queryFn: () => albumService.getAlbum(id),
     enabled: Boolean(id) && enabled,
+    refetchInterval: (query) => {
+      const album = query.state.data;
+      if (!album) return false;
+      if (album.status === AlbumStatus.PUBLISHED && !album.arScanFileReady) {
+        return 3000;
+      }
+      return false;
+    },
   });
 
 export const useCreateAlbumMutation = () => {

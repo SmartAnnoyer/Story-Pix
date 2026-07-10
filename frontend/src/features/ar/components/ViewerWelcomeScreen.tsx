@@ -42,7 +42,8 @@ export const ViewerWelcomeScreen = ({
     () => [...(manifest?.targets ?? [])].sort((a, b) => a.targetIndex - b.targetIndex),
     [manifest?.targets],
   );
-  const canStart = warmup.ready && Boolean(targets.length);
+  const canOpenCamera = Boolean(targets.length) && !warmup.error;
+  const scanFileReady = warmup.ready && Boolean(warmup.mindBundle);
   const primaryTarget = targets[0] ?? null;
 
   const introStep = warmup.ready ? 2 : warmup.stage === 'targets' || warmup.stage === 'scripts' ? 1 : 0;
@@ -204,20 +205,26 @@ export const ViewerWelcomeScreen = ({
 
           <button
             type="button"
-            disabled={!canStart}
+            disabled={!canOpenCamera}
             onClick={onStart}
             className={`w-full rounded-2xl px-6 py-4 text-base font-semibold transition-all ${
-              canStart
+              canOpenCamera
                 ? 'viewer-intro-cta bg-gradient-to-r from-[#8A2BE2] to-[#FF4FA3] text-white shadow-lg shadow-purple-900/40 active:scale-[0.98]'
                 : 'cursor-wait bg-white/10 text-white/50'
             }`}
           >
-            {canStart ? 'Start scanning' : 'Preparing your album…'}
+            {canOpenCamera
+              ? scanFileReady
+                ? 'Open camera'
+                : 'Open camera (still preparing…)'
+              : 'Loading album…'}
           </button>
 
           <p className="mt-3 text-center text-[11px] text-white/45">
-            {canStart
-              ? 'Camera opens when you tap Start — have your printed photo ready.'
+            {canOpenCamera
+              ? scanFileReady
+                ? 'Camera opens on this tap — have your printed photo ready.'
+                : 'Camera opens now. Scan data may finish loading in the background.'
               : 'Setting things up in the background. This screen is your album preview.'}
           </p>
         </div>

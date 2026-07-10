@@ -331,6 +331,10 @@ export class AlbumsService {
       status: album.status,
       isPublished: album.isPublished,
       publishedAt: album.publishedAt ?? null,
+      arScanFileReady: Boolean(album.mindFileUrl),
+      arScanFileCompiledAt: album.mindFileCompiledAt
+        ? album.mindFileCompiledAt.toISOString()
+        : null,
       createdBy: album.createdBy.toString(),
       createdAt: doc.createdAt ?? null,
       updatedAt: doc.updatedAt ?? null,

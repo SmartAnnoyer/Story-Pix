@@ -1,6 +1,5 @@
-import { Button } from 'antd';
-import { ReloadOutlined, SyncOutlined } from '@ant-design/icons';
 import type { CameraFacing } from '../utils/mindar-scene';
+import './ViewerControlBar.css';
 
 interface ViewerControlBarProps {
   showFlip: boolean;
@@ -24,27 +23,25 @@ export const ViewerControlBar = ({
   return (
     <div className="pointer-events-auto absolute bottom-28 right-4 z-30 flex flex-col gap-2 sm:bottom-32">
       {showFlip ? (
-        <Button
-          type="default"
-          shape="round"
-          icon={<SyncOutlined spin={flipping} />}
+        <button
+          type="button"
           onClick={onFlip}
           disabled={flipping}
-          className="border-white/20 bg-black/60 text-white backdrop-blur hover:!border-white/40 hover:!bg-black/80 hover:!text-white"
+          className="viewer-control-btn"
         >
+          <span className={`viewer-control-icon ${flipping ? 'is-spinning' : ''}`} aria-hidden>
+            ↻
+          </span>
           {facingMode === 'environment' ? 'Front camera' : 'Back camera'}
-        </Button>
+        </button>
       ) : null}
       {showRetry ? (
-        <Button
-          type="primary"
-          shape="round"
-          icon={<ReloadOutlined />}
-          onClick={onRetry}
-          className="border-none bg-[#8A2BE2] shadow-lg hover:!bg-[#7a24cc]"
-        >
+        <button type="button" onClick={onRetry} className="viewer-control-btn viewer-control-btn-primary">
+          <span className="viewer-control-icon" aria-hidden>
+            ⟳
+          </span>
           Try again
-        </Button>
+        </button>
       ) : null}
     </div>
   );

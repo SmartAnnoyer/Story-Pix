@@ -43,43 +43,47 @@ const SCAN_NO_MATCH_DELAY_MS = 25_000;
 
 const TARGET_FOUND_CONFIRM_MS = 800;
 
-const waitForCameraPreview = async (
-  host: HTMLElement,
-  attempts = 15,
-  delayMs = 300,
-): Promise<boolean> => {
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    ensureCameraPreviewVisible(host);
-    if (isCameraPreviewLive(host)) return true;
-    await new Promise((resolve) => window.setTimeout(resolve, delayMs));
-  }
-  return isCameraPreviewLive(host);
+const buildServerMindBundle = (
+  albumSlug: string,
+  manifest: ViewerManifest,
+): MindBundle | null => {
+  if (!manifest.mindFile?.url) return null;
+
+  const sortedTargets = [...manifest.targets].sort((a, b) => a.targetIndex - b.targetIndex);
+  const cacheKey = getMindCacheKey(
+    albumSlug,
+    sortedTargets.map((target) => ({ id: target.id, photoMediaId: target.photoMediaId })),
+    manifest.mindFile.hash,
+  );
+
+  return { url: manifest.mindFile.url, cacheKey };
 };
 
 export const ARViewer = ({ albumSlug, manifest, prefetchedMindBundle }: ARViewerProps) => {
+  const initialMindBundle = prefetchedMindBundle ?? buildServerMindBundle(albumSlug, manifest);
+  const hasPreparedMind = Boolean(initialMindBundle);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const targetEntitiesRef = useRef<HTMLElement[]>([]);
   const targetTrackedRef = useRef(false);
   const videoModeRef = useRef<VideoDisplayMode>('frame');
   const listenersAttachedRef = useRef(false);
   const targetFoundTimersRef = useRef<Map<number, number>>(new Map());
-  const [status, setStatus] = useState<ScanOverlayMessage>(
-    prefetchedMindBundle ? 'loading' : 'preparing',
-  );
+  const [status, setStatus] = useState<ScanOverlayMessage>(hasPreparedMind ? 'loading' : 'preparing');
   const [activeTarget, setActiveTarget] = useState<ViewerManifestTarget | null>(null);
   const [activeMindIndex, setActiveMindIndex] = useState<number | null>(null);
   const [targetAspectRatio, setTargetAspectRatio] = useState(1.414);
   const [videoMode, setVideoMode] = useState<VideoDisplayMode>('frame');
-  const [mindBundle, setMindBundle] = useState<MindBundle | null>(prefetchedMindBundle ?? null);
+  const [mindBundle, setMindBundle] = useState<MindBundle | null>(initialMindBundle);
   const [prepareError, setPrepareError] = useState<string | null>(null);
   const [statusDetail, setStatusDetail] = useState<string | null>(null);
-  const [progress, setProgress] = useState(prefetchedMindBundle ? 0.72 : 0.05);
+  const [progress, setProgress] = useState(hasPreparedMind ? 0.72 : 0.05);
   const [scanSeconds, setScanSeconds] = useState(0);
   const [facingMode, setFacingMode] = useState<CameraFacing>('environment');
   const [flipping, setFlipping] = useState(false);
   const [sceneGeneration, setSceneGeneration] = useState(0);
   const [prepareGeneration, setPrepareGeneration] = useState(0);
-  const skipWarmupPrepareRef = useRef(Boolean(prefetchedMindBundle));
+  const skipWarmupPrepareRef = useRef(hasPreparedMind);
   const scanHintTimeoutRef = useRef<number | null>(null);
   const scanNoMatchTimeoutRef = useRef<number | null>(null);
   const scanTickRef = useRef<number | null>(null);
@@ -87,6 +91,19 @@ export const ARViewer = ({ albumSlug, manifest, prefetchedMindBundle }: ARViewer
   const scanningEnabledRef = useRef(false);
   const deviceInfo = useMemo(() => detectDeviceInfo(), []);
   const sessionId = useMemo(() => getViewerSessionId(), []);
+
+  const waitForCameraPreview = async (
+    host: HTMLElement,
+    attempts = 10,
+    delayMs = 200,
+  ): Promise<boolean> => {
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      ensureCameraPreviewVisible(host);
+      if (isCameraPreviewLive(host)) return true;
+      await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+    }
+    return isCameraPreviewLive(host);
+  };
 
   const targets = useMemo(
     () => [...manifest.targets].sort((a, b) => a.targetIndex - b.targetIndex),

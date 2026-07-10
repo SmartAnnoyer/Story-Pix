@@ -7,9 +7,15 @@ interface AlbumViewerQrCardProps {
   albumName: string;
   viewerUrl: string;
   published: boolean;
+  arScanFileReady?: boolean;
 }
 
-export const AlbumViewerQrCard = ({ albumName, viewerUrl, published }: AlbumViewerQrCardProps) => {
+export const AlbumViewerQrCard = ({
+  albumName,
+  viewerUrl,
+  published,
+  arScanFileReady = false,
+}: AlbumViewerQrCardProps) => {
   const qrWrapRef = useRef<HTMLDivElement>(null);
 
   const downloadQr = () => {
@@ -36,6 +42,10 @@ export const AlbumViewerQrCard = ({ albumName, viewerUrl, published }: AlbumView
         <Text type="warning" className="mb-3 block text-xs">
           Publish the album before sharing the QR with customers.
         </Text>
+      ) : !arScanFileReady ? (
+        <Text type="warning" className="mb-3 block text-xs">
+          AR scan file is still building. Wait until it shows Ready before printing the QR.
+        </Text>
       ) : null}
 
       <div ref={qrWrapRef} className="mb-4 flex justify-center rounded-xl bg-white p-4">
@@ -46,7 +56,7 @@ export const AlbumViewerQrCard = ({ albumName, viewerUrl, published }: AlbumView
         {viewerUrl}
       </Paragraph>
 
-      <Button block onClick={downloadQr} disabled={!published}>
+      <Button block onClick={downloadQr} disabled={!published || !arScanFileReady}>
         Download QR for print
       </Button>
     </Card>

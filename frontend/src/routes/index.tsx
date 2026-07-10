@@ -29,8 +29,6 @@ import { EditMappingPage } from '@/pages/studio/EditMappingPage';
 import { StudioAnalyticsPage } from '@/pages/studio/StudioAnalyticsPage';
 import { StudioReportsPage } from '@/pages/studio/StudioReportsPage';
 import { AlbumInsightsPage } from '@/pages/studio/AlbumInsightsPage';
-import { ViewerPage } from '@/pages/viewer/ViewerPage';
-import { ViewerLayout } from '@/layouts/ViewerLayout';
 import { PlansListPage } from '@/pages/admin/PlansListPage';
 import { CreatePlanPage } from '@/pages/admin/CreatePlanPage';
 import { EditPlanPage } from '@/pages/admin/EditPlanPage';
@@ -81,10 +79,6 @@ export const AppRoutes = () => {
           <Route path={ROUTES.ALBUM_INSIGHTS} element={<AlbumInsightsPage />} />
           <Route path={ROUTES.NOTIFICATIONS} element={<NotificationCenterPage />} />
         </Route>
-      </Route>
-
-      <Route element={<ViewerLayout />}>
-        <Route path={ROUTES.VIEWER} element={<ViewerPage />} />
       </Route>
 
       <Route element={<ProtectedRoute />}>

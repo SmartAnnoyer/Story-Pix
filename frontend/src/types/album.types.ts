@@ -46,6 +46,8 @@ export interface Album {
   status: AlbumStatus;
   isPublished: boolean;
   publishedAt: string | null;
+  arScanFileReady: boolean;
+  arScanFileCompiledAt: string | null;
   createdBy: string;
   createdAt: string | null;
   updatedAt: string | null;
