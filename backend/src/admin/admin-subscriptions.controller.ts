@@ -61,6 +61,12 @@ export class AdminSubscriptionsController {
     return this.subscriptionService.suspend(id);
   }
 
+  @Post(':id/activate')
+  @RequirePermissions('platform:subscriptions:write')
+  activate(@Param('id') id: string) {
+    return this.subscriptionService.activate(id);
+  }
+
   @Post(':id/extend')
   @RequirePermissions('platform:subscriptions:write')
   extend(@Param('id') id: string, @Body() dto: ExtendSubscriptionDto) {

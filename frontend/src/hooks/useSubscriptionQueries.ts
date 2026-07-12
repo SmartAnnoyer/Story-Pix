@@ -81,7 +81,10 @@ export const useAssignPlanMutation = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: AssignPlanPayload) => subscriptionService.assignPlan(payload),
-    onSuccess: () => qc.invalidateQueries({ queryKey: subscriptionKeys.all }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: subscriptionKeys.all });
+      void qc.invalidateQueries({ queryKey: ['studios'] });
+    },
   });
 };
 
@@ -96,7 +99,7 @@ export const useSubscriptionActionMutation = () => {
       billingCycle,
       extendDays,
     }: {
-      action: 'cancel' | 'suspend' | 'extend' | 'upgrade' | 'downgrade';
+      action: 'cancel' | 'suspend' | 'activate' | 'extend' | 'upgrade' | 'downgrade';
       id?: string;
       studioId?: string;
       planId?: string;
@@ -108,6 +111,8 @@ export const useSubscriptionActionMutation = () => {
           return subscriptionService.cancelSubscription(id!);
         case 'suspend':
           return subscriptionService.suspendSubscription(id!);
+        case 'activate':
+          return subscriptionService.activateSubscription(id!);
         case 'extend':
           return subscriptionService.extendSubscription(id!, extendDays!);
         case 'upgrade':
@@ -116,7 +121,10 @@ export const useSubscriptionActionMutation = () => {
           return subscriptionService.downgradePlan(studioId!, planId!, billingCycle);
       }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: subscriptionKeys.all }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: subscriptionKeys.all });
+      void qc.invalidateQueries({ queryKey: ['studios'] });
+    },
   });
 };
 

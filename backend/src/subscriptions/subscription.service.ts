@@ -148,6 +148,45 @@ export class SubscriptionService {
     return this.setSubscriptionStatus(subscriptionId, SubscriptionStatus.SUSPENDED);
   }
 
+  async activate(subscriptionId: string) {
+    const subscription = await this.subscriptionModel.findById(subscriptionId).exec();
+    if (!subscription) throw new NotFoundException('Subscription not found');
+
+    if (
+      subscription.status === SubscriptionStatus.ACTIVE ||
+      subscription.status === SubscriptionStatus.TRIAL
+    ) {
+      throw new BadRequestException('Subscription is already active');
+    }
+
+    const studioId = this.getRefIdString(subscription.studioId);
+
+    // Ensure only one active subscription per studio
+    await this.deactivateCurrentSubscription(studioId);
+
+    if (!subscription.endDate || subscription.endDate <= new Date()) {
+      const endDate = new Date();
+      if (subscription.billingCycle === BillingCycle.YEARLY) {
+        endDate.setFullYear(endDate.getFullYear() + 1);
+      } else {
+        endDate.setMonth(endDate.getMonth() + 1);
+      }
+      subscription.endDate = endDate;
+    }
+
+    subscription.status = SubscriptionStatus.ACTIVE;
+    subscription.autoRenew = true;
+    await subscription.save();
+    await this.syncStudioFromSubscription(subscription);
+
+    void this.trackSubscriptionEvent(studioId, AnalyticsEventType.PLAN_ASSIGNED, {
+      subscriptionId: subscription._id.toString(),
+      reactivated: true,
+    });
+
+    return this.serialize(subscription);
+  }
+
   async extend(subscriptionId: string, extendDays: number) {
     const subscription = await this.subscriptionModel.findById(subscriptionId).exec();
     if (!subscription) throw new NotFoundException('Subscription not found');
@@ -226,12 +265,22 @@ export class SubscriptionService {
   }
 
   private async changePlan(studioId: string, dto: ChangePlanDto, _action: 'upgrade' | 'downgrade') {
-    const current = await this.getActiveByStudioId(studioId);
     const newPlan = await this.planService.findDocumentById(dto.planId);
     if (!newPlan.isActive) throw new BadRequestException('Target plan is not active');
 
     const studio = await this.studioModel.findById(studioId).exec();
-    if (!studio) throw new NotFoundException('Studio not found');
+    if (!studio || studio.deletedAt) throw new NotFoundException('Studio not found');
+
+    const current = await this.getActiveByStudioId(studioId).catch(() => null);
+
+    if (!current) {
+      // No active subscription — assign / replace plan directly
+      return this.assignPlan({
+        studioId,
+        planId: dto.planId,
+        billingCycle: dto.billingCycle ?? BillingCycle.MONTHLY,
+      });
+    }
 
     current.status = SubscriptionStatus.CANCELLED;
     current.autoRenew = false;

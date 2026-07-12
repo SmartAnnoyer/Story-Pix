@@ -106,6 +106,13 @@ export const subscriptionService = {
     return data.data;
   },
 
+  async activateSubscription(id: string): Promise<Subscription> {
+    const { data } = await apiClient.post<ApiResponse<Subscription>>(
+      `/admin/subscriptions/${id}/activate`,
+    );
+    return data.data;
+  },
+
   async extendSubscription(id: string, extendDays: number): Promise<Subscription> {
     const { data } = await apiClient.post<ApiResponse<Subscription>>(
       `/admin/subscriptions/${id}/extend`,

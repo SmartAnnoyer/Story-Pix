@@ -94,7 +94,7 @@ export const StudioTable = ({
               onClick={() => navigate(ROUTES.STUDIO_EDIT.replace(':id', record.id))}
             />
           </Tooltip>
-          {record.status === StudioStatus.SUSPENDED ? (
+          {record.status === StudioStatus.SUSPENDED || record.status === StudioStatus.EXPIRED ? (
             <Tooltip title="Activate">
               <Button type="text" icon={<PlayCircleOutlined />} onClick={() => onActivate(record.id)} />
             </Tooltip>

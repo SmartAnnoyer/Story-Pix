@@ -262,6 +262,26 @@ export class StudiosService {
       throw new NotFoundException('Studio not found');
     }
 
+    const subscriptionId =
+      studio.activeSubscriptionId?.toString() ?? studio.subscriptionId ?? null;
+
+    if (subscriptionId) {
+      const inactiveStatuses = [
+        SubscriptionStatus.SUSPENDED,
+        SubscriptionStatus.EXPIRED,
+        SubscriptionStatus.CANCELLED,
+      ];
+
+      if (
+        studio.subscriptionStatus &&
+        inactiveStatuses.includes(studio.subscriptionStatus as SubscriptionStatus)
+      ) {
+        await this.subscriptionService.activate(subscriptionId);
+        const refreshed = await this.studioModel.findOne({ _id: id, deletedAt: null }).exec();
+        return this.serializeStudio(refreshed ?? studio);
+      }
+    }
+
     studio.status =
       studio.subscriptionStatus === SubscriptionStatus.TRIAL
         ? StudioStatus.TRIAL
