@@ -138,12 +138,22 @@ export const AlbumDetailsPage = () => {
             arScanFileReady={album.arScanFileReady}
           />
           <Card title="Public Viewer Link">
-            <Paragraph type="secondary" className="text-sm">
-              Share this link with customers once AR mappings are published.
-            </Paragraph>
-            <Link href={album.publicViewerUrl} target="_blank" copyable>
-              {album.publicViewerUrl}
-            </Link>
+            {album.status === AlbumStatus.PUBLISHED && album.arScanFileReady ? (
+              <>
+                <Paragraph type="secondary" className="text-sm">
+                  Share this link with customers — AR scan file is ready.
+                </Paragraph>
+                <Link href={album.publicViewerUrl} target="_blank" copyable>
+                  {album.publicViewerUrl}
+                </Link>
+              </>
+            ) : (
+              <Paragraph type="secondary" className="text-sm !mb-0">
+                {album.status !== AlbumStatus.PUBLISHED
+                  ? 'Publish the album first. The viewer link appears after the AR scan file is ready.'
+                  : 'Viewer link will appear when the AR scan file finishes building.'}
+              </Paragraph>
+            )}
           </Card>
           {album.coverImage ? (
             <Card title="Cover" className="mt-4">

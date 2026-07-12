@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Button, Card, QRCode, Typography, message } from 'antd';
+import { Button, Card, QRCode, Spin, Typography, message } from 'antd';
 
 const { Paragraph, Text } = Typography;
 
@@ -17,6 +17,7 @@ export const AlbumViewerQrCard = ({
   arScanFileReady = false,
 }: AlbumViewerQrCardProps) => {
   const qrWrapRef = useRef<HTMLDivElement>(null);
+  const showQr = published && arScanFileReady;
 
   const downloadQr = () => {
     const canvas = qrWrapRef.current?.querySelector('canvas');
@@ -34,31 +35,47 @@ export const AlbumViewerQrCard = ({
 
   return (
     <Card title="Customer QR code" className="mb-4">
-      <Paragraph type="secondary" className="text-sm">
-        Print this QR in the photo album so customers open the experience instantly — no typing URLs.
-      </Paragraph>
-
       {!published ? (
-        <Text type="warning" className="mb-3 block text-xs">
-          Publish the album before sharing the QR with customers.
-        </Text>
+        <>
+          <Paragraph type="secondary" className="text-sm">
+            Publish the album and wait for the AR scan file before the QR appears.
+          </Paragraph>
+          <Text type="warning" className="block text-xs">
+            Album is not published yet.
+          </Text>
+        </>
       ) : !arScanFileReady ? (
-        <Text type="warning" className="mb-3 block text-xs">
-          AR scan file is still building. Wait until it shows Ready before printing the QR.
-        </Text>
-      ) : null}
+        <div className="flex flex-col items-center gap-3 py-6 text-center">
+          <Spin />
+          <div>
+            <Text strong className="block">
+              Building AR scan file…
+            </Text>
+            <Text type="secondary" className="mt-1 block text-xs">
+              QR code will appear here when it is ready to print.
+            </Text>
+          </div>
+        </div>
+      ) : (
+        <>
+          <Paragraph type="secondary" className="text-sm">
+            Print this QR in the photo album so customers open the experience instantly — no typing
+            URLs.
+          </Paragraph>
 
-      <div ref={qrWrapRef} className="mb-4 flex justify-center rounded-xl bg-white p-4">
-        <QRCode value={viewerUrl} size={196} bordered={false} errorLevel="M" />
-      </div>
+          <div ref={qrWrapRef} className="mb-4 flex justify-center rounded-xl bg-white p-4">
+            <QRCode value={viewerUrl} size={196} bordered={false} errorLevel="M" />
+          </div>
 
-      <Paragraph copyable className="!mb-3 text-xs">
-        {viewerUrl}
-      </Paragraph>
+          <Paragraph copyable className="!mb-3 text-xs">
+            {viewerUrl}
+          </Paragraph>
 
-      <Button block onClick={downloadQr} disabled={!published || !arScanFileReady}>
-        Download QR for print
-      </Button>
+          <Button block type="primary" onClick={downloadQr} disabled={!showQr}>
+            Download QR for print
+          </Button>
+        </>
+      )}
     </Card>
   );
 };
