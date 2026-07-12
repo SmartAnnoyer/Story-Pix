@@ -65,6 +65,22 @@ export class Album {
   @Prop({ type: [Object], default: null })
   mindFileTargetDimensions?: Array<{ width: number; height: number }> | null;
 
+  /** idle | building | ready | failed */
+  @Prop({ type: String, default: 'idle' })
+  mindFileBuildStatus?: string | null;
+
+  @Prop({ type: Number, default: 0 })
+  mindFileBuildProgress?: number | null;
+
+  @Prop({ type: String, default: null })
+  mindFileBuildMessage?: string | null;
+
+  @Prop({ type: String, default: null })
+  mindFileBuildError?: string | null;
+
+  @Prop({ type: Date, default: null })
+  mindFileBuildStartedAt?: Date | null;
+
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   createdBy!: Types.ObjectId;
 

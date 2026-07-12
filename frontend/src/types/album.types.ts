@@ -47,7 +47,12 @@ export interface Album {
   isPublished: boolean;
   publishedAt: string | null;
   arScanFileReady: boolean;
+  arScanFileStatus: 'idle' | 'building' | 'ready' | 'failed' | string;
+  arScanFileProgress: number;
+  arScanFileMessage: string | null;
+  arScanFileError: string | null;
   arScanFileCompiledAt: string | null;
+  arScanFileBuildStartedAt: string | null;
   createdBy: string;
   createdAt: string | null;
   updatedAt: string | null;

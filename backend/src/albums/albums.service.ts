@@ -155,6 +155,11 @@ export class AlbumsService {
     album.status = AlbumStatus.PUBLISHED;
     album.isPublished = true;
     album.publishedAt = new Date();
+    album.mindFileBuildStatus = 'building';
+    album.mindFileBuildProgress = 1;
+    album.mindFileBuildMessage = 'Starting AR scan file build…';
+    album.mindFileBuildError = null;
+    album.mindFileBuildStartedAt = new Date();
     await album.save();
     void this.mindArCompilerService.scheduleAlbumMindRebuild(album._id.toString());
     void this.trackEvent(studioId, album._id.toString(), AnalyticsEventType.ALBUM_PUBLISHED);
@@ -193,6 +198,25 @@ export class AlbumsService {
       studioId,
       metadata: { albumName: album.albumName, albumId: album._id.toString() },
     });
+    return this.serialize(album);
+  }
+
+  async rebuildArScanFile(studioId: string, id: string) {
+    const album = await this.findDocument(studioId, id);
+
+    if (album.status !== AlbumStatus.PUBLISHED || !album.isPublished) {
+      throw new BadRequestException('Publish the album before rebuilding the AR scan file');
+    }
+
+    album.mindFileBuildStatus = 'building';
+    album.mindFileBuildProgress = 1;
+    album.mindFileBuildMessage = 'Retrying AR scan file build…';
+    album.mindFileBuildError = null;
+    album.mindFileBuildStartedAt = new Date();
+    album.mindFileHash = null;
+    await album.save();
+
+    void this.mindArCompilerService.scheduleAlbumMindRebuild(album._id.toString());
     return this.serialize(album);
   }
 
@@ -332,8 +356,19 @@ export class AlbumsService {
       isPublished: album.isPublished,
       publishedAt: album.publishedAt ?? null,
       arScanFileReady: Boolean(album.mindFileUrl),
+      arScanFileStatus: album.mindFileUrl
+        ? 'ready'
+        : (album.mindFileBuildStatus ?? 'idle'),
+      arScanFileProgress: album.mindFileUrl
+        ? 100
+        : Math.max(0, Math.min(100, album.mindFileBuildProgress ?? 0)),
+      arScanFileMessage: album.mindFileBuildMessage ?? null,
+      arScanFileError: album.mindFileBuildError ?? null,
       arScanFileCompiledAt: album.mindFileCompiledAt
         ? album.mindFileCompiledAt.toISOString()
+        : null,
+      arScanFileBuildStartedAt: album.mindFileBuildStartedAt
+        ? album.mindFileBuildStartedAt.toISOString()
         : null,
       createdBy: album.createdBy.toString(),
       createdAt: doc.createdAt ?? null,

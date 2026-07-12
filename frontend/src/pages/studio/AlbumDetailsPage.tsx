@@ -13,6 +13,7 @@ import {
 import {
   useAlbumActionMutation,
   useAlbumQuery,
+  useRebuildArScanFileMutation,
 } from '@/hooks/useAlbumQueries';
 import { AlbumStatusBadge } from '@/features/albums/components/AlbumStatusBadge';
 import { EventTypeBadge } from '@/features/albums/components/EventTypeBadge';
@@ -30,12 +31,18 @@ export const AlbumDetailsPage = () => {
   const navigate = useNavigate();
   const { data: album, isLoading } = useAlbumQuery(id);
   const actionMutation = useAlbumActionMutation();
+  const rebuildMutation = useRebuildArScanFileMutation();
 
   if (isLoading || !album) return <LoadingSpinner />;
 
   const handlePublishToggle = async (publish: boolean) => {
     await actionMutation.mutateAsync({ id, action: publish ? 'publish' : 'unpublish' });
     message.success(publish ? 'Album published' : 'Album unpublished');
+  };
+
+  const handleRetryArBuild = async () => {
+    await rebuildMutation.mutateAsync(id);
+    message.success('AR scan file rebuild started');
   };
 
   const handleArchive = async () => {
@@ -127,7 +134,14 @@ export const AlbumDetailsPage = () => {
               <ArScanFileStatus
                 status={album.status}
                 ready={album.arScanFileReady}
+                buildStatus={album.arScanFileStatus}
+                progress={album.arScanFileProgress}
+                message={album.arScanFileMessage}
+                error={album.arScanFileError}
                 compiledAt={album.arScanFileCompiledAt}
+                buildStartedAt={album.arScanFileBuildStartedAt}
+                onRetry={handleRetryArBuild}
+                retrying={rebuildMutation.isPending}
               />
             </div>
           </Card>
@@ -136,6 +150,12 @@ export const AlbumDetailsPage = () => {
             viewerUrl={album.publicViewerUrl}
             published={album.status === AlbumStatus.PUBLISHED}
             arScanFileReady={album.arScanFileReady}
+            progress={album.arScanFileProgress}
+            buildMessage={album.arScanFileMessage}
+            buildStartedAt={album.arScanFileBuildStartedAt}
+            failed={album.arScanFileStatus === 'failed'}
+            onRetry={handleRetryArBuild}
+            retrying={rebuildMutation.isPending}
           />
           <Card title="Public Viewer Link">
             {album.status === AlbumStatus.PUBLISHED && album.arScanFileReady ? (

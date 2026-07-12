@@ -13,6 +13,7 @@ import { compileAlbumMindFile } from './compile-album-mind';
 export class MindArCompilerService {
   private readonly logger = new Logger(MindArCompilerService.name);
   private readonly inFlight = new Map<string, Promise<void>>();
+  private readonly lastProgressWrite = new Map<string, number>();
 
   constructor(
     @InjectModel(Album.name) private readonly albumModel: Model<AlbumDocument>,
@@ -27,14 +28,32 @@ export class MindArCompilerService {
       return existing;
     }
 
+    // Mark building immediately so studio UI doesn't look stuck
+    void this.albumModel
+      .updateOne(
+        { _id: albumId, mindFileUrl: null },
+        {
+          $set: {
+            mindFileBuildStatus: 'building',
+            mindFileBuildProgress: 1,
+            mindFileBuildMessage: 'Starting AR scan file build…',
+            mindFileBuildError: null,
+            mindFileBuildStartedAt: new Date(),
+          },
+        },
+      )
+      .exec()
+      .catch(() => undefined);
+
     const task = this.rebuildAlbumMindFile(albumId)
-      .catch((error) => {
-        this.logger.error(
-          `Mind file rebuild failed for album ${albumId}: ${error instanceof Error ? error.message : error}`,
-        );
+      .catch(async (error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        this.logger.error(`Mind file rebuild failed for album ${albumId}: ${message}`);
+        await this.markBuildFailed(albumId, message);
       })
       .finally(() => {
         this.inFlight.delete(albumId);
+        this.lastProgressWrite.delete(albumId);
       });
 
     this.inFlight.set(albumId, task);
@@ -42,6 +61,7 @@ export class MindArCompilerService {
   }
 
   async rebuildAlbumMindFile(albumId: string): Promise<void> {
+    const startedAt = Date.now();
     const album = await this.albumModel.findById(albumId).exec();
     if (!album || album.deletedAt) {
       return;
@@ -51,6 +71,8 @@ export class MindArCompilerService {
       await this.clearAlbumMindFile(album);
       return;
     }
+
+    await this.updateBuildProgress(album, 2, 'Queuing scan-file build…');
 
     const targets = await this.arTargetModel
       .find({
@@ -66,29 +88,35 @@ export class MindArCompilerService {
     }
 
     const studioId = album.studioId.toString();
-    const imageBuffers: Buffer[] = [];
+    await this.updateBuildProgress(
+      album,
+      8,
+      `Downloading ${targets.length} photo${targets.length === 1 ? '' : 's'}…`,
+    );
 
-    for (const target of targets) {
-      const photo = await this.mediaModel
-        .findOne({
-          _id: target.photoMediaId,
-          studioId,
-          deletedAt: null,
-        })
-        .select('r2ObjectKey')
-        .exec();
+    const imageBuffers = await Promise.all(
+      targets.map(async (target) => {
+        const photo = await this.mediaModel
+          .findOne({
+            _id: target.photoMediaId,
+            studioId,
+            deletedAt: null,
+          })
+          .select('r2ObjectKey')
+          .exec();
 
-      if (!photo?.r2ObjectKey) {
-        throw new Error(`Tracking photo unavailable for target ${target._id.toString()}`);
-      }
+        if (!photo?.r2ObjectKey) {
+          throw new Error(`Tracking photo unavailable for target ${target._id.toString()}`);
+        }
 
-      const stored = await this.storageService.getObjectBuffer(photo.r2ObjectKey);
-      if (!stored?.buffer?.length) {
-        throw new Error(`Failed to load tracking photo for target ${target._id.toString()}`);
-      }
+        const stored = await this.storageService.getObjectBuffer(photo.r2ObjectKey);
+        if (!stored?.buffer?.length) {
+          throw new Error(`Failed to load tracking photo for target ${target._id.toString()}`);
+        }
 
-      imageBuffers.push(stored.buffer);
-    }
+        return stored.buffer;
+      }),
+    );
 
     const hashInput = targets
       .map(
@@ -100,10 +128,34 @@ export class MindArCompilerService {
 
     if (album.mindFileHash === mindFileHash && album.mindFileUrl && album.mindFileKey) {
       this.logger.log(`Mind file already up to date for album ${albumId}`);
+      album.mindFileBuildStatus = 'ready';
+      album.mindFileBuildProgress = 100;
+      album.mindFileBuildMessage = 'Scan file already up to date';
+      album.mindFileBuildError = null;
+      await album.save();
       return;
     }
 
-    const compiled = await compileAlbumMindFile(imageBuffers);
+    await this.updateBuildProgress(
+      album,
+      18,
+      `Analyzing ${targets.length} photo${targets.length === 1 ? '' : 's'} for AR…`,
+    );
+
+    const compiled = await compileAlbumMindFile(imageBuffers, (progress) => {
+      const pct = Math.round(18 + progress * 70);
+      void this.updateBuildProgress(
+        album,
+        pct,
+        progress < 0.5
+          ? 'Finding visual landmarks in your photos…'
+          : 'Encoding the customer scan file…',
+        false,
+      );
+    });
+
+    await this.updateBuildProgress(album, 92, 'Uploading scan file…');
+
     const objectKey = `studios/${studioId}/albums/${albumId}/ar/targets-${mindFileHash}.mind`;
 
     if (album.mindFileKey && album.mindFileKey !== objectKey) {
@@ -121,9 +173,71 @@ export class MindArCompilerService {
     album.mindFileHash = mindFileHash;
     album.mindFileCompiledAt = new Date();
     album.mindFileTargetDimensions = compiled.targetDimensions;
+    album.mindFileBuildStatus = 'ready';
+    album.mindFileBuildProgress = 100;
+    album.mindFileBuildMessage = 'Scan file ready — safe to print QR';
+    album.mindFileBuildError = null;
     await album.save();
 
-    this.logger.log(`Mind file compiled for album ${albumId} (${compiled.buffer.length} bytes)`);
+    this.logger.log(
+      `Mind file compiled for album ${albumId} (${compiled.buffer.length} bytes, ${Date.now() - startedAt}ms)`,
+    );
+  }
+
+  private async updateBuildProgress(
+    album: AlbumDocument,
+    progress: number,
+    message: string,
+    force = true,
+  ) {
+    const albumId = album._id.toString();
+    const clamped = Math.max(0, Math.min(100, progress));
+    const last = this.lastProgressWrite.get(albumId) ?? -1;
+
+    if (!force && clamped - last < 8 && clamped < 100) {
+      return;
+    }
+
+    this.lastProgressWrite.set(albumId, clamped);
+    const startedAt =
+      !album.mindFileBuildStartedAt || clamped <= 5 ? new Date() : album.mindFileBuildStartedAt;
+
+    album.mindFileBuildStatus = 'building';
+    album.mindFileBuildProgress = clamped;
+    album.mindFileBuildMessage = message;
+    album.mindFileBuildError = null;
+    album.mindFileBuildStartedAt = startedAt;
+
+    await this.albumModel
+      .updateOne(
+        { _id: albumId },
+        {
+          $set: {
+            mindFileBuildStatus: 'building',
+            mindFileBuildProgress: clamped,
+            mindFileBuildMessage: message,
+            mindFileBuildError: null,
+            mindFileBuildStartedAt: startedAt,
+          },
+        },
+      )
+      .exec();
+  }
+
+  private async markBuildFailed(albumId: string, errorMessage: string) {
+    await this.albumModel
+      .updateOne(
+        { _id: albumId },
+        {
+          $set: {
+            mindFileBuildStatus: 'failed',
+            mindFileBuildProgress: 0,
+            mindFileBuildMessage: 'Scan file build failed',
+            mindFileBuildError: errorMessage.slice(0, 500),
+          },
+        },
+      )
+      .exec();
   }
 
   private async clearAlbumMindFile(album: AlbumDocument) {
@@ -136,6 +250,11 @@ export class MindArCompilerService {
     album.mindFileHash = null;
     album.mindFileCompiledAt = null;
     album.mindFileTargetDimensions = null;
+    album.mindFileBuildStatus = 'idle';
+    album.mindFileBuildProgress = 0;
+    album.mindFileBuildMessage = null;
+    album.mindFileBuildError = null;
+    album.mindFileBuildStartedAt = null;
     await album.save();
   }
 }

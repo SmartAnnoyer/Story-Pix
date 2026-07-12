@@ -134,4 +134,11 @@ export class AlbumsController {
   archive(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.albumsService.archive(this.assertStudioId(user), id);
   }
+
+  @Post(':id/rebuild-ar-scan-file')
+  @Roles(Role.STUDIO_ADMIN, Role.STUDIO_STAFF)
+  @RequirePermissions('album:write')
+  rebuildArScanFile(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.albumsService.rebuildArScanFile(this.assertStudioId(user), id);
+  }
 }

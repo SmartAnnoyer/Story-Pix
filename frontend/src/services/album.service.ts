@@ -55,6 +55,11 @@ export const albumService = {
     return data.data;
   },
 
+  async rebuildArScanFile(id: string): Promise<Album> {
+    const { data } = await apiClient.post<ApiResponse<Album>>(`/albums/${id}/rebuild-ar-scan-file`);
+    return data.data;
+  },
+
   async getPublicAlbum(slug: string): Promise<PublicAlbum> {
     const { data } = await apiClient.get<ApiResponse<PublicAlbum>>(`/albums/public/${slug}`);
     return data.data;

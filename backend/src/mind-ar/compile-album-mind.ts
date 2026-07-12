@@ -8,8 +8,8 @@ const nodeRequire = createRequire(__filename);
 const MINDAR_VERSION = '1.1.4';
 const CURRENT_VERSION = 2;
 
-const TRACKING_MIN_LONG_EDGE = 900;
-const TRACKING_MAX_LONG_EDGE = 1600;
+const TRACKING_MIN_LONG_EDGE = 800;
+const TRACKING_MAX_LONG_EDGE = 1200;
 
 const { Detector } = nodeRequire('mind-ar/src/image-target/detector/detector.js') as {
   Detector: new (width: number, height: number) => {

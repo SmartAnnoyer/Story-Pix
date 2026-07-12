@@ -29,8 +29,11 @@ export const useAlbumQuery = (id: string, enabled = true) =>
     refetchInterval: (query) => {
       const album = query.state.data;
       if (!album) return false;
-      if (album.status === AlbumStatus.PUBLISHED && !album.arScanFileReady) {
-        return 3000;
+      if (
+        album.status === AlbumStatus.PUBLISHED &&
+        (!album.arScanFileReady || album.arScanFileStatus === 'building')
+      ) {
+        return 2000;
       }
       return false;
     },
@@ -48,6 +51,14 @@ export const useUpdateAlbumMutation = (id: string) => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: UpdateAlbumPayload) => albumService.updateAlbum(id, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: albumKeys.all }),
+  });
+};
+
+export const useRebuildArScanFileMutation = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => albumService.rebuildArScanFile(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: albumKeys.all }),
   });
 };

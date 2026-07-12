@@ -1,0 +1,100 @@
+.ar-scan-build {
+  overflow: hidden;
+  border-radius: 0.75rem;
+  border: 1px solid #f0d4a8;
+  background: linear-gradient(145deg, #fff8ef 0%, #fff4e6 48%, #f7ebe0 100%);
+  padding: 1rem;
+}
+
+.ar-scan-build-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.ar-scan-build-title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #7a4a12;
+}
+
+.ar-scan-build-detail {
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: #9a6a33;
+}
+
+.ar-scan-orb {
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background:
+    radial-gradient(circle at 30% 30%, #fff7ed, transparent 45%),
+    linear-gradient(135deg, #f59e0b, #d97706);
+  box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.35);
+  animation: ar-scan-pulse 1.8s ease-in-out infinite;
+}
+
+.ar-scan-track {
+  height: 0.5rem;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: #e8d2b0;
+  margin-bottom: 0.5rem;
+}
+
+.ar-scan-bar {
+  height: 100%;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #d97706, #f59e0b, #fbbf24, #d97706);
+  background-size: 200% 100%;
+  transition: width 0.6s ease-out;
+  animation: ar-scan-shimmer 1.4s linear infinite;
+}
+
+.ar-scan-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.6875rem;
+  color: #8a5a22;
+}
+
+.ar-scan-elapsed {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ar-scan-footnote {
+  margin: 0.75rem 0 0;
+  font-size: 0.6875rem;
+  line-height: 1.45;
+  color: #a0703a;
+}
+
+@keyframes ar-scan-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.35);
+  }
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 10px rgba(217, 119, 6, 0);
+  }
+}
+
+@keyframes ar-scan-shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
