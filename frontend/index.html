@@ -6,9 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Story-pix — Turn photos into living stories with interactive WebAR albums" />
     <meta name="theme-color" content="#8A2BE2" />
-    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
-    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
-    <link rel="preconnect" href="https://aframe.io" crossorigin />
     <title>Story-pix</title>
     <style>
       #viewer-boot {
@@ -52,11 +49,11 @@
 
         document.documentElement.classList.add('viewer-route');
 
-        // MindAR 1.1.4 — keep in sync with src/features/ar/utils/mindar-cdn.ts
+        // Same-origin copies — keep in sync with src/features/ar/utils/mindar-cdn.ts
         var scripts = [
-          'https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.1.4/dist/mindar-image.prod.js',
-          'https://aframe.io/releases/1.2.0/aframe.min.js',
-          'https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.1.4/dist/mindar-image-aframe.prod.js',
+          '/ar/mindar-image.prod.js',
+          '/ar/aframe.min.js',
+          '/ar/mindar-image-aframe.prod.js',
         ];
 
         scripts.forEach(function (src) {
@@ -64,13 +61,11 @@
           preload.rel = 'preload';
           preload.as = 'script';
           preload.href = src;
-          preload.crossOrigin = 'anonymous';
           document.head.appendChild(preload);
 
           var tag = document.createElement('script');
           tag.src = src;
           tag.async = true;
-          tag.crossOrigin = 'anonymous';
           document.head.appendChild(tag);
         });
       })();

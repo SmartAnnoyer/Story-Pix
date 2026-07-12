@@ -22,6 +22,7 @@ import {
   isCameraPreviewLive,
   type CameraFacing,
 } from '../utils/mindar-scene';
+import { prefetchManifestVideos } from '../utils/video-prefetch';
 import { getTargetAspectRatio } from '../utils/target-projection';
 import './ARViewer.css';
 
@@ -41,7 +42,7 @@ const AR_INIT_TIMEOUT_MS = 25_000;
 const SCAN_HINT_DELAY_MS = 8_000;
 const SCAN_NO_MATCH_DELAY_MS = 25_000;
 
-const TARGET_FOUND_CONFIRM_MS = 800;
+const TARGET_FOUND_CONFIRM_MS = 280;
 
 const buildServerMindBundle = (
   albumSlug: string,
@@ -94,8 +95,8 @@ export const ARViewer = ({ albumSlug, manifest, prefetchedMindBundle }: ARViewer
 
   const waitForCameraPreview = async (
     host: HTMLElement,
-    attempts = 10,
-    delayMs = 200,
+    attempts = 8,
+    delayMs = 120,
   ): Promise<boolean> => {
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       ensureCameraPreviewVisible(host);
@@ -525,9 +526,10 @@ export const ARViewer = ({ albumSlug, manifest, prefetchedMindBundle }: ARViewer
 
   useEffect(() => {
     if (status !== 'scanning' && status !== 'move_closer') return undefined;
+    prefetchManifestVideos(targets);
     setProgress((value) => Math.min(0.99, Math.max(value, 0.92 + scanSeconds * 0.002)));
     return undefined;
-  }, [scanSeconds, status]);
+  }, [scanSeconds, status, targets]);
 
   useEffect(() => {
     if (!mindBundle || status !== 'loading') return undefined;

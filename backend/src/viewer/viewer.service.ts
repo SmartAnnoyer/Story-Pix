@@ -19,6 +19,7 @@ import { IStorageService, STORAGE_SERVICE } from '../storage/interfaces/storage.
 import { RecordViewerEventDto } from './dto/viewer.dto';
 import { Album, AlbumDocument } from '../albums/schemas/album.schema';
 import { Studio, StudioDocument } from '../studios/schemas/studio.schema';
+import { Media, MediaDocument } from '../media/schemas/media.schema';
 import { mapLegacyScanEventType } from '../analytics/utils/analytics.util';
 
 @Injectable()
@@ -26,6 +27,7 @@ export class ViewerService {
   constructor(
     @InjectModel(Album.name) private readonly albumModel: Model<AlbumDocument>,
     @InjectModel(Studio.name) private readonly studioModel: Model<StudioDocument>,
+    @InjectModel(Media.name) private readonly mediaModel: Model<MediaDocument>,
     @Inject(STORAGE_SERVICE) private readonly storageService: IStorageService,
     private readonly albumsService: AlbumsService,
     private readonly arTargetsService: ArTargetsService,
@@ -37,37 +39,46 @@ export class ViewerService {
   ) {}
 
   async getPublicManifest(albumSlug: string) {
-    const album = await this.albumsService.findPublicBySlug(albumSlug);
     const albumDoc = await this.findPublishedAlbumDocument(albumSlug);
-    const studio = await this.studioModel
-      .findById(albumDoc.studioId)
-      .select('studioName logo')
-      .exec();
-    const targets = await this.arTargetsService.findActiveByAlbumId(album.id);
+    const [album, studio, targets] = await Promise.all([
+      this.albumsService.findPublicBySlug(albumSlug),
+      this.studioModel.findById(albumDoc.studioId).select('studioName logo').exec(),
+      this.arTargetsService.findActiveByAlbumId(albumDoc._id.toString()),
+    ]);
 
-    const manifestTargets = await Promise.all(
-      targets.map(async (target) => {
-        const photo = await this.mediaService
-          .findById(target.studioId.toString(), target.photoMediaId.toString())
-          .catch(() => null);
-        const video = await this.mediaService
-          .findById(target.studioId.toString(), target.videoMediaId.toString())
-          .catch(() => null);
+    const mediaIds = targets.flatMap((target) => [target.photoMediaId, target.videoMediaId]);
+    const mediaDocs =
+      mediaIds.length > 0
+        ? await this.mediaModel
+            .find({
+              _id: { $in: mediaIds },
+              studioId: albumDoc.studioId,
+              deletedAt: null,
+            })
+            .select('publicUrl thumbnailUrl')
+            .lean()
+            .exec()
+        : [];
 
-        return {
-          id: target._id.toString(),
-          targetName: target.targetName,
-          targetIndex: target.targetIndex,
-          photoMediaId: target.photoMediaId.toString(),
-          videoMediaId: target.videoMediaId.toString(),
-          photoUrl: photo?.publicUrl ?? null,
-          photoThumbnailUrl: photo?.thumbnailUrl ?? photo?.publicUrl ?? null,
-          videoUrl: video?.publicUrl ?? null,
-          videoThumbnailUrl: video?.thumbnailUrl ?? null,
-          videoAvailable: Boolean(video?.publicUrl),
-        };
-      }),
-    );
+    const mediaById = new Map(mediaDocs.map((doc) => [String(doc._id), doc] as const));
+
+    const manifestTargets = targets.map((target) => {
+      const photo = mediaById.get(target.photoMediaId.toString());
+      const video = mediaById.get(target.videoMediaId.toString());
+
+      return {
+        id: target._id.toString(),
+        targetName: target.targetName,
+        targetIndex: target.targetIndex,
+        photoMediaId: target.photoMediaId.toString(),
+        videoMediaId: target.videoMediaId.toString(),
+        photoUrl: photo?.publicUrl ?? null,
+        photoThumbnailUrl: photo?.thumbnailUrl ?? photo?.publicUrl ?? null,
+        videoUrl: video?.publicUrl ?? null,
+        videoThumbnailUrl: video?.thumbnailUrl ?? null,
+        videoAvailable: Boolean(video?.publicUrl),
+      };
+    });
 
     const filteredTargets = manifestTargets.filter((target) => target.photoUrl);
 

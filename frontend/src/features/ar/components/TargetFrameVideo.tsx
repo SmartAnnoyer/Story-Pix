@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getTargetScreenBounds, type TargetScreenBounds } from '../utils/target-projection';
 
+import { getPrefetchedBlobUrl, resolvePlayableVideoUrl } from '../utils/video-prefetch';
+
 export type VideoDisplayMode = 'frame' | 'fullscreen';
 
 interface TargetFrameVideoProps {
@@ -22,8 +24,6 @@ interface TargetFrameVideoProps {
 const LOAD_TIMEOUT_MS = 25_000;
 const DOUBLE_TAP_MS = 320;
 
-const isMobileDevice = () => /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-
 const buildSourceList = (
   primaryUrl: string | null,
   fallbackUrl: string | null | undefined,
@@ -31,11 +31,11 @@ const buildSourceList = (
 ): string[] => {
   const direct = fallbackUrl ?? null;
   const proxied = primaryUrl ?? null;
-
-  if (preferDirect) {
-    return [direct, proxied].filter((url): url is string => Boolean(url));
-  }
-  return [proxied, direct].filter((url): url is string => Boolean(url));
+  // Always prefer CDN / direct URL first when available — proxy is a fallback only
+  const ordered = preferDirect || Boolean(direct)
+    ? [direct, proxied]
+    : [proxied, direct];
+  return ordered.filter((url): url is string => Boolean(url));
 };
 
 const waitForVideoReady = (video: HTMLVideoElement): Promise<void> =>
@@ -87,7 +87,7 @@ export const TargetFrameVideo = ({
   fallbackUrl,
   active,
   mode,
-  preferDirectUrl = isMobileDevice(),
+  preferDirectUrl = true,
   onModeChange,
   onPlay,
   onError,
@@ -185,7 +185,9 @@ export const TargetFrameVideo = ({
 
       for (const source of sources) {
         try {
-          video.src = source;
+          const resolved = (await resolvePlayableVideoUrl(source)) ?? source;
+          const blobCached = getPrefetchedBlobUrl(source);
+          video.src = blobCached ?? resolved;
           video.load();
           await waitForVideoReady(video);
           const played = await tryPlay(false);

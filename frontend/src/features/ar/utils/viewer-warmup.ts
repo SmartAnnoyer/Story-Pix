@@ -8,6 +8,7 @@ import {
   readMindCache,
 } from './mindar-loader';
 import { readCachedManifest, writeCachedManifest } from './viewer-manifest-cache';
+import { prefetchManifestVideos } from './video-prefetch';
 
 export type WarmupStage = 'manifest' | 'scripts' | 'targets' | 'ready' | 'error';
 
@@ -27,6 +28,31 @@ export type WarmupProgress = {
 export type WarmupResult = WarmupProgress;
 
 const warmupPromises = new Map<string, Promise<WarmupResult>>();
+const warmupListeners = new Map<string, Set<(state: WarmupProgress) => void>>();
+
+const emitToListeners = (albumSlug: string, state: WarmupProgress) => {
+  const listeners = warmupListeners.get(albumSlug);
+  if (!listeners?.size) return;
+  const snapshot = { ...state, progress: clampProgress(state.progress) };
+  listeners.forEach((listener) => listener(snapshot));
+};
+
+const subscribeWarmup = (
+  albumSlug: string,
+  onUpdate?: (state: WarmupProgress) => void,
+) => {
+  if (!onUpdate) return () => undefined;
+  let set = warmupListeners.get(albumSlug);
+  if (!set) {
+    set = new Set();
+    warmupListeners.set(albumSlug, set);
+  }
+  set.add(onUpdate);
+  return () => {
+    set?.delete(onUpdate);
+    if (set && set.size === 0) warmupListeners.delete(albumSlug);
+  };
+};
 
 const prefetchImage = (url: string): void => {
   const img = new Image();
@@ -62,11 +88,16 @@ const cacheMindBundle = (
 };
 
 const prefetchAlbumAssets = (
-  albumSlug: string,
+  _albumSlug: string,
   manifest: ViewerManifest,
   mindUrl?: string | null,
 ) => {
   const sortedTargets = [...manifest.targets].sort((a, b) => a.targetIndex - b.targetIndex);
+
+  // Videos first — time-to-play after match is the product KPI
+  prefetchManifestVideos(sortedTargets);
+
+  if (mindUrl) prefetchMindFile(mindUrl);
 
   if (manifest.album.coverImage) {
     prefetchImage(manifest.album.coverImage);
@@ -75,20 +106,51 @@ const prefetchAlbumAssets = (
   for (const target of sortedTargets) {
     const preview = target.photoThumbnailUrl ?? target.photoUrl;
     if (preview) prefetchImage(preview);
-    prefetchImage(viewerService.getTrackingImageUrl(albumSlug, target.id, target.photoMediaId));
+  }
+};
+
+const buildMindBundle = (albumSlug: string, manifest: ViewerManifest) => {
+  const sortedTargets = [...manifest.targets].sort((a, b) => a.targetIndex - b.targetIndex);
+  const mindCacheTargets = sortedTargets.map((target) => ({
+    id: target.id,
+    photoMediaId: target.photoMediaId,
+  }));
+  const mindCacheKey = getMindCacheKey(
+    albumSlug,
+    mindCacheTargets,
+    manifest.mindFile?.hash,
+  );
+
+  if (!manifest.mindFile?.url) {
+    return { mindCacheKey, sortedTargets, mindBundle: null as null };
   }
 
-  if (mindUrl) prefetchMindFile(mindUrl);
+  cacheMindBundle(
+    mindCacheKey,
+    manifest.mindFile.url,
+    manifest.mindFile.targetDimensions ?? [],
+  );
+
+  return {
+    mindCacheKey,
+    sortedTargets,
+    mindBundle: { url: manifest.mindFile.url, cacheKey: mindCacheKey },
+  };
 };
 
 const runWarmup = async (
   albumSlug: string,
   onUpdate?: (state: WarmupProgress) => void,
 ): Promise<WarmupResult> => {
+  const emitLocal = (state: WarmupProgress) => {
+    emit(onUpdate, state);
+    emitToListeners(albumSlug, state);
+  };
+
   const cachedManifest = readCachedManifest(albumSlug);
 
   let state: WarmupProgress = {
-    progress: cachedManifest ? 0.18 : 0.08,
+    progress: cachedManifest ? 0.22 : 0.08,
     stage: 'manifest',
     message: cachedManifest
       ? `Welcome to ${cachedManifest.album.albumName}`
@@ -99,10 +161,30 @@ const runWarmup = async (
     manifest: cachedManifest,
     mindBundle: null,
   };
-  emit(onUpdate, state);
+
+  // Instant path: cached manifest + server mind file → ready immediately
+  if (cachedManifest?.targets.length && cachedManifest.mindFile?.url) {
+    const { mindBundle } = buildMindBundle(albumSlug, cachedManifest);
+    prefetchAlbumAssets(albumSlug, cachedManifest, cachedManifest.mindFile.url);
+    void loadArScripts().catch(() => undefined);
+
+    state = {
+      progress: 0.85,
+      stage: 'ready',
+      message: 'Your album is ready',
+      detail: 'Tap Open camera — point at your printed photo',
+      ready: true,
+      error: null,
+      manifest: cachedManifest,
+      mindBundle,
+    };
+    emitLocal(state);
+  } else {
+    emitLocal(state);
+  }
 
   try {
-    const scriptsPromise = loadArScripts();
+    void loadArScripts().catch(() => undefined);
 
     const manifest = await viewerService.getManifest(albumSlug);
     writeCachedManifest(albumSlug, manifest);
@@ -112,66 +194,42 @@ const runWarmup = async (
     }
 
     const albumName = manifest.album.albumName;
-
-    state = {
-      ...state,
-      progress: 0.35,
-      manifest,
-      stage: 'manifest',
-      message: `Welcome to ${albumName}`,
-      detail: manifest.branding.studioName
-        ? `A special experience from ${manifest.branding.studioName}`
-        : 'Your photos are about to come alive',
-    };
-    emit(onUpdate, state);
-
-    const sortedTargets = [...manifest.targets].sort((a, b) => a.targetIndex - b.targetIndex);
-    const mindCacheTargets = sortedTargets.map((target) => ({
-      id: target.id,
-      photoMediaId: target.photoMediaId,
-    }));
-    const mindCacheKey = getMindCacheKey(
+    const { mindCacheKey, sortedTargets, mindBundle: serverMind } = buildMindBundle(
       albumSlug,
-      mindCacheTargets,
-      manifest.mindFile?.hash,
+      manifest,
     );
 
     prefetchAlbumAssets(albumSlug, manifest, manifest.mindFile?.url);
 
-    state = {
-      ...state,
-      stage: 'scripts',
-      progress: 0.5,
-      message: 'Preparing your AR experience…',
-      detail: 'Hold your printed photo nearby',
-    };
-    emit(onUpdate, state);
-
-    if (manifest.mindFile?.url) {
-      await scriptsPromise;
-
-      cacheMindBundle(
-        mindCacheKey,
-        manifest.mindFile.url,
-        manifest.mindFile.targetDimensions ?? [],
-      );
-
+    // Fast path: server .mind already built — do NOT wait for AR scripts
+    if (serverMind) {
       state = {
         progress: 1,
         stage: 'ready',
         message: 'Your album is ready',
-        detail: 'Tap Open camera, then point at your printed photo',
+        detail: 'Tap Open camera — point at your printed photo',
         ready: true,
         error: null,
         manifest,
-        mindBundle: { url: manifest.mindFile.url, cacheKey: mindCacheKey },
+        mindBundle: serverMind,
       };
-      emit(onUpdate, state);
+      emitLocal(state);
       return state;
     }
 
-    const compilerPromise = loadCompilerScript();
-    await Promise.all([scriptsPromise, compilerPromise]);
+    state = {
+      ...state,
+      progress: 0.4,
+      manifest,
+      stage: 'scripts',
+      message: `Welcome to ${albumName}`,
+      detail: 'Preparing scan file…',
+      ready: false,
+      mindBundle: null,
+    };
+    emitLocal(state);
+
+    await Promise.all([loadArScripts(), loadCompilerScript()]);
 
     state = {
       ...state,
@@ -180,7 +238,7 @@ const runWarmup = async (
       detail: 'First visit may take a little longer',
       stage: 'targets',
     };
-    emit(onUpdate, state);
+    emitLocal(state);
 
     const trackingImageUrls = sortedTargets.map((target) =>
       viewerService.getTrackingImageUrl(albumSlug, target.id, target.photoMediaId),
@@ -198,7 +256,7 @@ const runWarmup = async (
           detail: 'Building your scan experience',
           stage: 'targets',
         };
-        emit(onUpdate, state);
+        emitLocal(state);
       });
 
       mindUrl = compiled.mindUrl;
@@ -209,16 +267,19 @@ const runWarmup = async (
       progress: 1,
       stage: 'ready',
       message: 'Your album is ready',
-      detail: 'Tap Open camera, then point at your printed photo',
+      detail: 'Tap Open camera — point at your printed photo',
       ready: true,
       error: null,
       manifest,
       mindBundle: { url: mindUrl, cacheKey: mindCacheKey },
     };
-    emit(onUpdate, state);
+    emitLocal(state);
     return state;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to prepare viewer';
+    if (state.ready && state.mindBundle && state.manifest) {
+      return state;
+    }
     state = {
       ...state,
       progress: 0,
@@ -228,7 +289,7 @@ const runWarmup = async (
       ready: false,
       error: message,
     };
-    emit(onUpdate, state);
+    emitLocal(state);
     return state;
   }
 };
@@ -238,13 +299,15 @@ export const startViewerWarmup = (
   albumSlug: string,
   onUpdate?: (state: WarmupProgress) => void,
 ): Promise<WarmupResult> => {
+  subscribeWarmup(albumSlug, onUpdate);
+
   const existing = warmupPromises.get(albumSlug);
   if (existing) {
     void existing.then((result) => onUpdate?.(result));
     return existing;
   }
 
-  const promise = runWarmup(albumSlug, onUpdate);
+  const promise = runWarmup(albumSlug);
   warmupPromises.set(albumSlug, promise);
   return promise;
 };

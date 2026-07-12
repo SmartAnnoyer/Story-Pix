@@ -64,7 +64,36 @@ const loadScript = (src: string): Promise<void> =>
     }
 
     if (existing) {
-      existing.addEventListener('load', () => resolve(), { once: true });
+      // Index.html may have injected scripts already — wait or resolve if global ready
+      const maybeReady = () => {
+        if (src.includes('mindar-image.prod') && window.MINDAR?.IMAGE) {
+          existing.dataset.mindarLoaded = 'true';
+          resolve();
+          return true;
+        }
+        if (src.includes('aframe.min') && window.AFRAME) {
+          existing.dataset.mindarLoaded = 'true';
+          resolve();
+          return true;
+        }
+        if (src.includes('mindar-image-aframe') && window.AFRAME?.registerComponent) {
+          existing.dataset.mindarLoaded = 'true';
+          resolve();
+          return true;
+        }
+        return false;
+      };
+
+      if (maybeReady()) return;
+
+      existing.addEventListener(
+        'load',
+        () => {
+          existing.dataset.mindarLoaded = 'true';
+          resolve();
+        },
+        { once: true },
+      );
       existing.addEventListener(
         'error',
         () => reject(new Error(`Failed to load ${src}`)),
@@ -75,7 +104,9 @@ const loadScript = (src: string): Promise<void> =>
 
     const script = document.createElement('script');
     script.src = src;
-    script.crossOrigin = 'anonymous';
+    if (/^https?:\/\//i.test(src)) {
+      script.crossOrigin = 'anonymous';
+    }
     script.onload = () => {
       script.dataset.mindarLoaded = 'true';
       resolve();

@@ -4,6 +4,7 @@ import { Album, AlbumSchema } from '../albums/schemas/album.schema';
 import { AlbumsModule } from '../albums/albums.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
 import { ArTargetsModule } from '../ar-targets/ar-targets.module';
+import { Media, MediaSchema } from '../media/schemas/media.schema';
 import { MediaModule } from '../media/media.module';
 import { StorageModule } from '../storage/storage.module';
 import { Studio, StudioSchema } from '../studios/schemas/studio.schema';
@@ -17,6 +18,7 @@ import { ViewerService } from './viewer.service';
     MongooseModule.forFeature([
       { name: Album.name, schema: AlbumSchema },
       { name: Studio.name, schema: StudioSchema },
+      { name: Media.name, schema: MediaSchema },
     ]),
     AlbumsModule,
     ArTargetsModule,

@@ -25,6 +25,18 @@ describe('ViewerService', () => {
 
   const albumModel = { findOne: jest.fn() };
   const studioModel = { findById: jest.fn() };
+  const mediaModel = {
+    find: jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue([
+            { _id: 'photo1', publicUrl: 'https://example.com/photo.jpg', thumbnailUrl: null },
+            { _id: 'video1', publicUrl: 'https://example.com/video.mp4', thumbnailUrl: null },
+          ]),
+        }),
+      }),
+    }),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -34,6 +46,7 @@ describe('ViewerService', () => {
         ViewerService,
         { provide: getModelToken('Album'), useValue: albumModel },
         { provide: getModelToken('Studio'), useValue: studioModel },
+        { provide: getModelToken('Media'), useValue: mediaModel },
         { provide: AlbumsService, useValue: albumsService },
         { provide: ArTargetsService, useValue: arTargetsService },
         { provide: MediaService, useValue: mediaService },
@@ -77,17 +90,12 @@ describe('ViewerService', () => {
         videoMediaId: 'video1',
       },
     ]);
-    mediaService.findById.mockImplementation((_studio: string, id: string) =>
-      Promise.resolve({
-        publicUrl: id === 'photo1' ? 'https://example.com/photo.jpg' : 'https://example.com/video.mp4',
-        thumbnailUrl: null,
-      }),
-    );
 
     const manifest = await service.getPublicManifest('wedding-slug');
 
     expect(manifest.album.slug).toBe('wedding-slug');
     expect(manifest.targets).toHaveLength(1);
+    expect(manifest.targets[0].videoUrl).toBe('https://example.com/video.mp4');
   });
 
   it('records scan success and increments usage', async () => {
