@@ -144,14 +144,14 @@ export class MindArCompilerService {
 
     const compiled = await compileAlbumMindFile(imageBuffers, (progress) => {
       const pct = Math.round(18 + progress * 70);
-      void this.updateBuildProgress(
-        album,
-        pct,
-        progress < 0.5
-          ? 'Finding visual landmarks in your photos…'
-          : 'Encoding the customer scan file…',
-        false,
-      );
+          void this.updateBuildProgress(
+            album,
+            pct,
+            progress < 0.5
+              ? `Finding landmarks (${Math.round(progress * 100)}%) — shared CPU can take a few minutes…`
+              : 'Encoding the customer scan file…',
+            false,
+          );
     });
 
     await this.updateBuildProgress(album, 92, 'Uploading scan file…');

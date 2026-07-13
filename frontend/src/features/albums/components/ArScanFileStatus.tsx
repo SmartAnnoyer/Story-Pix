@@ -142,8 +142,8 @@ export const ArScanFileStatus = ({
       </div>
 
       <p className="ar-scan-footnote">
-        This usually takes 30–90 seconds depending on photo count. We do it once so wedding guests
-        get an instant scan — not a long phone wait.
+        On shared hosting this can take 2–5 minutes (longer with more photos). It runs once on our
+        servers so wedding guests get a fast scan — not a phone wait.
       </p>
     </div>
   );

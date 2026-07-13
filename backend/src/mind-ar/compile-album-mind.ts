@@ -11,10 +11,13 @@ import { encode } from '@msgpack/msgpack';
  *
  * Output format CURRENT_VERSION = 2 — compatible with frontend MindAR 1.1.4 viewer.
  */
-const MINDAR_VERSION = '1.2.5-cpu';
+const MINDAR_VERSION = '1.2.5-cpu-fast';
 const CURRENT_VERSION = 2;
-const TRACKING_MIN_LONG_EDGE = 800;
-const TRACKING_MAX_LONG_EDGE = 1200;
+/** Smaller images = much faster CPU compile on Render free tier. */
+const TRACKING_MIN_LONG_EDGE = 480;
+const TRACKING_MAX_LONG_EDGE = 640;
+/** Default MindAR builds ~8 pyramid scales; we keep 4 for speed. */
+const MATCHING_SCALES = [1, 0.72, 0.5, 0.36];
 
 export type CompiledMindResult = {
   buffer: Buffer;
@@ -51,8 +54,8 @@ type MindArRuntime = {
   ) => {
     detect: (input: unknown) => { featurePoints: Array<{ maxima: boolean }> };
   };
-  buildImageList: (target: TargetImage) => ImageSlice[];
   buildTrackingImageList: (target: TargetImage) => ImageSlice[];
+  resizeImage: (input: { image: TargetImage; ratio: number }) => TargetImage;
   hierarchicalClusteringBuild: (input: { points: Array<{ maxima: boolean }> }) => unknown;
   extractTrackingFeatures: (
     imageList: ImageSlice[],
@@ -82,12 +85,14 @@ const ensureRuntime = (): Promise<MindArRuntime> => {
       await importEsm('mind-ar/src/image-target/detector/kernels/cpu/index.js');
 
       // 3) Load compiler pieces (Detector also registers WebGL kernels — ignore them)
-      const [detectorMod, imageListMod, clusteringMod, extractMod] = await Promise.all([
-        importEsm('mind-ar/src/image-target/detector/detector.js'),
-        importEsm('mind-ar/src/image-target/image-list.js'),
-        importEsm('mind-ar/src/image-target/matching/hierarchical-clustering.js'),
-        importEsm('mind-ar/src/image-target/tracker/extract-utils.js'),
-      ]);
+      const [detectorMod, imageListMod, imageUtilsMod, clusteringMod, extractMod] =
+        await Promise.all([
+          importEsm('mind-ar/src/image-target/detector/detector.js'),
+          importEsm('mind-ar/src/image-target/image-list.js'),
+          importEsm('mind-ar/src/image-target/utils/images.js'),
+          importEsm('mind-ar/src/image-target/matching/hierarchical-clustering.js'),
+          importEsm('mind-ar/src/image-target/tracker/extract-utils.js'),
+        ]);
 
       // 4) Re-force CPU after Detector's webgl side-effects
       await tf.setBackend('cpu');
@@ -110,9 +115,9 @@ const ensureRuntime = (): Promise<MindArRuntime> => {
       return {
         tf,
         Detector: detectorMod.Detector as MindArRuntime['Detector'],
-        buildImageList: imageListMod.buildImageList as MindArRuntime['buildImageList'],
         buildTrackingImageList:
           imageListMod.buildTrackingImageList as MindArRuntime['buildTrackingImageList'],
+        resizeImage: imageUtilsMod.resize as MindArRuntime['resizeImage'],
         hierarchicalClusteringBuild:
           clusteringMod.build as MindArRuntime['hierarchicalClusteringBuild'],
         extractTrackingFeatures:
@@ -158,6 +163,20 @@ const prepareTrackingImage = async (imageBuffer: Buffer): Promise<TargetImage> =
     width: info.width,
     height: info.height,
   };
+};
+
+/** Fewer pyramid scales than MindAR default — big CPU win on shared hosts. */
+const buildFastMatchingImageList = (
+  runtime: MindArRuntime,
+  inputImage: TargetImage,
+): ImageSlice[] => {
+  const minDimension = Math.min(inputImage.width, inputImage.height);
+  const scales = MATCHING_SCALES.filter((ratio) => minDimension * ratio >= 100);
+  const effectiveScales = scales.length > 0 ? scales : [Math.min(1, 100 / minDimension)];
+
+  return effectiveScales.map((ratio) =>
+    Object.assign(runtime.resizeImage({ image: inputImage, ratio }), { scale: ratio }),
+  );
 };
 
 const extractMatchingFeatures = async (
@@ -224,7 +243,7 @@ export const compileAlbumMindFile = async (
 
   for (let index = 0; index < targetImages.length; index += 1) {
     const targetImage = targetImages[index];
-    const imageList = runtime.buildImageList(targetImage);
+    const imageList = buildFastMatchingImageList(runtime, targetImage);
     const percentPerAction = percentPerImage / Math.max(imageList.length, 1);
 
     const matchingData = await extractMatchingFeatures(runtime, imageList, () => {
