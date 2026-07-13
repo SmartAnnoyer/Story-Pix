@@ -1,14 +1,18 @@
 import sharp from 'sharp';
+import { encode } from '@msgpack/msgpack';
 
 /**
- * Server-side MindAR compile using official OfflineCompiler (CPU kernels).
- * Avoids WebGL `compileAndRun` which fails in Node with plain @tensorflow/tfjs.
+ * Server-side MindAR compile — CPU only (no canvas, no WebGL).
+ *
+ * Why: MindAR's browser Detector uses `tf.backend().compileAndRun` (WebGL-only).
+ * On Node that crashes. MindAR 1.2.5 ships CPU kernels + runKernel; we force the
+ * CPU backend before loading Detector, and prepare images with sharp (no `canvas`
+ * native module — that often breaks Render deploys and leaves the old code live).
  *
  * Output format CURRENT_VERSION = 2 — compatible with frontend MindAR 1.1.4 viewer.
  */
-const MINDAR_VERSION = '1.2.5-offline';
+const MINDAR_VERSION = '1.2.5-cpu';
 const CURRENT_VERSION = 2;
-
 const TRACKING_MIN_LONG_EDGE = 800;
 const TRACKING_MAX_LONG_EDGE = 1200;
 
@@ -18,62 +22,112 @@ export type CompiledMindResult = {
   mindVersion: string;
 };
 
-type CanvasImage = {
+type TargetImage = {
+  data: Uint8Array;
   width: number;
   height: number;
 };
 
-type OfflineCompilerInstance = {
-  compileImageTargets: (
-    images: CanvasImage[],
-    progressCallback?: (progress: number) => void,
-  ) => Promise<unknown>;
-  exportData: () => ArrayBuffer | Uint8Array;
-  data: Array<{ targetImage: { width: number; height: number } }> | null;
+type ImageSlice = TargetImage & { scale?: number };
+
+type MindArRuntime = {
+  tf: {
+    setBackend: (name: string) => Promise<boolean>;
+    ready: () => Promise<void>;
+    getBackend: () => string;
+    nextFrame: () => Promise<void>;
+    tidy: <T>(fn: () => T) => T;
+    tensor: (
+      values: Uint8Array,
+      shape: number[],
+      dtype?: string,
+    ) => { reshape: (dims: number[]) => unknown };
+    backend: () => { compileAndRun?: (...args: unknown[]) => unknown };
+    engine: () => { backendNames?: () => string[] };
+  };
+  Detector: new (
+    width: number,
+    height: number,
+  ) => {
+    detect: (input: unknown) => { featurePoints: Array<{ maxima: boolean }> };
+  };
+  buildImageList: (target: TargetImage) => ImageSlice[];
+  buildTrackingImageList: (target: TargetImage) => ImageSlice[];
+  hierarchicalClusteringBuild: (input: { points: Array<{ maxima: boolean }> }) => unknown;
+  extractTrackingFeatures: (
+    imageList: ImageSlice[],
+    doneCallback: (index: number) => void,
+  ) => unknown[];
 };
 
-let compilerReady: Promise<{
-  OfflineCompiler: new () => OfflineCompilerInstance;
-  loadImage: (source: Buffer | string) => Promise<CanvasImage>;
-  setBackend: (name: string) => Promise<boolean>;
-  ready: () => Promise<void>;
-}> | null = null;
+let runtimePromise: Promise<MindArRuntime> | null = null;
 
-const ensureCompilerDeps = () => {
-  if (!compilerReady) {
-    compilerReady = (async () => {
-      // Dynamic import keeps Nest CJS compatible with mind-ar ESM + canvas
-      const importEsm = new Function('specifier', 'return import(specifier)') as (
-        specifier: string,
-      ) => Promise<Record<string, unknown>>;
+const importEsm = (specifier: string) =>
+  (new Function('specifier', 'return import(specifier)') as (
+    specifier: string,
+  ) => Promise<Record<string, unknown>>)(specifier);
 
-      const [offlineMod, canvasMod, tfMod] = await Promise.all([
-        importEsm('mind-ar/src/image-target/offline-compiler.js'),
-        importEsm('canvas'),
-        importEsm('@tensorflow/tfjs'),
-      ]);
-
-      const tf = tfMod as {
-        setBackend: (name: string) => Promise<boolean>;
-        ready: () => Promise<void>;
-      };
+const ensureRuntime = (): Promise<MindArRuntime> => {
+  if (!runtimePromise) {
+    runtimePromise = (async () => {
+      // 1) TF + CPU backend BEFORE any MindAR detector import
+      const tfMod = await importEsm('@tensorflow/tfjs');
+      await importEsm('@tensorflow/tfjs-backend-cpu');
+      const tf = tfMod as MindArRuntime['tf'];
 
       await tf.setBackend('cpu');
       await tf.ready();
 
+      // 2) Register MindAR CPU kernels before Detector loads
+      await importEsm('mind-ar/src/image-target/detector/kernels/cpu/index.js');
+
+      // 3) Load compiler pieces (Detector also registers WebGL kernels — ignore them)
+      const [detectorMod, imageListMod, clusteringMod, extractMod] = await Promise.all([
+        importEsm('mind-ar/src/image-target/detector/detector.js'),
+        importEsm('mind-ar/src/image-target/image-list.js'),
+        importEsm('mind-ar/src/image-target/matching/hierarchical-clustering.js'),
+        importEsm('mind-ar/src/image-target/tracker/extract-utils.js'),
+      ]);
+
+      // 4) Re-force CPU after Detector's webgl side-effects
+      await tf.setBackend('cpu');
+      await tf.ready();
+
+      if (tf.getBackend() !== 'cpu') {
+        throw new Error(`MindAR compile requires CPU backend, got "${tf.getBackend()}"`);
+      }
+
+      // 5) Hard-fail if anything still tries WebGL compileAndRun
+      const backend = tf.backend();
+      if (backend && typeof backend.compileAndRun !== 'function') {
+        backend.compileAndRun = () => {
+          throw new Error(
+            'MindAR attempted WebGL compileAndRun. CPU kernels were not used — check TensorFlow backend.',
+          );
+        };
+      }
+
       return {
-        OfflineCompiler: offlineMod.OfflineCompiler as new () => OfflineCompilerInstance,
-        loadImage: canvasMod.loadImage as (source: Buffer | string) => Promise<CanvasImage>,
-        setBackend: tf.setBackend.bind(tf),
-        ready: tf.ready.bind(tf),
+        tf,
+        Detector: detectorMod.Detector as MindArRuntime['Detector'],
+        buildImageList: imageListMod.buildImageList as MindArRuntime['buildImageList'],
+        buildTrackingImageList:
+          imageListMod.buildTrackingImageList as MindArRuntime['buildTrackingImageList'],
+        hierarchicalClusteringBuild:
+          clusteringMod.build as MindArRuntime['hierarchicalClusteringBuild'],
+        extractTrackingFeatures:
+          extractMod.extractTrackingFeatures as MindArRuntime['extractTrackingFeatures'],
       };
-    })();
+    })().catch((error) => {
+      runtimePromise = null;
+      throw error;
+    });
   }
 
-  return compilerReady;
+  return runtimePromise;
 };
 
-const prepareTrackingPng = async (imageBuffer: Buffer): Promise<Buffer> => {
+const prepareTrackingImage = async (imageBuffer: Buffer): Promise<TargetImage> => {
   const oriented = sharp(imageBuffer).rotate();
   const metadata = await oriented.metadata();
   const srcWidth = metadata.width ?? 1;
@@ -91,12 +145,56 @@ const prepareTrackingPng = async (imageBuffer: Buffer): Promise<Buffer> => {
   const width = Math.max(1, Math.round(srcWidth * scale));
   const height = Math.max(1, Math.round(srcHeight * scale));
 
-  return oriented
+  const { data, info } = await oriented
     .resize(width, height, { fit: 'fill' })
+    .greyscale()
     .modulate({ brightness: 1, saturation: 1.05 })
     .linear(1.08, 0)
-    .png()
-    .toBuffer();
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  return {
+    data: new Uint8Array(data),
+    width: info.width,
+    height: info.height,
+  };
+};
+
+const extractMatchingFeatures = async (
+  runtime: MindArRuntime,
+  imageList: ImageSlice[],
+  doneCallback: (index: number) => void,
+) => {
+  const keyframes: unknown[] = [];
+
+  for (let index = 0; index < imageList.length; index += 1) {
+    const image = imageList[index];
+    const detector = new runtime.Detector(image.width, image.height);
+
+    await runtime.tf.nextFrame();
+    runtime.tf.tidy(() => {
+      const input = runtime.tf
+        .tensor(image.data, [image.data.length], 'float32')
+        .reshape([image.height, image.width]);
+      const { featurePoints } = detector.detect(input);
+
+      const maximaPoints = featurePoints.filter((point) => point.maxima);
+      const minimaPoints = featurePoints.filter((point) => !point.maxima);
+
+      keyframes.push({
+        maximaPoints,
+        minimaPoints,
+        maximaPointsCluster: runtime.hierarchicalClusteringBuild({ points: maximaPoints }),
+        minimaPointsCluster: runtime.hierarchicalClusteringBuild({ points: minimaPoints }),
+        width: image.width,
+        height: image.height,
+        scale: image.scale,
+      });
+      doneCallback(index);
+    });
+  }
+
+  return keyframes;
 };
 
 /** Compile a multi-target .mind buffer from raw photo buffers (server-side). */
@@ -108,46 +206,77 @@ export const compileAlbumMindFile = async (
     throw new Error('At least one tracking image is required');
   }
 
-  onProgress?.(0.04);
-  const { OfflineCompiler, loadImage } = await ensureCompilerDeps();
+  onProgress?.(0.03);
+  const runtime = await ensureRuntime();
   onProgress?.(0.08);
 
-  const pngBuffers = await Promise.all(imageBuffers.map((buffer) => prepareTrackingPng(buffer)));
-  onProgress?.(0.14);
+  const targetImages = await Promise.all(imageBuffers.map((buffer) => prepareTrackingImage(buffer)));
+  onProgress?.(0.15);
 
-  const images = await Promise.all(pngBuffers.map((png) => loadImage(png)));
-  onProgress?.(0.18);
+  const compiledData: Array<{
+    targetImage: TargetImage;
+    matchingData: unknown;
+    trackingData: unknown;
+  }> = [];
 
-  const compiler = new OfflineCompiler();
-  await compiler.compileImageTargets(images, (progress) => {
-    const normalized = progress > 1 ? progress / 100 : progress;
-    onProgress?.(0.18 + normalized * 0.8);
-  });
+  const percentPerImage = 50 / targetImages.length;
+  let percent = 0;
 
-  const exported = compiler.exportData();
-  const buffer = Buffer.from(exported instanceof ArrayBuffer ? new Uint8Array(exported) : exported);
+  for (let index = 0; index < targetImages.length; index += 1) {
+    const targetImage = targetImages[index];
+    const imageList = runtime.buildImageList(targetImage);
+    const percentPerAction = percentPerImage / Math.max(imageList.length, 1);
 
-  // Prefer dimensions from compiler data; fall back to canvas image sizes
-  const targetDimensions =
-    compiler.data?.map((entry) => ({
+    const matchingData = await extractMatchingFeatures(runtime, imageList, () => {
+      percent += percentPerAction;
+      onProgress?.(0.15 + (percent / 100) * 0.35);
+    });
+
+    compiledData.push({
+      targetImage,
+      matchingData,
+      trackingData: null,
+    });
+  }
+
+  const trackingPercentPerImage = 50 / targetImages.length;
+  let trackingPercent = 0;
+
+  for (let index = 0; index < compiledData.length; index += 1) {
+    const entry = compiledData[index];
+    const trackingImageList = runtime.buildTrackingImageList(entry.targetImage);
+    const percentPerAction = trackingPercentPerImage / Math.max(trackingImageList.length, 1);
+
+    entry.trackingData = runtime.extractTrackingFeatures(trackingImageList, () => {
+      trackingPercent += percentPerAction;
+      onProgress?.(0.5 + (trackingPercent / 100) * 0.45);
+    });
+  }
+
+  const dataList = compiledData.map((entry) => ({
+    targetImage: {
       width: entry.targetImage.width,
       height: entry.targetImage.height,
-    })) ??
-    images.map((image) => ({
-      width: image.width,
-      height: image.height,
-    }));
+    },
+    trackingData: entry.trackingData,
+    matchingData: entry.matchingData,
+  }));
 
-  // Sanity: ensure msgpack payload is versioned (OfflineCompiler already does this)
-  if (!buffer.length) {
-    throw new Error('MindAR OfflineCompiler produced an empty buffer');
-  }
+  const buffer = Buffer.from(
+    encode({
+      v: CURRENT_VERSION,
+      dataList,
+    }),
+  );
 
   onProgress?.(1);
 
   return {
     buffer,
-    targetDimensions,
-    mindVersion: `storypix-server-v2-mindar-${MINDAR_VERSION}-cv${CURRENT_VERSION}`,
+    targetDimensions: targetImages.map((image) => ({
+      width: image.width,
+      height: image.height,
+    })),
+    mindVersion: `storypix-server-v3-mindar-${MINDAR_VERSION}-cv${CURRENT_VERSION}`,
   };
 };

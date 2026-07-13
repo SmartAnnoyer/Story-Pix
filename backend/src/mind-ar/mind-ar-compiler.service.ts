@@ -175,12 +175,12 @@ export class MindArCompilerService {
     album.mindFileTargetDimensions = compiled.targetDimensions;
     album.mindFileBuildStatus = 'ready';
     album.mindFileBuildProgress = 100;
-    album.mindFileBuildMessage = 'Scan file ready — safe to print QR';
+    album.mindFileBuildMessage = `Scan file ready (${compiled.mindVersion}) — safe to print QR`;
     album.mindFileBuildError = null;
     await album.save();
 
     this.logger.log(
-      `Mind file compiled for album ${albumId} (${compiled.buffer.length} bytes, ${Date.now() - startedAt}ms)`,
+      `Mind file compiled for album ${albumId} (${compiled.buffer.length} bytes, ${compiled.mindVersion}, ${Date.now() - startedAt}ms)`,
     );
   }
 

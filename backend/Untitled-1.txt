@@ -1,0 +1,12 @@
+
+
+MONGODB_URI=mongodb+srv://livealbum:vSghBfZ3dAskisU5@cluster0.ecfjtzj.mongodb.net/livealbum_dev?retryWrites=true&w=majority&appName=Cluster0
+
+MONGODB_URI=mongodb+srv://livealbum_prod:VjSuK33GncSam8Gc@cluster0.ecfjtzj.mongodb.net/livealbum_prod?retryWrites=true&w=majority&appName=Cluster0
+
+
+token_value = cfat_etOUUkjwSOcIFu71aDfaO8haKLavOHKN2tdJFgYU432ed466v
+
+access_key_id = e618d7a7b0083f0766c6bceef7b1fad2
+
+secret_access_key = 5f63bf5413ad3ec9241837253a5690a3f47f24bd8519e08394d7aadeda72f24e
