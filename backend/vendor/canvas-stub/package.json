@@ -1,0 +1,7 @@
+{
+  "name": "canvas",
+  "version": "2.11.2",
+  "description": "Install stub so MindAR does not pull native canvas; compile uses sharp + tfjs CPU.",
+  "main": "index.js",
+  "license": "MIT"
+}

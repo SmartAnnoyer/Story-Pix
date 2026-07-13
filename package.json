@@ -33,7 +33,10 @@
       "prettier --write"
     ]
   },
+  "overrides": {
+    "canvas": "file:backend/vendor/canvas-stub"
+  },
   "engines": {
-    "node": ">=20.0.0"
+    "node": "20.x"
   }
 }

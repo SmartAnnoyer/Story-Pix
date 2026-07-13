@@ -11,6 +11,9 @@ services:
     startCommand: npm run start:prod --workspace=backend
     healthCheckPath: /api/v1/health
     envVars:
+      # canvas@2.x has no Node 26 prebuilds; pin LTS so native deps stay installable
+      - key: NODE_VERSION
+        value: '20.19.0'
       - key: NODE_ENV
         value: production
       - key: HUSKY
@@ -67,6 +70,8 @@ services:
         source: /*
         destination: /index.html
     envVars:
+      - key: NODE_VERSION
+        value: '20.19.0'
       - key: HUSKY
         value: '0'
       - key: NPM_CONFIG_PRODUCTION
