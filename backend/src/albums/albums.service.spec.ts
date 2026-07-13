@@ -2,9 +2,9 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { Types } from 'mongoose';
 import { AlbumsService } from './albums.service';
 import { Album } from './schemas/album.schema';
+import { ArTarget } from '../ar-targets/schemas/ar-target.schema';
 import { UsageService } from '../subscriptions/usage.service';
 import { AnalyticsIngestionService } from '../analytics/analytics-ingestion.service';
 import { EventBusService } from '../notifications/services/event-bus.service';
@@ -49,6 +49,12 @@ describe('AlbumsService', () => {
     countDocuments: jest.fn(),
   };
 
+  const arTargetModel = {
+    countDocuments: jest.fn().mockReturnValue({
+      exec: jest.fn().mockResolvedValue(1),
+    }),
+  };
+
   const usageService = {
     incrementAlbumCount: jest.fn().mockResolvedValue(1),
     decrementAlbumCount: jest.fn().mockResolvedValue(0),
@@ -56,17 +62,24 @@ describe('AlbumsService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    arTargetModel.countDocuments.mockReturnValue({
+      exec: jest.fn().mockResolvedValue(1),
+    });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AlbumsService,
         { provide: getModelToken(Album.name), useValue: albumModel },
+        { provide: getModelToken(ArTarget.name), useValue: arTargetModel },
         { provide: UsageService, useValue: usageService },
         {
           provide: ConfigService,
           useValue: { get: jest.fn().mockReturnValue('https://story-pix.app/viewer') },
         },
-        { provide: AnalyticsIngestionService, useValue: { recordEvent: jest.fn().mockResolvedValue({ id: '1' }) } },
+        {
+          provide: AnalyticsIngestionService,
+          useValue: { recordEvent: jest.fn().mockResolvedValue({ id: '1' }) },
+        },
         { provide: EventBusService, useValue: { publish: jest.fn() } },
         {
           provide: MindArCompilerService,

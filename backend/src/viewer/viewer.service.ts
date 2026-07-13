@@ -1,9 +1,4 @@
-import {
-  BadGatewayException,
-  Inject,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadGatewayException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import type { Request } from 'express';
@@ -52,19 +47,31 @@ export class ViewerService {
         ? await this.mediaModel
             .find({
               _id: { $in: mediaIds },
-              studioId: albumDoc.studioId,
               deletedAt: null,
             })
-            .select('publicUrl thumbnailUrl')
+            .select('publicUrl thumbnailUrl r2ObjectKey studioId')
             .lean()
             .exec()
         : [];
 
-    const mediaById = new Map(mediaDocs.map((doc) => [String(doc._id), doc] as const));
+    const studioId = albumDoc.studioId.toString();
+    const mediaById = new Map(
+      mediaDocs
+        .filter((doc) => String(doc.studioId) === studioId)
+        .map((doc) => [String(doc._id), doc] as const),
+    );
+
+    const resolveUrl = (publicUrl?: string | null, r2ObjectKey?: string | null) => {
+      if (publicUrl) return publicUrl;
+      if (r2ObjectKey) return this.storageService.getPublicUrl(r2ObjectKey);
+      return null;
+    };
 
     const manifestTargets = targets.map((target) => {
       const photo = mediaById.get(target.photoMediaId.toString());
       const video = mediaById.get(target.videoMediaId.toString());
+      const photoUrl = resolveUrl(photo?.publicUrl, photo?.r2ObjectKey);
+      const videoUrl = resolveUrl(video?.publicUrl, video?.r2ObjectKey);
 
       return {
         id: target._id.toString(),
@@ -72,15 +79,19 @@ export class ViewerService {
         targetIndex: target.targetIndex,
         photoMediaId: target.photoMediaId.toString(),
         videoMediaId: target.videoMediaId.toString(),
-        photoUrl: photo?.publicUrl ?? null,
-        photoThumbnailUrl: photo?.thumbnailUrl ?? photo?.publicUrl ?? null,
-        videoUrl: video?.publicUrl ?? null,
+        photoUrl,
+        photoThumbnailUrl: photo?.thumbnailUrl ?? photoUrl,
+        videoUrl,
         videoThumbnailUrl: video?.thumbnailUrl ?? null,
-        videoAvailable: Boolean(video?.publicUrl),
+        // Viewer loads video via API proxy using r2ObjectKey — CDN URL is optional
+        videoAvailable: Boolean(video?.r2ObjectKey || videoUrl),
+        hasTrackingPhoto: Boolean(photo?.r2ObjectKey || photoUrl),
       };
     });
 
-    const filteredTargets = manifestTargets.filter((target) => target.photoUrl);
+    const filteredTargets = manifestTargets
+      .filter((target) => target.hasTrackingPhoto)
+      .map(({ hasTrackingPhoto: _ignored, ...target }) => target);
 
     if (!albumDoc.mindFileUrl && filteredTargets.length > 0) {
       void this.mindArCompilerService.scheduleAlbumMindRebuild(albumDoc._id.toString());
@@ -121,7 +132,11 @@ export class ViewerService {
       throw new NotFoundException('Tracking image not available');
     }
 
-    return this.loadMediaBuffer(photo.r2ObjectKey, photo.publicUrl ?? photo.thumbnailUrl, photo.mimeType);
+    return this.loadMediaBuffer(
+      photo.r2ObjectKey,
+      photo.publicUrl ?? photo.thumbnailUrl,
+      photo.mimeType,
+    );
   }
 
   async getMappingVideoBuffer(albumSlug: string, targetId: string) {
@@ -148,7 +163,10 @@ export class ViewerService {
     const albumId = albumDoc._id.toString();
     const eventType = this.resolveEventType(dto.eventType);
 
-    if (eventType === AnalyticsEventType.SCAN_SUCCESS || dto.eventType === ScanEventType.SCAN_SUCCESS) {
+    if (
+      eventType === AnalyticsEventType.SCAN_SUCCESS ||
+      dto.eventType === ScanEventType.SCAN_SUCCESS
+    ) {
       await this.limitValidationService.checkScanLimit(studioId);
       await this.usageService.incrementScanUsage(studioId);
     }
@@ -205,7 +223,8 @@ export class ViewerService {
       }
 
       const buffer = Buffer.from(await response.arrayBuffer());
-      const contentType = response.headers.get('content-type') ?? fallbackMimeType ?? 'application/octet-stream';
+      const contentType =
+        response.headers.get('content-type') ?? fallbackMimeType ?? 'application/octet-stream';
 
       return { buffer, contentType };
     } catch (error) {

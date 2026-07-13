@@ -23,16 +23,6 @@
     "husky": "^9.1.7",
     "lint-staged": "^15.5.2"
   },
-  "lint-staged": {
-    "frontend/**/*.{ts,tsx}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "backend/**/*.ts": [
-      "eslint --fix",
-      "prettier --write"
-    ]
-  },
   "overrides": {
     "canvas": "file:backend/vendor/canvas-stub"
   },

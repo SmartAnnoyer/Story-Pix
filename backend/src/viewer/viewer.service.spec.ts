@@ -21,7 +21,10 @@ describe('ViewerService', () => {
   const analyticsIngestionService = { recordEvent: jest.fn() };
   const limitValidationService = { checkScanLimit: jest.fn() };
   const usageService = { incrementScanUsage: jest.fn() };
-  const storageService = { getObjectBuffer: jest.fn() };
+  const storageService = {
+    getObjectBuffer: jest.fn(),
+    getPublicUrl: jest.fn((key: string) => `https://cdn.example.com/${key}`),
+  };
 
   const albumModel = { findOne: jest.fn() };
   const studioModel = { findById: jest.fn() };
@@ -30,8 +33,20 @@ describe('ViewerService', () => {
       select: jest.fn().mockReturnValue({
         lean: jest.fn().mockReturnValue({
           exec: jest.fn().mockResolvedValue([
-            { _id: 'photo1', publicUrl: 'https://example.com/photo.jpg', thumbnailUrl: null },
-            { _id: 'video1', publicUrl: 'https://example.com/video.mp4', thumbnailUrl: null },
+            {
+              _id: 'photo1',
+              studioId: 'studio1',
+              publicUrl: null,
+              thumbnailUrl: null,
+              r2ObjectKey: 'studios/studio1/photos/photo1.jpg',
+            },
+            {
+              _id: 'video1',
+              studioId: 'studio1',
+              publicUrl: null,
+              thumbnailUrl: null,
+              r2ObjectKey: 'studios/studio1/videos/video1.mp4',
+            },
           ]),
         }),
       }),
@@ -95,7 +110,13 @@ describe('ViewerService', () => {
 
     expect(manifest.album.slug).toBe('wedding-slug');
     expect(manifest.targets).toHaveLength(1);
-    expect(manifest.targets[0].videoUrl).toBe('https://example.com/video.mp4');
+    expect(manifest.targets[0].photoUrl).toBe(
+      'https://cdn.example.com/studios/studio1/photos/photo1.jpg',
+    );
+    expect(manifest.targets[0].videoUrl).toBe(
+      'https://cdn.example.com/studios/studio1/videos/video1.mp4',
+    );
+    expect(manifest.targets[0].videoAvailable).toBe(true);
   });
 
   it('records scan success and increments usage', async () => {

@@ -39,7 +39,11 @@ export const CreateMappingPage = () => {
   const mediaRoute = ROUTES.ALBUM_MEDIA.replace(':id', id);
   const needsUpload = readyPhotos.length === 0 || readyVideos.length === 0;
 
-  const handleSubmit = async (values: { targetName: string; photoMediaId: string; videoMediaId: string }) => {
+  const handleSubmit = async (values: {
+    targetName: string;
+    photoMediaId: string;
+    videoMediaId: string;
+  }) => {
     try {
       await createMutation.mutateAsync({ albumId: id, ...values });
       message.success('Mapping created');
@@ -63,9 +67,9 @@ export const CreateMappingPage = () => {
         Create AR Mapping
       </Title>
       <Paragraph type="secondary" className="!mb-4 max-w-2xl">
-        Upload photos and videos under <strong>Manage Media</strong> first. This screen only links an
-        existing photo (print target) to a video. After you create the mapping, publish it from the
-        mappings list; the AR target file is generated when a guest opens the public viewer.
+        Upload photos and videos under <strong>Manage Media</strong> first. This screen only links
+        an existing photo (print target) to a video. Publish each mapping, then publish the album so
+        the AR scan file builds before you print the QR.
       </Paragraph>
 
       <Alert
@@ -78,7 +82,7 @@ export const CreateMappingPage = () => {
             <li>Album → Manage Media — upload photo(s) and video(s) until status is ready.</li>
             <li>Create mapping here — pick photo + video + name (saved as draft).</li>
             <li>AR Mappings list — Publish each mapping, then publish the album.</li>
-            <li>Share the public viewer link — MindAR compiles scan targets in the browser.</li>
+            <li>Wait for the AR scan file / QR on the album page, then share or print the QR.</li>
           </ol>
         }
       />

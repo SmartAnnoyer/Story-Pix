@@ -9,12 +9,13 @@ import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
 import { FilterQuery, Model, Types, SortOrder as MongoSortOrder } from 'mongoose';
 import { PaginatedResult } from '../common/dto/pagination.dto';
-import { AlbumStatus, AnalyticsEventType, DomainEventType } from '../common/enums';
+import { AlbumStatus, AnalyticsEventType, ArTargetStatus, DomainEventType } from '../common/enums';
 import { AnalyticsIngestionService } from '../analytics/analytics-ingestion.service';
 import { EventBusService } from '../notifications/services/event-bus.service';
 import { MindArCompilerService } from '../mind-ar/mind-ar-compiler.service';
 import { UsageService } from '../subscriptions/usage.service';
 import { Album, AlbumDocument } from './schemas/album.schema';
+import { ArTarget, ArTargetDocument } from '../ar-targets/schemas/ar-target.schema';
 import {
   AlbumSortField,
   CreateAlbumDto,
@@ -27,6 +28,7 @@ import {
 export class AlbumsService {
   constructor(
     @InjectModel(Album.name) private readonly albumModel: Model<AlbumDocument>,
+    @InjectModel(ArTarget.name) private readonly arTargetModel: Model<ArTargetDocument>,
     private readonly usageService: UsageService,
     private readonly configService: ConfigService,
     private readonly analyticsIngestionService: AnalyticsIngestionService,
@@ -34,7 +36,10 @@ export class AlbumsService {
     private readonly mindArCompilerService: MindArCompilerService,
   ) {}
 
-  async findAll(studioId: string, query: QueryAlbumsDto): Promise<PaginatedResult<ReturnType<typeof this.serialize>>> {
+  async findAll(
+    studioId: string,
+    query: QueryAlbumsDto,
+  ): Promise<PaginatedResult<ReturnType<typeof this.serialize>>> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const skip = (page - 1) * limit;
@@ -121,7 +126,8 @@ export class AlbumsService {
     if (dto.eventType !== undefined) album.eventType = dto.eventType;
     if (dto.customerName !== undefined) album.customerName = dto.customerName.trim();
     if (dto.customerPhone !== undefined) album.customerPhone = dto.customerPhone ?? null;
-    if (dto.customerEmail !== undefined) album.customerEmail = dto.customerEmail?.toLowerCase() ?? null;
+    if (dto.customerEmail !== undefined)
+      album.customerEmail = dto.customerEmail?.toLowerCase() ?? null;
     if (dto.eventDate !== undefined) album.eventDate = new Date(dto.eventDate);
     if (dto.coverImage !== undefined) album.coverImage = dto.coverImage ?? null;
     if (dto.description !== undefined) album.description = dto.description ?? null;
@@ -150,6 +156,20 @@ export class AlbumsService {
 
     if (album.status === AlbumStatus.ARCHIVED) {
       throw new BadRequestException('Archived albums cannot be published');
+    }
+
+    const activeMappings = await this.arTargetModel
+      .countDocuments({
+        albumId: album._id,
+        deletedAt: null,
+        status: ArTargetStatus.ACTIVE,
+      })
+      .exec();
+
+    if (activeMappings < 1) {
+      throw new BadRequestException(
+        'Publish at least one AR mapping (photo → video) before publishing the album',
+      );
     }
 
     album.status = AlbumStatus.PUBLISHED;
@@ -331,7 +351,8 @@ export class AlbumsService {
   }
 
   private getPublicViewerUrl(slug: string): string {
-    const baseUrl = this.configService.get<string>('app.viewerBaseUrl') ?? 'https://story-pix.app/viewer';
+    const baseUrl =
+      this.configService.get<string>('app.viewerBaseUrl') ?? 'https://story-pix.app/viewer';
     return `${baseUrl.replace(/\/$/, '')}/${slug}`;
   }
 
@@ -355,10 +376,10 @@ export class AlbumsService {
       status: album.status,
       isPublished: album.isPublished,
       publishedAt: album.publishedAt ?? null,
-      arScanFileReady: Boolean(album.mindFileUrl),
-      arScanFileStatus: album.mindFileUrl
-        ? 'ready'
-        : (album.mindFileBuildStatus ?? 'idle'),
+      arScanFileReady: Boolean(
+        album.mindFileUrl && (album.mindFileTargetDimensions?.length ?? 0) > 0,
+      ),
+      arScanFileStatus: album.mindFileUrl ? 'ready' : (album.mindFileBuildStatus ?? 'idle'),
       arScanFileProgress: album.mindFileUrl
         ? 100
         : Math.max(0, Math.min(100, album.mindFileBuildProgress ?? 0)),

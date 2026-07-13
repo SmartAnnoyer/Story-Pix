@@ -37,10 +37,7 @@ const emitToListeners = (albumSlug: string, state: WarmupProgress) => {
   listeners.forEach((listener) => listener(snapshot));
 };
 
-const subscribeWarmup = (
-  albumSlug: string,
-  onUpdate?: (state: WarmupProgress) => void,
-) => {
+const subscribeWarmup = (albumSlug: string, onUpdate?: (state: WarmupProgress) => void) => {
   if (!onUpdate) return () => undefined;
   let set = warmupListeners.get(albumSlug);
   if (!set) {
@@ -66,10 +63,7 @@ const prefetchMindFile = (url: string): void => {
 
 const clampProgress = (value: number) => Math.min(1, Math.max(0, value > 1 ? value / 100 : value));
 
-const emit = (
-  onUpdate: ((state: WarmupProgress) => void) | undefined,
-  state: WarmupProgress,
-) => {
+const emit = (onUpdate: ((state: WarmupProgress) => void) | undefined, state: WarmupProgress) => {
   onUpdate?.({ ...state, progress: clampProgress(state.progress) });
 };
 
@@ -115,21 +109,13 @@ const buildMindBundle = (albumSlug: string, manifest: ViewerManifest) => {
     id: target.id,
     photoMediaId: target.photoMediaId,
   }));
-  const mindCacheKey = getMindCacheKey(
-    albumSlug,
-    mindCacheTargets,
-    manifest.mindFile?.hash,
-  );
+  const mindCacheKey = getMindCacheKey(albumSlug, mindCacheTargets, manifest.mindFile?.hash);
 
   if (!manifest.mindFile?.url) {
     return { mindCacheKey, sortedTargets, mindBundle: null as null };
   }
 
-  cacheMindBundle(
-    mindCacheKey,
-    manifest.mindFile.url,
-    manifest.mindFile.targetDimensions ?? [],
-  );
+  cacheMindBundle(mindCacheKey, manifest.mindFile.url, manifest.mindFile.targetDimensions ?? []);
 
   return {
     mindCacheKey,
@@ -187,17 +173,20 @@ const runWarmup = async (
     void loadArScripts().catch(() => undefined);
 
     const manifest = await viewerService.getManifest(albumSlug);
-    writeCachedManifest(albumSlug, manifest);
+    if (manifest.targets.length) {
+      writeCachedManifest(albumSlug, manifest);
+    }
 
     if (!manifest.targets.length) {
       throw new Error('No published AR mappings for this album yet.');
     }
 
     const albumName = manifest.album.albumName;
-    const { mindCacheKey, sortedTargets, mindBundle: serverMind } = buildMindBundle(
-      albumSlug,
-      manifest,
-    );
+    const {
+      mindCacheKey,
+      sortedTargets,
+      mindBundle: serverMind,
+    } = buildMindBundle(albumSlug, manifest);
 
     prefetchAlbumAssets(albumSlug, manifest, manifest.mindFile?.url);
 
