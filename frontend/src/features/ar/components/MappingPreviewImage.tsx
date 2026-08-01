@@ -18,7 +18,8 @@ export const MappingPreviewImage = ({
   const candidates = useMemo(() => {
     const proxy = viewerService.getTrackingImageUrl(albumSlug, target.id, target.photoMediaId);
     const urls = [proxy, target.photoThumbnailUrl, target.photoUrl].filter(
-      (url): url is string => Boolean(url) && !url.includes('media.story-pix.app'),
+      (url): url is string =>
+        typeof url === 'string' && url.length > 0 && !url.includes('media.story-pix.app'),
     );
     return [...new Set(urls.length ? urls : [proxy])];
   }, [albumSlug, target]);
