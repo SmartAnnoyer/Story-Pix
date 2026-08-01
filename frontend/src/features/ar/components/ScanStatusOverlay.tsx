@@ -66,20 +66,23 @@ export const ScanStatusOverlay = ({
             : status === 'no_targets'
               ? 'No published mappings'
               : status === 'match_found'
-        ? 'Match found — starting video…'
-        : status === 'move_closer'
-                ? 'Almost there — move a little closer'
-                : status === 'no_match'
-                  ? "We couldn't recognize the photo"
-                  : status === 'video_unavailable'
-                    ? 'Video unavailable for this mapping'
-                    : status === 'camera_required'
-                      ? 'Camera access needed'
-                      : 'Working…';
+                ? 'Match found — starting video…'
+                : status === 'move_closer'
+                  ? 'Almost there — move a little closer'
+                  : status === 'no_match'
+                    ? "We couldn't recognize the photo"
+                    : status === 'video_unavailable'
+                      ? 'Video unavailable for this mapping'
+                      : status === 'camera_required'
+                        ? 'Camera access needed'
+                        : 'Working…';
 
   const showReasons = status === 'move_closer' || status === 'no_match';
   const showTargetHints =
-    status === 'scanning' || status === 'move_closer' || status === 'loading' || status === 'no_match';
+    status === 'scanning' ||
+    status === 'move_closer' ||
+    status === 'loading' ||
+    status === 'no_match';
   const showProgress =
     status === 'preparing' ||
     status === 'loading' ||
@@ -93,14 +96,12 @@ export const ScanStatusOverlay = ({
         <p className="mb-0 text-center text-base font-semibold">{message}</p>
 
         {phase === 'done' && status === 'match_found' ? (
-          <p className="mb-0 mt-1 text-center text-xs text-white/65">
-            Video plays on the photo frame — tap the photo if it does not start. Double-tap for full screen.
-          </p>
+          <p className="mb-0 mt-1 text-center text-xs text-white/65">Opening video…</p>
         ) : null}
 
         {status === 'scanning' || status === 'move_closer' ? (
           <p className="mb-0 mt-1 text-center text-xs text-white/65">
-            Hold the printed photo flat. Video plays on the photo when matched — double-tap for full screen.
+            Hold the printed photo flat. Video opens fullscreen when matched.
           </p>
         ) : null}
 
@@ -134,7 +135,8 @@ export const ScanStatusOverlay = ({
           </ul>
         ) : null}
 
-        {(status === 'compile_failed' || status === 'camera_required' || status === 'no_match') && detail ? (
+        {(status === 'compile_failed' || status === 'camera_required' || status === 'no_match') &&
+        detail ? (
           <p className="mb-0 mt-3 rounded-lg bg-white/5 px-3 py-2 text-center text-xs text-amber-100/90">
             {detail}
           </p>

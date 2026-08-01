@@ -722,10 +722,7 @@ export const ARViewer = ({
   }, [startScanTimers, stopVideoPlayback]);
 
   const handleExitFullscreen = useCallback(() => {
-    if (targetTrackedRef.current) {
-      setVideoMode('frame');
-      return;
-    }
+    // After auto-fullscreen play, Back returns to scanning (frame overlay is unreliable on phones).
     resumeScanningAfterVideo();
   }, [resumeScanningAfterVideo]);
 
@@ -794,9 +791,12 @@ export const ARViewer = ({
         mode={videoMode}
         onModeChange={setVideoMode}
         onPlay={() => {
+          // Frame projection is often wrong vs camera object-fit on phones — play fullscreen
+          // so guests always see the clip after a successful match.
+          setVideoMode('fullscreen');
           viewerLog('info', 'video playing', {
             target: activeTarget?.targetName,
-            mode: videoModeRef.current,
+            mode: 'fullscreen',
           });
           setStatus('recognized');
           setStatusDetail(null);

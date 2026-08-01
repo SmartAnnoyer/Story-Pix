@@ -373,18 +373,22 @@ export const TargetFrameVideo = ({
 
   return (
     <div
-      className={`pointer-events-auto absolute z-[15] overflow-hidden ${
-        showFullscreen ? 'inset-0 z-[40] flex flex-col bg-black' : 'rounded-sm shadow-lg'
+      className={`pointer-events-auto absolute overflow-hidden ${
+        showFullscreen
+          ? 'ar-target-video-fullscreen inset-0 z-[40] flex flex-col bg-black'
+          : 'ar-target-video-frame z-[25] rounded-sm shadow-lg'
       } ${showFrame || showFullscreen || loading ? '' : 'opacity-0'}`}
       style={frameStyle}
-      onClick={showFrame ? handleTap : undefined}
-      onTouchEnd={showFrame ? handleTap : undefined}
+      onClick={showFrame || showFullscreen ? handleTap : undefined}
+      onTouchEnd={showFrame || showFullscreen ? handleTap : undefined}
       role="presentation"
     >
       <video
         ref={videoRef}
         className={
-          showFullscreen ? 'h-full w-full flex-1 object-contain' : 'h-full w-full object-cover'
+          showFullscreen
+            ? 'h-full w-full flex-1 bg-black object-contain'
+            : 'h-full w-full object-cover'
         }
         playsInline
         muted={!soundOn}
@@ -394,7 +398,7 @@ export const TargetFrameVideo = ({
         }}
       />
 
-      {showFrame && needsTap ? (
+      {(showFrame || showFullscreen) && needsTap ? (
         <button
           type="button"
           className="absolute inset-0 flex items-center justify-center bg-black/45 text-sm font-semibold text-white"
@@ -407,17 +411,18 @@ export const TargetFrameVideo = ({
         </button>
       ) : null}
 
-      {showFrame && isPlaying ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 p-1">
-          <span className="rounded bg-black/50 px-1.5 py-0.5 text-[10px] text-white/80">
-            Double-tap for full screen
-          </span>
-          {!soundOn ? (
-            <span className="rounded bg-black/50 px-1.5 py-0.5 text-[10px] text-white/80">
-              Tap for sound
-            </span>
-          ) : null}
-        </div>
+      {showFullscreen && isPlaying && !soundOn ? (
+        <button
+          type="button"
+          className="absolute inset-x-0 bottom-24 z-[42] mx-auto w-max rounded-full bg-white/90 px-5 py-2.5 text-sm font-semibold text-black"
+          onClick={(event) => {
+            event.stopPropagation();
+            enableSound();
+            void videoRef.current?.play().catch(() => undefined);
+          }}
+        >
+          Tap for sound
+        </button>
       ) : null}
 
       {(showFrame || showFullscreen) && isPlaying ? (
