@@ -94,11 +94,9 @@ const loadScript = (src: string): Promise<void> =>
         },
         { once: true },
       );
-      existing.addEventListener(
-        'error',
-        () => reject(new Error(`Failed to load ${src}`)),
-        { once: true },
-      );
+      existing.addEventListener('error', () => reject(new Error(`Failed to load ${src}`)), {
+        once: true,
+      });
       return;
     }
 
@@ -280,15 +278,25 @@ const isMindUrlAlive = async (url: string): Promise<boolean> => {
   return false;
 };
 
-export const readMindCache = async (
-  cacheKey: string,
-): Promise<CompileMindResult | null> => {
+export const readMindCache = async (cacheKey: string): Promise<CompileMindResult | null> => {
   const raw = sessionStorage.getItem(cacheKey);
   if (!raw) return null;
 
   try {
     const parsed = JSON.parse(raw) as CompileMindResult;
     if (!parsed.mindUrl) return null;
+
+    // Drop broken CDN hosts (e.g. media.story-pix.app DNS) and prefer API proxy URLs.
+    if (
+      parsed.mindUrl.includes('media.story-pix.app') ||
+      (isRemoteMindUrl(parsed.mindUrl) &&
+        !parsed.mindUrl.includes('/viewer/public/') &&
+        !parsed.mindUrl.includes('/mind-file'))
+    ) {
+      sessionStorage.removeItem(cacheKey);
+      return null;
+    }
+
     if (isRemoteMindUrl(parsed.mindUrl)) {
       return parsed;
     }

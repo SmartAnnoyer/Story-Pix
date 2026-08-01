@@ -9,7 +9,10 @@ import {
   type WarmupProgress,
 } from '@/features/ar/utils/viewer-warmup';
 import { readCachedManifest } from '@/features/ar/utils/viewer-manifest-cache';
-import { primeCameraPermission } from '@/features/ar/utils/camera-permission';
+import {
+  primeCameraPermission,
+  releaseHeldCameraStream,
+} from '@/features/ar/utils/camera-permission';
 import type { CameraFacing } from '@/features/ar/utils/mindar-scene';
 import { getErrorMessage } from '@/api/client';
 import { ViewerErrorState } from './ViewerErrorState';
@@ -77,6 +80,7 @@ export const ViewerPage = () => {
 
     const permission = await primeCameraPermission('environment');
     if (!permission.ok) {
+      releaseHeldCameraStream();
       setStarting(false);
       setWarmup((current) => ({
         ...current,

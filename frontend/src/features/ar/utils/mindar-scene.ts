@@ -83,17 +83,16 @@ export const buildMindArScene = (
 
 export const getCameraVideo = (host: HTMLElement): HTMLVideoElement | null => {
   const arSystem = getMindArSystem(host);
-  if (arSystem?.video?.srcObject) {
+  if (arSystem?.video) {
     return arSystem.video;
   }
 
-  for (const element of host.querySelectorAll('video')) {
-    const video = element as HTMLVideoElement;
-    if (video.srcObject) {
-      return video;
-    }
+  const withStream = host.querySelector('video') as HTMLVideoElement | null;
+  if (withStream?.srcObject) {
+    return withStream;
   }
-  return null;
+
+  return (host.querySelector('video') as HTMLVideoElement | null) ?? null;
 };
 
 /** Style and play the MindAR camera feed (must sit above the hidden tracking canvas). */
@@ -104,6 +103,7 @@ export const ensureCameraPreviewVisible = (host: HTMLElement): HTMLVideoElement 
   video.setAttribute('playsinline', '');
   video.setAttribute('webkit-playsinline', '');
   video.muted = true;
+  video.playsInline = true;
   video.autoplay = true;
   video.style.objectFit = 'cover';
   video.style.width = '100%';
@@ -127,7 +127,7 @@ export const isCameraPreviewLive = (host: HTMLElement): boolean => {
 
   const stream = video.srcObject as MediaStream | null;
   const hasLiveTrack = Boolean(
-    stream?.getVideoTracks().some((track) => track.readyState === 'live' && !track.muted),
+    stream?.getVideoTracks().some((track) => track.readyState === 'live'),
   );
 
   if (
@@ -138,6 +138,86 @@ export const isCameraPreviewLive = (host: HTMLElement): boolean => {
   }
 
   return video.videoWidth > 0 && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
+};
+
+/** Attach an already-open MediaStream to MindAR (avoids a second getUserMedia on iOS). */
+export const attachCameraStream = async (
+  host: HTMLElement,
+  stream: MediaStream,
+  facingMode: CameraFacing,
+): Promise<boolean> => {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const video = getCameraVideo(host);
+    const arSystem = getMindArSystem(host);
+
+    if (video) {
+      try {
+        arSystem?.controller?.stopProcessVideo();
+      } catch {
+        // ignore — controller may not be ready yet
+      }
+
+      const previous = video.srcObject as MediaStream | null;
+      if (previous && previous !== stream) {
+        previous.getTracks().forEach((track) => track.stop());
+      }
+
+      video.srcObject = stream;
+      video.setAttribute('playsinline', '');
+      video.setAttribute('webkit-playsinline', '');
+      video.muted = true;
+      video.playsInline = true;
+
+      try {
+        if (video.readyState < HTMLMediaElement.HAVE_METADATA) {
+          await new Promise<void>((resolve, reject) => {
+            const onMeta = () => {
+              cleanup();
+              resolve();
+            };
+            const onErr = () => {
+              cleanup();
+              reject(new Error('Camera stream failed'));
+            };
+            const cleanup = () => {
+              video.removeEventListener('loadedmetadata', onMeta);
+              video.removeEventListener('error', onErr);
+            };
+            video.addEventListener('loadedmetadata', onMeta);
+            video.addEventListener('error', onErr);
+          });
+        }
+        await video.play();
+      } catch {
+        // keep trying — A-Frame may recreate the element
+      }
+
+      ensureCameraPreviewVisible(host);
+
+      if (arSystem?.controller && video.videoWidth > 0) {
+        arSystem.controller.inputWidth = video.videoWidth;
+        arSystem.controller.inputHeight = video.videoHeight;
+        arSystem._resize?.call(arSystem);
+        try {
+          await arSystem.controller.dummyRun(video);
+          arSystem.controller.processVideo(video);
+        } catch {
+          // processVideo may throw before arReady; retry
+        }
+      }
+
+      const scene = host.querySelector('a-scene') as HTMLElement | null;
+      if (scene) scene.dataset.cameraFacing = facingMode;
+
+      if (isCameraPreviewLive(host)) {
+        return true;
+      }
+    }
+
+    await new Promise((resolve) => window.setTimeout(resolve, 200));
+  }
+
+  return isCameraPreviewLive(host);
 };
 
 export const flipMindArCamera = async (

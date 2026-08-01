@@ -6,10 +6,23 @@ export type CameraPermissionResult = {
   error: string | null;
 };
 
+let heldStream: MediaStream | null = null;
+
+export const takeHeldCameraStream = (): MediaStream | null => {
+  const stream = heldStream;
+  heldStream = null;
+  return stream;
+};
+
+export const releaseHeldCameraStream = (): void => {
+  heldStream?.getTracks().forEach((track) => track.stop());
+  heldStream = null;
+};
+
 /**
- * Request camera during a user gesture (Open camera tap).
- * Stops the stream immediately — MindAR opens its own — but unlocks permission
- * so Safari/Chrome don't block the later async getUserMedia.
+ * Request camera during the Open camera tap and KEEP the stream.
+ * Mobile Safari often blocks a second getUserMedia after the gesture ends;
+ * MindAR starts later, so we hand it this live stream instead of stopping it.
  */
 export const primeCameraPermission = async (
   preferred: CameraFacing = 'environment',
@@ -21,6 +34,8 @@ export const primeCameraPermission = async (
       error: 'This browser does not support camera access.',
     };
   }
+
+  releaseHeldCameraStream();
 
   const attempts: CameraFacing[] =
     preferred === 'environment' ? ['environment', 'user'] : ['user', 'environment'];
@@ -37,7 +52,7 @@ export const primeCameraPermission = async (
           height: { ideal: 720 },
         },
       });
-      stream.getTracks().forEach((track) => track.stop());
+      heldStream = stream;
       return { ok: true, facingMode, error: null };
     } catch (error) {
       const name = error instanceof DOMException ? error.name : 'Error';

@@ -19,6 +19,7 @@ import {
   readMindCache,
 } from '../utils/mindar-loader';
 import {
+  attachCameraStream,
   buildMindArScene,
   destroyMindArScene,
   ensureCameraPreviewVisible,
@@ -26,6 +27,7 @@ import {
   isCameraPreviewLive,
   type CameraFacing,
 } from '../utils/mindar-scene';
+import { takeHeldCameraStream, releaseHeldCameraStream } from '../utils/camera-permission';
 import { prefetchManifestVideos } from '../utils/video-prefetch';
 import { getTargetAspectRatio } from '../utils/target-projection';
 import './ARViewer.css';
@@ -477,7 +479,28 @@ export const ARViewer = ({
           if (!mounted) return;
           ensureCameraPreviewVisible(host);
 
-          const beginScanning = async () => {
+          void (async () => {
+            if (!mounted || !containerRef.current) return;
+
+            const heldStream = takeHeldCameraStream();
+            if (heldStream) {
+              const attached = await attachCameraStream(
+                containerRef.current,
+                heldStream,
+                facingMode,
+              );
+              if (!mounted) return;
+              if (!attached) {
+                heldStream.getTracks().forEach((track) => track.stop());
+              }
+            } else if (facingMode === 'user') {
+              try {
+                await flipMindArCamera(containerRef.current, 'user');
+              } catch {
+                // fall through to preview wait / error UI
+              }
+            }
+
             if (!mounted || !containerRef.current) return;
 
             const cameraLive = await waitForCameraPreview(containerRef.current);
@@ -496,16 +519,7 @@ export const ARViewer = ({
             setStatus('scanning');
             setStatusDetail(null);
             startScanTimers();
-          };
-
-          if (facingMode === 'user' && containerRef.current) {
-            void flipMindArCamera(containerRef.current, 'user')
-              .then(() => void beginScanning())
-              .catch(() => void beginScanning());
-            return;
-          }
-
-          void beginScanning();
+          })();
         });
 
         scene.addEventListener('arError', (event) => {
@@ -556,6 +570,7 @@ export const ARViewer = ({
       clearScanTimers();
       cameraObserver?.disconnect();
       destroyMindArScene(host);
+      releaseHeldCameraStream();
       if (mindBlobUrlToRevoke) {
         URL.revokeObjectURL(mindBlobUrlToRevoke);
       }
