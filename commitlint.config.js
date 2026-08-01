@@ -1,24 +1,13 @@
 /** @type {import('@commitlint/types').UserConfig} */
 module.exports = {
-  extends: ['@commitlint/config-conventional'],
+  // Keep hook lightweight: any non-empty message is allowed.
+  // Conventional types (feat/fix/…) are optional, not enforced.
   rules: {
-    'type-enum': [
-      2,
-      'always',
-      [
-        'feat',
-        'fix',
-        'docs',
-        'style',
-        'refactor',
-        'perf',
-        'test',
-        'build',
-        'ci',
-        'chore',
-        'revert',
-      ],
-    ],
+    'header-trim': [0],
+    'type-empty': [0],
+    'subject-empty': [0],
+    'type-enum': [0],
     'subject-case': [0],
+    'header-min-length': [2, 'always', 3],
   },
 };

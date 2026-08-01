@@ -1,5 +1,6 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import {
+  Alert,
   Button,
   Card,
   Col,
@@ -15,13 +16,16 @@ import {
   useAlbumQuery,
   useRebuildArScanFileMutation,
 } from '@/hooks/useAlbumQueries';
+import { useAlbumArTargetsQuery } from '@/hooks/useArTargetQueries';
 import { AlbumStatusBadge } from '@/features/albums/components/AlbumStatusBadge';
 import { EventTypeBadge } from '@/features/albums/components/EventTypeBadge';
 import { PublishToggle } from '@/features/albums/components/PublishToggle';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { AlbumViewerQrCard } from '@/features/studio/components/AlbumViewerQrCard';
 import { ArScanFileStatus } from '@/features/albums/components/ArScanFileStatus';
+import { getErrorMessage } from '@/api/client';
 import { EVENT_TYPE_LABELS, AlbumStatus } from '@/types/album.types';
+import { ArTargetStatus } from '@/types/ar-target.types';
 import { ROUTES } from '@/routes/paths';
 
 const { Title, Paragraph, Text, Link } = Typography;
@@ -30,14 +34,25 @@ export const AlbumDetailsPage = () => {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const { data: album, isLoading } = useAlbumQuery(id);
+  const { data: mappings } = useAlbumArTargetsQuery(id, { limit: 100 });
   const actionMutation = useAlbumActionMutation();
   const rebuildMutation = useRebuildArScanFileMutation();
 
   if (isLoading || !album) return <LoadingSpinner />;
 
+  const activeMappingCount =
+    mappings?.items.filter((item) => item.status === ArTargetStatus.ACTIVE).length ?? 0;
+  const draftMappingCount =
+    mappings?.items.filter((item) => item.status === ArTargetStatus.DRAFT).length ?? 0;
+  const canPublishAlbum = activeMappingCount > 0;
+
   const handlePublishToggle = async (publish: boolean) => {
-    await actionMutation.mutateAsync({ id, action: publish ? 'publish' : 'unpublish' });
-    message.success(publish ? 'Album published' : 'Album unpublished');
+    try {
+      await actionMutation.mutateAsync({ id, action: publish ? 'publish' : 'unpublish' });
+      message.success(publish ? 'Album published' : 'Album unpublished');
+    } catch (error) {
+      message.error(getErrorMessage(error, publish ? 'Publish failed' : 'Unpublish failed'));
+    }
   };
 
   const handleRetryArBuild = async () => {
@@ -56,6 +71,8 @@ export const AlbumDetailsPage = () => {
     message.success('Album deleted');
     navigate(ROUTES.ALBUMS);
   };
+
+  const mappingsPath = ROUTES.ALBUM_AR_MAPPINGS.replace(':id', id);
 
   return (
     <div>
@@ -79,9 +96,7 @@ export const AlbumDetailsPage = () => {
           <Button type="primary" onClick={() => navigate(ROUTES.ALBUM_MEDIA.replace(':id', id))}>
             Manage Media
           </Button>
-          <Button onClick={() => navigate(ROUTES.ALBUM_AR_MAPPINGS.replace(':id', id))}>
-            AR Mappings
-          </Button>
+          <Button onClick={() => navigate(mappingsPath)}>AR Mappings</Button>
           <Button onClick={() => navigate(ROUTES.ALBUM_INSIGHTS.replace(':id', id))}>
             Insights
           </Button>
@@ -103,12 +118,18 @@ export const AlbumDetailsPage = () => {
           <Card title="Album Details">
             <Descriptions column={{ xs: 1, sm: 2 }} bordered size="small">
               <Descriptions.Item label="Customer">{album.customerName}</Descriptions.Item>
-              <Descriptions.Item label="Event Type">{EVENT_TYPE_LABELS[album.eventType]}</Descriptions.Item>
+              <Descriptions.Item label="Event Type">
+                {EVENT_TYPE_LABELS[album.eventType]}
+              </Descriptions.Item>
               <Descriptions.Item label="Event Date">
                 {new Date(album.eventDate).toLocaleDateString()}
               </Descriptions.Item>
-              <Descriptions.Item label="Customer Phone">{album.customerPhone ?? '—'}</Descriptions.Item>
-              <Descriptions.Item label="Customer Email">{album.customerEmail ?? '—'}</Descriptions.Item>
+              <Descriptions.Item label="Customer Phone">
+                {album.customerPhone ?? '—'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Customer Email">
+                {album.customerEmail ?? '—'}
+              </Descriptions.Item>
               <Descriptions.Item label="Created">
                 {album.createdAt ? new Date(album.createdAt).toLocaleDateString() : '—'}
               </Descriptions.Item>
@@ -120,9 +141,33 @@ export const AlbumDetailsPage = () => {
         </Col>
         <Col xs={24} lg={8}>
           <Card title="Publishing" className="mb-4">
+            {album.status !== AlbumStatus.PUBLISHED && !canPublishAlbum ? (
+              <Alert
+                className="!mb-3"
+                type="warning"
+                showIcon
+                message="Publish an AR mapping first"
+                description={
+                  draftMappingCount > 0
+                    ? `You have ${draftMappingCount} draft mapping${draftMappingCount === 1 ? '' : 's'}. Open AR Mappings and click Publish on each one, then publish the album.`
+                    : 'Create a photo → video mapping, publish it, then publish this album.'
+                }
+                action={
+                  <Button size="small" type="primary" onClick={() => navigate(mappingsPath)}>
+                    AR Mappings
+                  </Button>
+                }
+              />
+            ) : null}
             <PublishToggle
               status={album.status}
               loading={actionMutation.isPending}
+              disabled={album.status !== AlbumStatus.PUBLISHED && !canPublishAlbum}
+              disabledReason={
+                canPublishAlbum
+                  ? undefined
+                  : 'Needs at least one published AR mapping (status: Active)'
+              }
               onToggle={handlePublishToggle}
             />
             {album.publishedAt ? (
