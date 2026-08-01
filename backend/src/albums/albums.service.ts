@@ -158,11 +158,14 @@ export class AlbumsService {
       throw new BadRequestException('Archived albums cannot be published');
     }
 
+    // Match the same albumId lookup the AR Mappings list uses (string id).
+    // Some docs may store albumId as ObjectId or string — accept both.
+    const albumId = album._id.toString();
     const activeMappings = await this.arTargetModel
       .countDocuments({
-        albumId: album._id,
-        deletedAt: null,
+        albumId: { $in: [albumId, album._id, new Types.ObjectId(albumId)] },
         status: ArTargetStatus.ACTIVE,
+        $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
       })
       .exec();
 

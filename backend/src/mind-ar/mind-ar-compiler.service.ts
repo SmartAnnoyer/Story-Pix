@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { AlbumStatus, ArTargetStatus } from '../common/enums';
 import { Album, AlbumDocument } from '../albums/schemas/album.schema';
 import { ArTarget, ArTargetDocument } from '../ar-targets/schemas/ar-target.schema';
@@ -74,10 +74,11 @@ export class MindArCompilerService {
 
     await this.updateBuildProgress(album, 2, 'Queuing scan-file build…');
 
+    const albumObjectId = Types.ObjectId.isValid(albumId) ? new Types.ObjectId(albumId) : null;
     const targets = await this.arTargetModel
       .find({
-        albumId,
-        deletedAt: null,
+        albumId: albumObjectId ? { $in: [albumId, albumObjectId] } : albumId,
+        $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
         status: ArTargetStatus.ACTIVE,
       })
       .sort({ targetIndex: 1 })
@@ -144,14 +145,14 @@ export class MindArCompilerService {
 
     const compiled = await compileAlbumMindFile(imageBuffers, (progress) => {
       const pct = Math.round(18 + progress * 70);
-          void this.updateBuildProgress(
-            album,
-            pct,
-            progress < 0.5
-              ? `Finding landmarks (${Math.round(progress * 100)}%) — shared CPU can take a few minutes…`
-              : 'Encoding the customer scan file…',
-            false,
-          );
+      void this.updateBuildProgress(
+        album,
+        pct,
+        progress < 0.5
+          ? `Finding landmarks (${Math.round(progress * 100)}%) — shared CPU can take a few minutes…`
+          : 'Encoding the customer scan file…',
+        false,
+      );
     });
 
     await this.updateBuildProgress(album, 92, 'Uploading scan file…');

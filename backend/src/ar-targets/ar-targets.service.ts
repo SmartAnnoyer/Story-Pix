@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { FilterQuery, Model, SortOrder } from 'mongoose';
+import { FilterQuery, Model, SortOrder, Types } from 'mongoose';
 import { AlbumsService } from '../albums/albums.service';
 import { ArTargetStatus, MediaStatus, MediaType } from '../common/enums';
 import { MediaService } from '../media/media.service';
@@ -171,10 +171,14 @@ export class ArTargetsService {
   }
 
   async findActiveByAlbumId(albumId: string) {
+    const albumIdFilter = Types.ObjectId.isValid(albumId)
+      ? { $in: [albumId, new Types.ObjectId(albumId)] }
+      : albumId;
+
     return this.arTargetModel
       .find({
-        albumId,
-        deletedAt: null,
+        albumId: albumIdFilter,
+        $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
         status: ArTargetStatus.ACTIVE,
       })
       .sort({ targetIndex: 1 })
@@ -227,7 +231,13 @@ export class ArTargetsService {
     photoMediaId: string,
     excludeId?: string,
   ) {
-    const existing = await this.findConflictingMapping(studioId, albumId, 'photoMediaId', photoMediaId, excludeId);
+    const existing = await this.findConflictingMapping(
+      studioId,
+      albumId,
+      'photoMediaId',
+      photoMediaId,
+      excludeId,
+    );
     if (existing) {
       throw new ConflictException('This photo is already mapped to another video');
     }
@@ -239,7 +249,13 @@ export class ArTargetsService {
     videoMediaId: string,
     excludeId?: string,
   ) {
-    const existing = await this.findConflictingMapping(studioId, albumId, 'videoMediaId', videoMediaId, excludeId);
+    const existing = await this.findConflictingMapping(
+      studioId,
+      albumId,
+      'videoMediaId',
+      videoMediaId,
+      excludeId,
+    );
     if (existing) {
       throw new ConflictException('This video is already mapped to another photo');
     }
@@ -269,7 +285,12 @@ export class ArTargetsService {
 
   private async getNextTargetIndex(albumId: string) {
     const latest = await this.arTargetModel
-      .findOne({ albumId, deletedAt: null, status: ArTargetStatus.ACTIVE, targetIndex: { $ne: null } })
+      .findOne({
+        albumId,
+        deletedAt: null,
+        status: ArTargetStatus.ACTIVE,
+        targetIndex: { $ne: null },
+      })
       .sort({ targetIndex: -1 })
       .exec();
 
@@ -295,9 +316,7 @@ export class ArTargetsService {
   }
 
   private async findDocument(studioId: string, id: string) {
-    const target = await this.arTargetModel
-      .findOne({ _id: id, studioId, deletedAt: null })
-      .exec();
+    const target = await this.arTargetModel.findOne({ _id: id, studioId, deletedAt: null }).exec();
 
     if (!target) {
       throw new NotFoundException('AR mapping not found');
