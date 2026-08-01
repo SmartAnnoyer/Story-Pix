@@ -6,6 +6,15 @@ const prefetchedUrls = new Set<string>();
 const blobUrlBySource = new Map<string, string>();
 const pendingBySource = new Map<string, Promise<string | null>>();
 
+const guessVideoMime = (url: string, headerType: string | null): string => {
+  if (headerType && headerType.startsWith('video/')) return headerType;
+  const lower = url.toLowerCase();
+  if (lower.includes('.mov') || lower.includes('quicktime')) return 'video/quicktime';
+  if (lower.includes('.webm')) return 'video/webm';
+  if (lower.includes('.m4v')) return 'video/x-m4v';
+  return 'video/mp4';
+};
+
 const createHiddenVideo = (url: string) => {
   const video = document.createElement('video');
   video.muted = true;
@@ -57,7 +66,12 @@ export const prefetchVideo = (url: string | null | undefined): void => {
         }
         const blob = await response.blob();
         if (blob.size > 12_000_000) return null;
-        const blobUrl = URL.createObjectURL(blob);
+        // Browsers often refuse to decode blobs typed as application/octet-stream.
+        const typed =
+          !blob.type || blob.type === 'application/octet-stream'
+            ? blob.slice(0, blob.size, guessVideoMime(url, response.headers.get('content-type')))
+            : blob;
+        const blobUrl = URL.createObjectURL(typed);
         blobUrlBySource.set(url, blobUrl);
         return blobUrl;
       })

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { getTargetScreenBounds, type TargetScreenBounds } from '../utils/target-projection';
 
 import { getPrefetchedBlobUrl, resolvePlayableVideoUrl } from '../utils/video-prefetch';
+import { viewerLog } from '../utils/viewer-debug-log';
 
 export type VideoDisplayMode = 'frame' | 'fullscreen';
 
@@ -32,9 +33,7 @@ const buildSourceList = (
   const direct = fallbackUrl ?? null;
   const proxied = primaryUrl ?? null;
   // Always prefer CDN / direct URL first when available — proxy is a fallback only
-  const ordered = preferDirect || Boolean(direct)
-    ? [direct, proxied]
-    : [proxied, direct];
+  const ordered = preferDirect || Boolean(direct) ? [direct, proxied] : [proxied, direct];
   return ordered.filter((url): url is string => Boolean(url));
 };
 
@@ -182,18 +181,36 @@ export const TargetFrameVideo = ({
       prepareVideoElement(video);
       video.muted = true;
       let lastError: unknown;
+      const uniqueSources = [...new Set(sources)];
+      viewerLog('info', 'video load start', { sources: uniqueSources.length });
 
-      for (const source of sources) {
+      for (const source of uniqueSources) {
         try {
           const resolved = (await resolvePlayableVideoUrl(source)) ?? source;
           const blobCached = getPrefetchedBlobUrl(source);
-          video.src = blobCached ?? resolved;
+          const src = blobCached ?? resolved;
+          viewerLog('debug', 'video trying source', {
+            blob: Boolean(blobCached),
+            src: src.slice(0, 96),
+          });
+          video.src = src;
           video.load();
           await waitForVideoReady(video);
           const played = await tryPlay(false);
-          if (played) return;
+          if (played) {
+            viewerLog('info', 'video play ok', {
+              width: video.videoWidth,
+              height: video.videoHeight,
+            });
+            return;
+          }
+          lastError = new Error('play() rejected');
         } catch (error) {
           lastError = error;
+          viewerLog('warn', 'video source failed', {
+            message: error instanceof Error ? error.message : String(error),
+            src: source.slice(0, 96),
+          });
         }
       }
 
@@ -319,25 +336,46 @@ export const TargetFrameVideo = ({
 
   if (!active) return null;
 
-  const showFrame = mode === 'frame' && bounds?.visible && !loading;
+  // When projection isn't ready (or target briefly lost), keep a visible centered frame
+  // so iOS can autoplay and the guest still sees the clip.
+  const hostW = host?.clientWidth ?? 0;
+  const hostH = host?.clientHeight ?? 0;
+  const fallbackFrame =
+    hostW > 0 && hostH > 0
+      ? {
+          left: hostW * 0.08,
+          top: hostH * 0.22,
+          width: hostW * 0.84,
+          height: Math.min(hostH * 0.5, hostW * 0.84 * Math.max(aspectRatio, 0.5)),
+          visible: true,
+        }
+      : null;
+  const layoutBounds = bounds?.visible ? bounds : fallbackFrame;
+  const showFrame = mode === 'frame' && Boolean(layoutBounds) && !loading;
   const showFullscreen = mode === 'fullscreen';
 
-  const frameStyle = showFrame && bounds
-    ? {
-        left: bounds.left,
-        top: bounds.top,
-        width: bounds.width,
-        height: bounds.height,
-      }
-    : showFullscreen
-      ? { inset: 0, width: '100%', height: '100%' }
-      : { left: -9999, top: 0, width: 1, height: 1 };
+  const frameStyle =
+    showFrame && layoutBounds
+      ? {
+          left: layoutBounds.left,
+          top: layoutBounds.top,
+          width: layoutBounds.width,
+          height: layoutBounds.height,
+        }
+      : showFullscreen
+        ? { inset: 0, width: '100%', height: '100%' }
+        : {
+            left: fallbackFrame?.left ?? hostW * 0.08,
+            top: fallbackFrame?.top ?? hostH * 0.22,
+            width: fallbackFrame?.width ?? Math.max(hostW * 0.84, 160),
+            height: fallbackFrame?.height ?? 240,
+          };
 
   return (
     <div
       className={`pointer-events-auto absolute z-[15] overflow-hidden ${
         showFullscreen ? 'inset-0 z-[40] flex flex-col bg-black' : 'rounded-sm shadow-lg'
-      } ${showFrame || showFullscreen ? '' : 'opacity-0'}`}
+      } ${showFrame || showFullscreen || loading ? '' : 'opacity-0'}`}
       style={frameStyle}
       onClick={showFrame ? handleTap : undefined}
       onTouchEnd={showFrame ? handleTap : undefined}
@@ -345,7 +383,9 @@ export const TargetFrameVideo = ({
     >
       <video
         ref={videoRef}
-        className={showFullscreen ? 'h-full w-full flex-1 object-contain' : 'h-full w-full object-cover'}
+        className={
+          showFullscreen ? 'h-full w-full flex-1 object-contain' : 'h-full w-full object-cover'
+        }
         playsInline
         muted={!soundOn}
         autoPlay

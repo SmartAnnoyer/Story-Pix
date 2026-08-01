@@ -471,6 +471,8 @@ export const ARViewer = ({
               viewerLog('debug', 'targetLost event', {
                 target: target.targetName,
                 mindIndex,
+                status: statusRef.current,
+                videoMode: videoModeRef.current,
               });
               const pending = targetFoundTimersRef.current.get(mindIndex);
               if (pending) {
@@ -482,7 +484,14 @@ export const ARViewer = ({
               if (!mounted) return;
               targetTrackedRef.current = false;
 
-              if (videoModeRef.current === 'fullscreen') {
+              // Keep playback after a confirmed match — brief tracking loss is common on phones.
+              const status = statusRef.current;
+              if (
+                videoModeRef.current === 'fullscreen' ||
+                status === 'match_found' ||
+                status === 'recognized'
+              ) {
+                viewerLog('info', 'targetLost during playback — keeping video');
                 return;
               }
 
@@ -780,15 +789,21 @@ export const ARViewer = ({
         aspectRatio={targetAspectRatio}
         primaryUrl={activeVideoUrl}
         fallbackUrl={activeVideoFallbackUrl}
+        preferDirectUrl={false}
         active={Boolean(activeTarget?.videoAvailable && (activeVideoUrl || activeVideoFallbackUrl))}
         mode={videoMode}
         onModeChange={setVideoMode}
         onPlay={() => {
+          viewerLog('info', 'video playing', {
+            target: activeTarget?.targetName,
+            mode: videoModeRef.current,
+          });
           setStatus('recognized');
           setStatusDetail(null);
           if (activeTarget) void recordEvent(ScanEventType.VIDEO_PLAY, activeTarget);
         }}
         onError={(message) => {
+          viewerLog('error', 'video playback failed', { message, url: activeVideoUrl });
           stopVideoPlayback();
           setStatusDetail(message);
           const host = containerRef.current;
