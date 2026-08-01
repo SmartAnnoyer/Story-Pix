@@ -5,11 +5,13 @@ import {
   MINDAR_VERSION,
 } from './mindar-cdn';
 import { prepareTrackingImage, type TrackingImageDimensions } from './tracking-image';
+import { viewerLog } from './viewer-debug-log';
 
 declare global {
   interface Window {
     AFRAME?: {
       registerComponent?: unknown;
+      components?: Record<string, unknown>;
       scenes?: unknown[];
     };
     MINDAR?: {
@@ -32,6 +34,15 @@ const GLOBAL_READY_TIMEOUT_MS = 45_000;
 
 let compilerScriptsPromise: Promise<void> | null = null;
 let sceneScriptsPromise: Promise<void> | null = null;
+
+const hasMindArAframeBridge = () =>
+  Boolean(
+    window.AFRAME?.components?.['mindar-image-system'] ||
+    window.AFRAME?.components?.['mindar-image'] ||
+    // Older builds register via registerComponent before components map settles
+    (window.AFRAME?.registerComponent &&
+      document.querySelector('script[src*="mindar-image-aframe"]')),
+  );
 
 const waitUntil = (
   predicate: () => boolean,
@@ -59,6 +70,7 @@ const loadScript = (src: string): Promise<void> =>
     const existing = document.querySelector(`script[src="${src}"]`) as HTMLScriptElement | null;
 
     if (existing?.dataset.mindarLoaded === 'true') {
+      viewerLog('debug', `script already loaded: ${src}`);
       resolve();
       return;
     }
@@ -76,41 +88,57 @@ const loadScript = (src: string): Promise<void> =>
           resolve();
           return true;
         }
-        if (src.includes('mindar-image-aframe') && window.AFRAME?.registerComponent) {
-          existing.dataset.mindarLoaded = 'true';
-          resolve();
-          return true;
+        if (src.includes('mindar-image-aframe')) {
+          if (window.AFRAME?.registerComponent) {
+            existing.dataset.mindarLoaded = 'true';
+            resolve();
+            return true;
+          }
+          // Script tag exists but ran before AFRAME — remove and reload later.
+          return false;
         }
         return false;
       };
 
       if (maybeReady()) return;
 
-      existing.addEventListener(
-        'load',
-        () => {
-          existing.dataset.mindarLoaded = 'true';
-          resolve();
-        },
-        { once: true },
-      );
-      existing.addEventListener('error', () => reject(new Error(`Failed to load ${src}`)), {
-        once: true,
-      });
-      return;
+      if (src.includes('mindar-image-aframe') && !window.AFRAME) {
+        viewerLog('warn', 'Removing broken mindar-aframe script (AFRAME missing at first load)');
+        existing.remove();
+      } else {
+        existing.addEventListener(
+          'load',
+          () => {
+            existing.dataset.mindarLoaded = 'true';
+            resolve();
+          },
+          { once: true },
+        );
+        existing.addEventListener('error', () => reject(new Error(`Failed to load ${src}`)), {
+          once: true,
+        });
+        return;
+      }
     }
 
+    viewerLog('info', `loading script: ${src}`);
     const script = document.createElement('script');
     script.src = src;
+    script.async = false;
     if (/^https?:\/\//i.test(src)) {
       script.crossOrigin = 'anonymous';
     }
     script.onload = () => {
       script.dataset.mindarLoaded = 'true';
+      viewerLog('info', `script loaded: ${src}`, {
+        AFRAME: Boolean(window.AFRAME),
+        MINDAR: Boolean(window.MINDAR?.IMAGE),
+      });
       resolve();
     };
     script.onerror = () => {
       script.remove();
+      viewerLog('error', `script failed: ${src}`);
       reject(new Error(`Failed to load ${src}`));
     };
     document.head.appendChild(script);
@@ -136,16 +164,35 @@ export const loadArScripts = (): Promise<void> => {
   if (sceneScriptsPromise) return sceneScriptsPromise;
 
   sceneScriptsPromise = (async () => {
+    viewerLog('info', 'loadArScripts: start sequential load');
     await loadScript(MINDAR_IMAGE_SCRIPT);
     await waitUntil(() => Boolean(window.MINDAR?.IMAGE), 'MindAR image core');
+    viewerLog('info', 'MindAR image core ready');
 
     await loadScript(AFRAME_SCRIPT);
     await waitUntil(() => Boolean(window.AFRAME), 'A-Frame');
+    viewerLog('info', 'A-Frame ready');
+
+    // If a prior parallel load of mindar-aframe crashed, strip it and reload after AFRAME exists.
+    const brokenBridge = document.querySelector(
+      'script[src*="mindar-image-aframe"]',
+    ) as HTMLScriptElement | null;
+    if (brokenBridge && !hasMindArAframeBridge() && !brokenBridge.dataset.mindarLoaded) {
+      viewerLog('warn', 'Reloading mindar-image-aframe after AFRAME is ready');
+      brokenBridge.remove();
+    }
 
     await loadScript(MINDAR_AFRAME_SCRIPT);
     await waitUntil(() => Boolean(window.AFRAME?.registerComponent), 'MindAR A-Frame integration');
+    viewerLog('info', 'MindAR A-Frame bridge ready', {
+      components: Object.keys(window.AFRAME?.components ?? {}).slice(0, 12),
+    });
   })().catch((error) => {
     sceneScriptsPromise = null;
+    viewerLog(
+      'error',
+      `loadArScripts failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
     throw error;
   });
 

@@ -30,6 +30,7 @@ import {
 import { takeHeldCameraStream, releaseHeldCameraStream } from '../utils/camera-permission';
 import { prefetchManifestVideos } from '../utils/video-prefetch';
 import { getTargetAspectRatio } from '../utils/target-projection';
+import { viewerLog } from '../utils/viewer-debug-log';
 import './ARViewer.css';
 
 interface ARViewerProps {
@@ -358,9 +359,16 @@ export const ARViewer = ({
         setStatus('loading');
         setStatusDetail('Starting camera…');
         setProgress((value) => Math.max(value, 0.75));
+        viewerLog('info', 'AR scene init start', {
+          mindUrl: mindBundle.url.slice(0, 80),
+          targets: targets.length,
+          facingMode,
+          AFRAME: Boolean(window.AFRAME),
+        });
 
         await loadArScripts();
         if (!mounted || !containerRef.current) return;
+        viewerLog('info', 'AR scripts ready for scene');
 
         const resolvedMind = await resolveMindUrlForScene(mindBundle.url);
         if (!mounted || !containerRef.current) {
@@ -370,6 +378,10 @@ export const ARViewer = ({
         if (resolvedMind.revoke) {
           mindBlobUrlToRevoke = resolvedMind.url;
         }
+        viewerLog('info', 'mind file resolved for scene', {
+          blob: resolvedMind.revoke,
+          url: resolvedMind.url.slice(0, 64),
+        });
 
         setProgress((value) => Math.max(value, 0.82));
 
@@ -379,6 +391,7 @@ export const ARViewer = ({
           facingMode,
         });
         targetEntitiesRef.current = targetEntities;
+        viewerLog('info', 'a-scene mounted', { targetEntities: targetEntities.length });
 
         const confirmTargetMatch = (target: ViewerManifestTarget, mindIndex: number) => {
           if (!mounted) return;
@@ -477,18 +490,24 @@ export const ARViewer = ({
 
         scene.addEventListener('arReady', () => {
           if (!mounted) return;
+          viewerLog('info', 'arReady fired');
           ensureCameraPreviewVisible(host);
 
           void (async () => {
             if (!mounted || !containerRef.current) return;
 
             const heldStream = takeHeldCameraStream();
+            viewerLog('info', 'attaching camera', {
+              heldStream: Boolean(heldStream),
+              tracks: heldStream?.getVideoTracks().map((t) => t.label) ?? [],
+            });
             if (heldStream) {
               const attached = await attachCameraStream(
                 containerRef.current,
                 heldStream,
                 facingMode,
               );
+              viewerLog(attached ? 'info' : 'warn', 'attachCameraStream result', { attached });
               if (!mounted) return;
               if (!attached) {
                 heldStream.getTracks().forEach((track) => track.stop());
@@ -496,14 +515,21 @@ export const ARViewer = ({
             } else if (facingMode === 'user') {
               try {
                 await flipMindArCamera(containerRef.current, 'user');
-              } catch {
-                // fall through to preview wait / error UI
+              } catch (error) {
+                viewerLog(
+                  'warn',
+                  `flipMindArCamera failed: ${error instanceof Error ? error.message : String(error)}`,
+                );
               }
             }
 
             if (!mounted || !containerRef.current) return;
 
             const cameraLive = await waitForCameraPreview(containerRef.current);
+            viewerLog(cameraLive ? 'info' : 'error', 'camera preview live check', {
+              cameraLive,
+              videoCount: containerRef.current.querySelectorAll('video').length,
+            });
             if (!mounted) return;
 
             if (!cameraLive) {
@@ -524,6 +550,7 @@ export const ARViewer = ({
 
         scene.addEventListener('arError', (event) => {
           if (!mounted) return;
+          viewerLog('error', 'arError event');
           console.error('[Story-pix AR] arError:', event);
           scanningEnabledRef.current = false;
           clearMindCacheForAlbum(albumSlug, mindCacheTargets);
@@ -544,12 +571,17 @@ export const ARViewer = ({
           )
             return;
           if (!isCameraPreviewLive(host)) {
+            viewerLog('error', 'AR init timeout — camera not live', { status: current });
             setStatusDetail('Camera preview did not start. Tap flip camera or reload the page.');
             setStatus('camera_required');
             setProgress(0);
           }
         }, AR_INIT_TIMEOUT_MS);
       } catch (error) {
+        viewerLog(
+          'error',
+          `scene init failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
         console.error('[Story-pix AR] scene init failed:', error);
         if (mounted) {
           setStatusDetail(error instanceof Error ? error.message : 'Scene failed to load');

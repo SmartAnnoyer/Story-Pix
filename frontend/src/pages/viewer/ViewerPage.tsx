@@ -17,6 +17,8 @@ import {
 import type { CameraFacing } from '@/features/ar/utils/mindar-scene';
 import { getErrorMessage } from '@/api/client';
 import { ViewerErrorState } from './ViewerErrorState';
+import { ViewerDebugPanel } from '@/features/ar/components/ViewerDebugPanel';
+import { installViewerLogCapture, viewerLog } from '@/features/ar/utils/viewer-debug-log';
 
 const buildInitialWarmup = (albumSlug: string): WarmupProgress => {
   const cachedRaw = readCachedManifest(albumSlug);
@@ -52,17 +54,20 @@ export const ViewerPage = () => {
   useEffect(() => {
     preloadViewerScripts();
     dismissViewerBootSplash();
+    return installViewerLogCapture();
   }, []);
 
   useEffect(() => {
     if (!albumSlug) return undefined;
 
+    viewerLog('info', `Viewer route boot: ${albumSlug}`);
     bootstrapViewerRoute(albumSlug);
     setStarted(false);
     setStarting(false);
     setWarmup(buildInitialWarmup(albumSlug));
 
     void startViewerWarmup(albumSlug, setWarmup).catch((error) => {
+      viewerLog('error', 'warmup failed', getErrorMessage(error));
       setWarmup((current) => ({
         ...current,
         stage: 'error',
@@ -79,11 +84,13 @@ export const ViewerPage = () => {
   const handleStart = async () => {
     if (starting || started) return;
     setStarting(true);
+    viewerLog('info', 'Open camera tapped — priming permission');
 
     const permission = await primeCameraPermission('environment');
     if (!permission.ok) {
       releaseHeldCameraStream();
       setStarting(false);
+      viewerLog('error', 'camera permission failed', permission.error);
       setWarmup((current) => ({
         ...current,
         error: permission.error,
@@ -92,6 +99,7 @@ export const ViewerPage = () => {
       return;
     }
 
+    viewerLog('info', 'camera permission ok', { facingMode: permission.facingMode });
     setFacingMode(permission.facingMode);
     setStarted(true);
     setStarting(false);
@@ -99,10 +107,13 @@ export const ViewerPage = () => {
 
   if (warmup.stage === 'error' && !warmup.manifest) {
     return (
-      <ViewerErrorState
-        title="Album unavailable"
-        message={warmup.error ?? 'This album is not published.'}
-      />
+      <>
+        <ViewerErrorState
+          title="Album unavailable"
+          message={warmup.error ?? 'This album is not published.'}
+        />
+        <ViewerDebugPanel />
+      </>
     );
   }
 
@@ -111,32 +122,41 @@ export const ViewerPage = () => {
 
   if (!started) {
     return (
-      <ViewerWelcomeScreen
-        albumSlug={albumSlug}
-        manifest={manifest}
-        warmup={warmup}
-        starting={starting}
-        onStart={handleStart}
-      />
+      <>
+        <ViewerWelcomeScreen
+          albumSlug={albumSlug}
+          manifest={manifest}
+          warmup={warmup}
+          starting={starting}
+          onStart={handleStart}
+        />
+        <ViewerDebugPanel />
+      </>
     );
   }
 
   if (!hasTargets) {
     return (
-      <ViewerErrorState
-        variant="warning"
-        title="No AR mappings yet"
-        message="Publish at least one photo–video mapping for this album, then reopen this link."
-      />
+      <>
+        <ViewerErrorState
+          variant="warning"
+          title="No AR mappings yet"
+          message="Publish at least one photo–video mapping for this album, then reopen this link."
+        />
+        <ViewerDebugPanel />
+      </>
     );
   }
 
   return (
-    <ARViewer
-      albumSlug={albumSlug}
-      manifest={manifest!}
-      prefetchedMindBundle={warmup.mindBundle}
-      initialFacingMode={facingMode}
-    />
+    <>
+      <ARViewer
+        albumSlug={albumSlug}
+        manifest={manifest!}
+        prefetchedMindBundle={warmup.mindBundle}
+        initialFacingMode={facingMode}
+      />
+      <ViewerDebugPanel />
+    </>
   );
 };

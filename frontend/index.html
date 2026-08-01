@@ -49,7 +49,9 @@
 
         document.documentElement.classList.add('viewer-route');
 
-        // Same-origin copies — keep in sync with src/features/ar/utils/mindar-cdn.ts
+        // Preload only — do NOT execute in parallel.
+        // mindar-image-aframe requires window.AFRAME; async parallel load causes
+        // "Uncaught ReferenceError: AFRAME is not defined".
         var scripts = [
           '/ar/mindar-image.prod.js',
           '/ar/aframe.min.js',
@@ -62,12 +64,21 @@
           preload.as = 'script';
           preload.href = src;
           document.head.appendChild(preload);
+        });
 
+        // Load strictly in order (no async).
+        var i = 0;
+        function next() {
+          if (i >= scripts.length) return;
+          var src = scripts[i++];
           var tag = document.createElement('script');
           tag.src = src;
-          tag.async = true;
+          tag.async = false;
+          tag.onload = next;
+          tag.onerror = next;
           document.head.appendChild(tag);
-        });
+        }
+        next();
       })();
     </script>
   </head>
