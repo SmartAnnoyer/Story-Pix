@@ -111,16 +111,18 @@ const buildMindBundle = (albumSlug: string, manifest: ViewerManifest) => {
   }));
   const mindCacheKey = getMindCacheKey(albumSlug, mindCacheTargets, manifest.mindFile?.hash);
 
-  if (!manifest.mindFile?.url) {
+  if (!manifest.mindFile) {
     return { mindCacheKey, sortedTargets, mindBundle: null as null };
   }
 
-  cacheMindBundle(mindCacheKey, manifest.mindFile.url, manifest.mindFile.targetDimensions ?? []);
+  // Prefer API proxy so MindAR is not blocked by R2 CORS on mobile browsers.
+  const mindUrl = viewerService.getMindFileUrl(albumSlug, manifest.mindFile.hash);
+  cacheMindBundle(mindCacheKey, mindUrl, manifest.mindFile.targetDimensions ?? []);
 
   return {
     mindCacheKey,
     sortedTargets,
-    mindBundle: { url: manifest.mindFile.url, cacheKey: mindCacheKey },
+    mindBundle: { url: mindUrl, cacheKey: mindCacheKey },
   };
 };
 
@@ -149,9 +151,9 @@ const runWarmup = async (
   };
 
   // Instant path: cached manifest + server mind file → ready immediately
-  if (cachedManifest?.targets.length && cachedManifest.mindFile?.url) {
+  if (cachedManifest?.targets.length && cachedManifest.mindFile) {
     const { mindBundle } = buildMindBundle(albumSlug, cachedManifest);
-    prefetchAlbumAssets(albumSlug, cachedManifest, cachedManifest.mindFile.url);
+    prefetchAlbumAssets(albumSlug, cachedManifest, mindBundle?.url ?? null);
     void loadArScripts().catch(() => undefined);
 
     state = {
@@ -188,7 +190,7 @@ const runWarmup = async (
       mindBundle: serverMind,
     } = buildMindBundle(albumSlug, manifest);
 
-    prefetchAlbumAssets(albumSlug, manifest, manifest.mindFile?.url);
+    prefetchAlbumAssets(albumSlug, manifest, serverMind?.url);
 
     // Fast path: server .mind already built — do NOT wait for AR scripts
     if (serverMind) {
@@ -309,7 +311,8 @@ export const preloadViewerScripts = (): void => {
 export const bootstrapViewerRoute = (albumSlug: string): void => {
   preloadViewerScripts();
   const cached = readCachedManifest(albumSlug);
-  if (cached) {
-    prefetchAlbumAssets(albumSlug, cached, cached.mindFile?.url ?? null);
+  if (cached?.mindFile) {
+    const { mindBundle } = buildMindBundle(albumSlug, cached);
+    prefetchAlbumAssets(albumSlug, cached, mindBundle?.url ?? null);
   }
 };

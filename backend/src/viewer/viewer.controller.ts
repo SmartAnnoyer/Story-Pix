@@ -18,9 +18,17 @@ export class ViewerController {
       this.configService.get<string>('app.corsOrigin', 'http://localhost:5173'),
     );
     const origin = req.headers.origin;
-    if (origin && allowed.includes(origin)) {
+    // Public viewer assets are safe to expose cross-origin (QR opens on phones).
+    if (origin && (allowed.includes(origin) || allowed.includes('*'))) {
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Accept-Ranges');
+      res.setHeader('Vary', 'Origin');
+      return;
+    }
+
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Accept-Ranges');
       res.setHeader('Vary', 'Origin');
     }
@@ -30,6 +38,20 @@ export class ViewerController {
   @Public()
   getManifest(@Param('albumSlug') albumSlug: string) {
     return this.viewerService.getPublicManifest(albumSlug);
+  }
+
+  @Get('public/:albumSlug/mind-file')
+  @Public()
+  async getMindFile(
+    @Param('albumSlug') albumSlug: string,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const { buffer, contentType } = await this.viewerService.getMindFileBuffer(albumSlug);
+    this.applyCors(req, res);
+    res.setHeader('Content-Type', contentType || 'application/octet-stream');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(buffer);
   }
 
   @Get('public/:albumSlug/targets/:targetId/tracking-image')

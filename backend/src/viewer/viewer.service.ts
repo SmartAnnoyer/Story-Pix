@@ -121,6 +121,34 @@ export class ViewerService {
     };
   }
 
+  async getMindFileBuffer(albumSlug: string) {
+    const albumDoc = await this.findPublishedAlbumDocument(albumSlug);
+
+    if (!albumDoc.mindFileKey && !albumDoc.mindFileUrl) {
+      throw new NotFoundException('AR scan file is not ready yet');
+    }
+
+    if (albumDoc.mindFileKey) {
+      const fromStorage = await this.storageService.getObjectBuffer(albumDoc.mindFileKey);
+      if (fromStorage?.buffer?.length) {
+        return {
+          buffer: fromStorage.buffer,
+          contentType: fromStorage.contentType || 'application/octet-stream',
+        };
+      }
+    }
+
+    if (!albumDoc.mindFileUrl) {
+      throw new NotFoundException('AR scan file is not available');
+    }
+
+    return this.loadMediaBuffer(
+      albumDoc.mindFileKey ?? '',
+      albumDoc.mindFileUrl,
+      'application/octet-stream',
+    );
+  }
+
   async getTrackingImageBuffer(albumSlug: string, targetId: string) {
     const target = await this.findActiveTarget(albumSlug, targetId);
 

@@ -1,10 +1,7 @@
 import axios from 'axios';
 import { env } from '@/utils/env';
 import type { ApiResponse } from '@/types/api.types';
-import type {
-  RecordViewerEventPayload,
-  ViewerManifest,
-} from '@/types/ar-target.types';
+import type { RecordViewerEventPayload, ViewerManifest } from '@/types/ar-target.types';
 
 const publicClient = axios.create({
   baseURL: env.apiBaseUrl,
@@ -21,6 +18,12 @@ export const viewerService = {
   getMappingVideoUrl(albumSlug: string, targetId: string, videoMediaId: string) {
     const params = new URLSearchParams({ media: videoMediaId });
     return `${env.apiBaseUrl}/viewer/public/${albumSlug}/targets/${targetId}/mapping-video?${params}`;
+  },
+
+  /** Same-origin API proxy — avoids R2 CORS blocking MindAR on mobile. */
+  getMindFileUrl(albumSlug: string, hash?: string | null) {
+    const params = hash ? `?h=${encodeURIComponent(hash)}` : '';
+    return `${env.apiBaseUrl}/viewer/public/${albumSlug}/mind-file${params}`;
   },
 
   async getManifest(albumSlug: string): Promise<ViewerManifest> {

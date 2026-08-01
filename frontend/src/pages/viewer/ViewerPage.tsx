@@ -9,6 +9,8 @@ import {
   type WarmupProgress,
 } from '@/features/ar/utils/viewer-warmup';
 import { readCachedManifest } from '@/features/ar/utils/viewer-manifest-cache';
+import { primeCameraPermission } from '@/features/ar/utils/camera-permission';
+import type { CameraFacing } from '@/features/ar/utils/mindar-scene';
 import { getErrorMessage } from '@/api/client';
 import { ViewerErrorState } from './ViewerErrorState';
 
@@ -38,6 +40,8 @@ export const ViewerPage = () => {
   const { albumSlug = '' } = useParams();
   const initialWarmup = useMemo(() => buildInitialWarmup(albumSlug), [albumSlug]);
   const [started, setStarted] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [facingMode, setFacingMode] = useState<CameraFacing>('environment');
   const [warmup, setWarmup] = useState<WarmupProgress>(initialWarmup);
 
   useEffect(() => {
@@ -50,6 +54,7 @@ export const ViewerPage = () => {
 
     bootstrapViewerRoute(albumSlug);
     setStarted(false);
+    setStarting(false);
     setWarmup(buildInitialWarmup(albumSlug));
 
     void startViewerWarmup(albumSlug, setWarmup).catch((error) => {
@@ -65,6 +70,26 @@ export const ViewerPage = () => {
 
     return undefined;
   }, [albumSlug]);
+
+  const handleStart = async () => {
+    if (starting || started) return;
+    setStarting(true);
+
+    const permission = await primeCameraPermission('environment');
+    if (!permission.ok) {
+      setStarting(false);
+      setWarmup((current) => ({
+        ...current,
+        error: permission.error,
+        detail: permission.error,
+      }));
+      return;
+    }
+
+    setFacingMode(permission.facingMode);
+    setStarted(true);
+    setStarting(false);
+  };
 
   if (warmup.stage === 'error' && !warmup.manifest) {
     return (
@@ -84,7 +109,8 @@ export const ViewerPage = () => {
         albumSlug={albumSlug}
         manifest={manifest}
         warmup={warmup}
-        onStart={() => setStarted(true)}
+        starting={starting}
+        onStart={handleStart}
       />
     );
   }
@@ -104,6 +130,7 @@ export const ViewerPage = () => {
       albumSlug={albumSlug}
       manifest={manifest!}
       prefetchedMindBundle={warmup.mindBundle}
+      initialFacingMode={facingMode}
     />
   );
 };

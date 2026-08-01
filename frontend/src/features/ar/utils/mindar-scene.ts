@@ -123,8 +123,21 @@ export const ensureCameraPreviewVisible = (host: HTMLElement): HTMLVideoElement 
 export const isCameraPreviewLive = (host: HTMLElement): boolean => {
   ensureCameraPreviewVisible(host);
   const video = getCameraVideo(host);
-  if (!video || video.videoWidth === 0) return false;
-  return video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
+  if (!video) return false;
+
+  const stream = video.srcObject as MediaStream | null;
+  const hasLiveTrack = Boolean(
+    stream?.getVideoTracks().some((track) => track.readyState === 'live' && !track.muted),
+  );
+
+  if (
+    hasLiveTrack &&
+    (video.videoWidth > 0 || video.readyState >= HTMLMediaElement.HAVE_METADATA)
+  ) {
+    return true;
+  }
+
+  return video.videoWidth > 0 && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
 };
 
 export const flipMindArCamera = async (

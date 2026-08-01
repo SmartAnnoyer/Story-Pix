@@ -9,7 +9,8 @@ interface ViewerWelcomeScreenProps {
   albumSlug: string;
   manifest: ViewerManifest | null;
   warmup: WarmupProgress;
-  onStart: () => void;
+  onStart: () => void | Promise<void>;
+  starting?: boolean;
 }
 
 const TIPS = [
@@ -29,6 +30,7 @@ export const ViewerWelcomeScreen = ({
   manifest,
   warmup,
   onStart,
+  starting = false,
 }: ViewerWelcomeScreenProps) => {
   const [tipIndex, setTipIndex] = useState(0);
   const [heroVisible, setHeroVisible] = useState(false);
@@ -46,7 +48,11 @@ export const ViewerWelcomeScreen = ({
   const scanFileReady = warmup.ready && Boolean(warmup.mindBundle);
   const primaryTarget = targets[0] ?? null;
 
-  const introStep = warmup.ready ? 2 : warmup.stage === 'targets' || warmup.stage === 'scripts' ? 1 : 0;
+  const introStep = warmup.ready
+    ? 2
+    : warmup.stage === 'targets' || warmup.stage === 'scripts'
+      ? 1
+      : 0;
   const showProgress = !warmup.ready && warmup.stage !== 'error';
   const percent = clampPercent(warmup.progress);
 
@@ -75,7 +81,9 @@ export const ViewerWelcomeScreen = ({
         <div className="mb-5 flex items-center justify-between">
           <BrandLogo variant="full" height={28} />
           {studioName ? (
-            <span className="max-w-[45%] truncate text-right text-xs text-white/60">{studioName}</span>
+            <span className="max-w-[45%] truncate text-right text-xs text-white/60">
+              {studioName}
+            </span>
           ) : null}
         </div>
 
@@ -143,7 +151,9 @@ export const ViewerWelcomeScreen = ({
                 </div>
               ) : null}
 
-              <h1 className="mb-2 text-center text-2xl font-bold leading-tight sm:text-3xl">{albumName}</h1>
+              <h1 className="mb-2 text-center text-2xl font-bold leading-tight sm:text-3xl">
+                {albumName}
+              </h1>
 
               {description ? (
                 <p className="mx-auto mb-4 max-w-sm text-center text-sm leading-relaxed text-white/65">
@@ -155,9 +165,7 @@ export const ViewerWelcomeScreen = ({
 
           <div className="mb-5 text-center">
             <p className="text-base font-medium text-white/90">{warmup.message}</p>
-            {warmup.detail ? (
-              <p className="mt-1 text-sm text-white/55">{warmup.detail}</p>
-            ) : null}
+            {warmup.detail ? <p className="mt-1 text-sm text-white/55">{warmup.detail}</p> : null}
           </div>
 
           {targets.length > 1 ? (
@@ -205,27 +213,31 @@ export const ViewerWelcomeScreen = ({
 
           <button
             type="button"
-            disabled={!canOpenCamera}
-            onClick={onStart}
+            disabled={!canOpenCamera || starting}
+            onClick={() => void onStart()}
             className={`w-full rounded-2xl px-6 py-4 text-base font-semibold transition-all ${
-              canOpenCamera
+              canOpenCamera && !starting
                 ? 'viewer-intro-cta bg-gradient-to-r from-[#8A2BE2] to-[#FF4FA3] text-white shadow-lg shadow-purple-900/40 active:scale-[0.98]'
                 : 'cursor-wait bg-white/10 text-white/50'
             }`}
           >
-            {canOpenCamera
-              ? scanFileReady
-                ? 'Open camera'
-                : 'Open camera (still preparing…)'
-              : 'Loading album…'}
+            {starting
+              ? 'Allow camera…'
+              : canOpenCamera
+                ? scanFileReady
+                  ? 'Open camera'
+                  : 'Open camera (still preparing…)'
+                : 'Loading album…'}
           </button>
 
           <p className="mt-3 text-center text-[11px] text-white/45">
-            {canOpenCamera
-              ? scanFileReady
-                ? 'Camera opens on this tap — have your printed photo ready.'
-                : 'Camera opens now. Scan data may finish loading in the background.'
-              : 'Setting things up in the background. This screen is your album preview.'}
+            {starting
+              ? 'Your browser will ask for camera permission — choose Allow.'
+              : canOpenCamera
+                ? scanFileReady
+                  ? 'Camera opens on this tap — have your printed photo ready.'
+                  : 'Camera opens now. Scan data may finish loading in the background.'
+                : 'Setting things up in the background. This screen is your album preview.'}
           </p>
         </div>
       </div>

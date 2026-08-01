@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ScanOverlayMessage, ViewerManifest, ViewerManifestTarget } from '@/types/ar-target.types';
+import type {
+  ScanOverlayMessage,
+  ViewerManifest,
+  ViewerManifestTarget,
+} from '@/types/ar-target.types';
 import { ScanEventType } from '@/types/ar-target.types';
 import { detectDeviceInfo, getViewerSessionId, viewerService } from '@/services/viewer.service';
 import { BrandLogo } from '@/components/BrandLogo';
@@ -31,6 +35,7 @@ interface ARViewerProps {
   manifest: ViewerManifest;
   /** Populated when welcome-screen warmup finished before Start. */
   prefetchedMindBundle?: { url: string; cacheKey: string } | null;
+  initialFacingMode?: CameraFacing;
 }
 
 type MindBundle = {
@@ -38,17 +43,13 @@ type MindBundle = {
   cacheKey: string;
 };
 
-const AR_INIT_TIMEOUT_MS = 25_000;
-const SCAN_HINT_DELAY_MS = 8_000;
+const AR_INIT_TIMEOUT_MS = 35_000;
+const SCAN_HINT_DELAY_MS = 12_000;
 const SCAN_NO_MATCH_DELAY_MS = 25_000;
-
 const TARGET_FOUND_CONFIRM_MS = 280;
 
-const buildServerMindBundle = (
-  albumSlug: string,
-  manifest: ViewerManifest,
-): MindBundle | null => {
-  if (!manifest.mindFile?.url) return null;
+const buildServerMindBundle = (albumSlug: string, manifest: ViewerManifest): MindBundle | null => {
+  if (!manifest.mindFile) return null;
 
   const sortedTargets = [...manifest.targets].sort((a, b) => a.targetIndex - b.targetIndex);
   const cacheKey = getMindCacheKey(
@@ -57,10 +58,32 @@ const buildServerMindBundle = (
     manifest.mindFile.hash,
   );
 
-  return { url: manifest.mindFile.url, cacheKey };
+  return {
+    url: viewerService.getMindFileUrl(albumSlug, manifest.mindFile.hash),
+    cacheKey,
+  };
 };
 
-export const ARViewer = ({ albumSlug, manifest, prefetchedMindBundle }: ARViewerProps) => {
+const resolveMindUrlForScene = async (url: string): Promise<{ url: string; revoke: boolean }> => {
+  if (url.startsWith('blob:')) {
+    return { url, revoke: false };
+  }
+
+  const response = await fetch(url, { mode: 'cors', credentials: 'omit' });
+  if (!response.ok) {
+    throw new Error(`Could not download AR scan file (${response.status})`);
+  }
+
+  const blob = await response.blob();
+  return { url: URL.createObjectURL(blob), revoke: true };
+};
+
+export const ARViewer = ({
+  albumSlug,
+  manifest,
+  prefetchedMindBundle,
+  initialFacingMode = 'environment',
+}: ARViewerProps) => {
   const initialMindBundle = prefetchedMindBundle ?? buildServerMindBundle(albumSlug, manifest);
   const hasPreparedMind = Boolean(initialMindBundle);
 
@@ -70,7 +93,9 @@ export const ARViewer = ({ albumSlug, manifest, prefetchedMindBundle }: ARViewer
   const videoModeRef = useRef<VideoDisplayMode>('frame');
   const listenersAttachedRef = useRef(false);
   const targetFoundTimersRef = useRef<Map<number, number>>(new Map());
-  const [status, setStatus] = useState<ScanOverlayMessage>(hasPreparedMind ? 'loading' : 'preparing');
+  const [status, setStatus] = useState<ScanOverlayMessage>(
+    hasPreparedMind ? 'loading' : 'preparing',
+  );
   const [activeTarget, setActiveTarget] = useState<ViewerManifestTarget | null>(null);
   const [activeMindIndex, setActiveMindIndex] = useState<number | null>(null);
   const [targetAspectRatio, setTargetAspectRatio] = useState(1.414);
@@ -80,7 +105,7 @@ export const ARViewer = ({ albumSlug, manifest, prefetchedMindBundle }: ARViewer
   const [statusDetail, setStatusDetail] = useState<string | null>(null);
   const [progress, setProgress] = useState(hasPreparedMind ? 0.72 : 0.05);
   const [scanSeconds, setScanSeconds] = useState(0);
-  const [facingMode, setFacingMode] = useState<CameraFacing>('environment');
+  const [facingMode, setFacingMode] = useState<CameraFacing>(initialFacingMode);
   const [flipping, setFlipping] = useState(false);
   const [sceneGeneration, setSceneGeneration] = useState(0);
   const [prepareGeneration, setPrepareGeneration] = useState(0);
@@ -95,8 +120,8 @@ export const ARViewer = ({ albumSlug, manifest, prefetchedMindBundle }: ARViewer
 
   const waitForCameraPreview = async (
     host: HTMLElement,
-    attempts = 8,
-    delayMs = 120,
+    attempts = 40,
+    delayMs = 250,
   ): Promise<boolean> => {
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       ensureCameraPreviewVisible(host);
@@ -131,11 +156,7 @@ export const ARViewer = ({ albumSlug, manifest, prefetchedMindBundle }: ARViewer
 
   const activeVideoUrl = useMemo(() => {
     if (!activeTarget?.videoAvailable) return null;
-    return viewerService.getMappingVideoUrl(
-      albumSlug,
-      activeTarget.id,
-      activeTarget.videoMediaId,
-    );
+    return viewerService.getMappingVideoUrl(albumSlug, activeTarget.id, activeTarget.videoMediaId);
   }, [activeTarget, albumSlug]);
 
   const activeVideoFallbackUrl = useMemo(() => {
@@ -299,7 +320,14 @@ export const ARViewer = ({ albumSlug, manifest, prefetchedMindBundle }: ARViewer
         }
       }
     };
-  }, [albumSlug, mindCacheKey, mindCacheTargets, prepareGeneration, targets.length, trackingImageUrls]);
+  }, [
+    albumSlug,
+    mindCacheKey,
+    mindCacheTargets,
+    prepareGeneration,
+    targets.length,
+    trackingImageUrls,
+  ]);
 
   useEffect(() => {
     if (status !== 'loading') return undefined;
@@ -319,16 +347,32 @@ export const ARViewer = ({ albumSlug, manifest, prefetchedMindBundle }: ARViewer
     let mounted = true;
     const host = containerRef.current;
     let cameraObserver: MutationObserver | null = null;
+    let mindBlobUrlToRevoke: string | null = null;
     listenersAttachedRef.current = false;
     scanningEnabledRef.current = false;
 
     const initScene = async () => {
       try {
+        setStatus('loading');
+        setStatusDetail('Starting camera…');
+        setProgress((value) => Math.max(value, 0.75));
+
         await loadArScripts();
         if (!mounted || !containerRef.current) return;
 
+        const resolvedMind = await resolveMindUrlForScene(mindBundle.url);
+        if (!mounted || !containerRef.current) {
+          if (resolvedMind.revoke) URL.revokeObjectURL(resolvedMind.url);
+          return;
+        }
+        if (resolvedMind.revoke) {
+          mindBlobUrlToRevoke = resolvedMind.url;
+        }
+
+        setProgress((value) => Math.max(value, 0.82));
+
         const { scene, targetEntities } = buildMindArScene(host, {
-          mindUrl: mindBundle.url,
+          mindUrl: resolvedMind.url,
           targetCount: targets.length,
           facingMode,
         });
@@ -483,7 +527,8 @@ export const ARViewer = ({ albumSlug, manifest, prefetchedMindBundle }: ARViewer
             current === 'recognized' ||
             current === 'match_found' ||
             current === 'move_closer'
-          ) return;
+          )
+            return;
           if (!isCameraPreviewLive(host)) {
             setStatusDetail('Camera preview did not start. Tap flip camera or reload the page.');
             setStatus('camera_required');
@@ -511,6 +556,9 @@ export const ARViewer = ({ albumSlug, manifest, prefetchedMindBundle }: ARViewer
       clearScanTimers();
       cameraObserver?.disconnect();
       destroyMindArScene(host);
+      if (mindBlobUrlToRevoke) {
+        URL.revokeObjectURL(mindBlobUrlToRevoke);
+      }
     };
   }, [
     albumSlug,
@@ -652,9 +700,7 @@ export const ARViewer = ({ albumSlug, manifest, prefetchedMindBundle }: ARViewer
         aspectRatio={targetAspectRatio}
         primaryUrl={activeVideoUrl}
         fallbackUrl={activeVideoFallbackUrl}
-        active={Boolean(
-          activeTarget?.videoAvailable && (activeVideoUrl || activeVideoFallbackUrl),
-        )}
+        active={Boolean(activeTarget?.videoAvailable && (activeVideoUrl || activeVideoFallbackUrl))}
         mode={videoMode}
         onModeChange={setVideoMode}
         onPlay={() => {
@@ -705,11 +751,7 @@ export const ARViewer = ({ albumSlug, manifest, prefetchedMindBundle }: ARViewer
 
       <div
         className={`pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/85 via-black/40 to-transparent p-4 text-white transition-opacity ${
-          videoMode === 'fullscreen'
-            ? 'opacity-0'
-            : activeTarget
-              ? 'opacity-40'
-              : 'opacity-100'
+          videoMode === 'fullscreen' ? 'opacity-0' : activeTarget ? 'opacity-40' : 'opacity-100'
         }`}
       >
         <p className="text-lg font-semibold">{manifest.album.albumName}</p>
