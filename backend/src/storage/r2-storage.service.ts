@@ -26,10 +26,7 @@ export class R2StorageService extends IStorageService {
   constructor(private readonly configService: ConfigService) {
     super();
     this.bucketName = this.configService.get<string>('storage.bucketName', 'storypix-dev');
-    this.publicBaseUrl = this.configService.get<string>(
-      'storage.publicBaseUrl',
-      'https://media.story-pix.app',
-    );
+    this.publicBaseUrl = this.configService.get<string>('storage.publicBaseUrl', '');
     this.presignExpiresSeconds = this.configService.get<number>(
       'storage.presignExpiresSeconds',
       900,
@@ -81,7 +78,12 @@ export class R2StorageService extends IStorageService {
   }
 
   getPublicUrl(key: string): string {
-    return `${this.publicBaseUrl.replace(/\/$/, '')}/${key}`;
+    const base = this.publicBaseUrl.replace(/\/$/, '');
+    if (!base || base.includes('media.story-pix.app')) {
+      // Avoid emitting a hostname that does not resolve; callers should use API proxies.
+      return key;
+    }
+    return `${base}/${key}`;
   }
 
   async getObjectMetadata(key: string): Promise<StorageObjectMetadata | null> {

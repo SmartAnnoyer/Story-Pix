@@ -9,6 +9,7 @@ import {
 } from './mindar-loader';
 import { readCachedManifest, writeCachedManifest } from './viewer-manifest-cache';
 import { prefetchManifestVideos } from './video-prefetch';
+import { isBrokenCdnUrl, withViewerMediaProxies } from './viewer-media-proxy';
 
 export type WarmupStage = 'manifest' | 'scripts' | 'targets' | 'ready' | 'error';
 
@@ -82,24 +83,24 @@ const cacheMindBundle = (
 };
 
 const prefetchAlbumAssets = (
-  _albumSlug: string,
+  albumSlug: string,
   manifest: ViewerManifest,
   mindUrl?: string | null,
 ) => {
   const sortedTargets = [...manifest.targets].sort((a, b) => a.targetIndex - b.targetIndex);
 
   // Videos first — time-to-play after match is the product KPI
-  prefetchManifestVideos(sortedTargets);
+  prefetchManifestVideos(albumSlug, sortedTargets);
 
-  if (mindUrl) prefetchMindFile(mindUrl);
+  if (mindUrl && !isBrokenCdnUrl(mindUrl)) prefetchMindFile(mindUrl);
 
-  if (manifest.album.coverImage) {
+  if (manifest.album.coverImage && !isBrokenCdnUrl(manifest.album.coverImage)) {
     prefetchImage(manifest.album.coverImage);
   }
 
   for (const target of sortedTargets) {
     const preview = target.photoThumbnailUrl ?? target.photoUrl;
-    if (preview) prefetchImage(preview);
+    if (preview && !isBrokenCdnUrl(preview)) prefetchImage(preview);
   }
 };
 
@@ -135,7 +136,10 @@ const runWarmup = async (
     emitToListeners(albumSlug, state);
   };
 
-  const cachedManifest = readCachedManifest(albumSlug);
+  const cachedManifestRaw = readCachedManifest(albumSlug);
+  const cachedManifest = cachedManifestRaw
+    ? withViewerMediaProxies(albumSlug, cachedManifestRaw)
+    : null;
 
   let state: WarmupProgress = {
     progress: cachedManifest ? 0.22 : 0.08,
@@ -174,7 +178,7 @@ const runWarmup = async (
   try {
     void loadArScripts().catch(() => undefined);
 
-    const manifest = await viewerService.getManifest(albumSlug);
+    const manifest = withViewerMediaProxies(albumSlug, await viewerService.getManifest(albumSlug));
     if (manifest.targets.length) {
       writeCachedManifest(albumSlug, manifest);
     }

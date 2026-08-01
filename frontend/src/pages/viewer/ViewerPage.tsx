@@ -9,6 +9,7 @@ import {
   type WarmupProgress,
 } from '@/features/ar/utils/viewer-warmup';
 import { readCachedManifest } from '@/features/ar/utils/viewer-manifest-cache';
+import { withViewerMediaProxies } from '@/features/ar/utils/viewer-media-proxy';
 import {
   primeCameraPermission,
   releaseHeldCameraStream,
@@ -18,7 +19,8 @@ import { getErrorMessage } from '@/api/client';
 import { ViewerErrorState } from './ViewerErrorState';
 
 const buildInitialWarmup = (albumSlug: string): WarmupProgress => {
-  const cached = readCachedManifest(albumSlug);
+  const cachedRaw = readCachedManifest(albumSlug);
+  const cached = cachedRaw ? withViewerMediaProxies(albumSlug, cachedRaw) : null;
 
   return {
     progress: cached ? 0.18 : 0.08,

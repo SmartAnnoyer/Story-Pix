@@ -62,8 +62,16 @@ export class ViewerService {
     );
 
     const resolveUrl = (publicUrl?: string | null, r2ObjectKey?: string | null) => {
-      if (publicUrl) return publicUrl;
-      if (r2ObjectKey) return this.storageService.getPublicUrl(r2ObjectKey);
+      // Never expose the dead default CDN host — viewer uses API media proxies.
+      if (publicUrl && !publicUrl.includes('media.story-pix.app')) {
+        return publicUrl;
+      }
+      if (r2ObjectKey) {
+        const generated = this.storageService.getPublicUrl(r2ObjectKey);
+        if (generated && !generated.includes('media.story-pix.app')) {
+          return generated;
+        }
+      }
       return null;
     };
 

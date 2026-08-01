@@ -1,3 +1,5 @@
+import { viewerService } from '@/services/viewer.service';
+
 /** Prefetch mapping videos so match → play is near-instant. */
 
 const prefetchedUrls = new Set<string>();
@@ -91,10 +93,17 @@ export const resolvePlayableVideoUrl = async (
 };
 
 export const prefetchManifestVideos = (
-  targets: Array<{ videoUrl?: string | null; videoAvailable?: boolean }>,
+  albumSlug: string,
+  targets: Array<{
+    id: string;
+    videoMediaId: string;
+    videoUrl?: string | null;
+    videoAvailable?: boolean;
+  }>,
 ): void => {
   for (const target of targets) {
     if (target.videoAvailable === false) continue;
-    if (target.videoUrl) prefetchVideo(target.videoUrl);
+    // Always prefer API proxy — CDN hosts like media.story-pix.app may not resolve.
+    prefetchVideo(viewerService.getMappingVideoUrl(albumSlug, target.id, target.videoMediaId));
   }
 };

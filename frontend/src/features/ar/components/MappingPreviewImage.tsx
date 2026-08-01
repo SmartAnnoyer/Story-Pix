@@ -16,19 +16,17 @@ export const MappingPreviewImage = ({
   size = 'sm',
 }: MappingPreviewImageProps) => {
   const candidates = useMemo(() => {
-    const urls = [
-      target.photoThumbnailUrl,
-      target.photoUrl,
-      viewerService.getTrackingImageUrl(albumSlug, target.id, target.photoMediaId),
-    ].filter((url): url is string => Boolean(url));
-    return [...new Set(urls)];
+    const proxy = viewerService.getTrackingImageUrl(albumSlug, target.id, target.photoMediaId);
+    const urls = [proxy, target.photoThumbnailUrl, target.photoUrl].filter(
+      (url): url is string => Boolean(url) && !url.includes('media.story-pix.app'),
+    );
+    return [...new Set(urls.length ? urls : [proxy])];
   }, [albumSlug, target]);
 
   const [index, setIndex] = useState(0);
   const src = candidates[index] ?? null;
 
-  const sizeClass =
-    size === 'lg' ? 'h-28 w-28 sm:h-32 sm:w-32' : 'h-16 w-16 sm:h-20 sm:w-20';
+  const sizeClass = size === 'lg' ? 'h-28 w-28 sm:h-32 sm:w-32' : 'h-16 w-16 sm:h-20 sm:w-20';
 
   if (!src) {
     return (

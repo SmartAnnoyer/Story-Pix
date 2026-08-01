@@ -1,9 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  IStorageService,
-  PresignedUploadResult,
-} from './interfaces/storage.interface';
+import { IStorageService, PresignedUploadResult } from './interfaces/storage.interface';
 
 /**
  * Placeholder storage service until Cloudflare R2 is configured.
@@ -21,14 +18,11 @@ export class MockStorageService extends IStorageService {
     expiresInSeconds = 900,
     _contentLengthBytes?: number,
   ): Promise<PresignedUploadResult> {
-    const baseUrl = this.configService.get<string>(
-      'storage.publicBaseUrl',
-      'https://media.story-pix.app',
-    );
+    const baseUrl = this.configService.get<string>('storage.publicBaseUrl', '');
 
     return {
-      uploadUrl: `${baseUrl}/mock-upload/${encodeURIComponent(key)}?contentType=${encodeURIComponent(contentType)}`,
-      publicUrl: `${baseUrl}/${key}`,
+      uploadUrl: `${baseUrl || 'https://example.invalid'}/mock-upload/${encodeURIComponent(key)}?contentType=${encodeURIComponent(contentType)}`,
+      publicUrl: baseUrl ? `${baseUrl.replace(/\/$/, '')}/${key}` : key,
       key,
       expiresIn: expiresInSeconds,
     };
@@ -39,26 +33,27 @@ export class MockStorageService extends IStorageService {
   }
 
   getPublicUrl(key: string): string {
-    const baseUrl = this.configService.get<string>(
-      'storage.publicBaseUrl',
-      'https://media.story-pix.app',
-    );
-    return `${baseUrl}/${key}`;
+    const baseUrl = this.configService.get<string>('storage.publicBaseUrl', '').replace(/\/$/, '');
+    return baseUrl ? `${baseUrl}/${key}` : key;
   }
 
-  async getObjectMetadata(_key: string): Promise<import('./interfaces/storage.interface').StorageObjectMetadata | null> {
+  async getObjectMetadata(
+    _key: string,
+  ): Promise<import('./interfaces/storage.interface').StorageObjectMetadata | null> {
     // Mock uploads do not write to object storage — skip HEAD size checks.
     return null;
   }
 
-  async getObjectBuffer(_key: string): Promise<import('./interfaces/storage.interface').StorageObjectBody | null> {
+  async getObjectBuffer(
+    _key: string,
+  ): Promise<import('./interfaces/storage.interface').StorageObjectBody | null> {
     return null;
   }
 
   async putObjectBuffer(
     key: string,
-    buffer: Buffer,
-    contentType: string,
+    _buffer: Buffer,
+    _contentType: string,
   ): Promise<{ key: string; publicUrl: string }> {
     return {
       key,

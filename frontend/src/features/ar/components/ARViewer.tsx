@@ -589,7 +589,7 @@ export const ARViewer = ({
 
   useEffect(() => {
     if (status !== 'scanning' && status !== 'move_closer') return undefined;
-    prefetchManifestVideos(targets);
+    prefetchManifestVideos(albumSlug, targets);
     setProgress((value) => Math.min(0.99, Math.max(value, 0.92 + scanSeconds * 0.002)));
     return undefined;
   }, [scanSeconds, status, targets]);

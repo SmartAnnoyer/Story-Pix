@@ -1,6 +1,6 @@
 import type { ViewerManifest } from '@/types/ar-target.types';
 
-const CACHE_PREFIX = 'storypix-manifest-v1-';
+const CACHE_PREFIX = 'storypix-manifest-v2-';
 const CACHE_TTL_MS = 45 * 60 * 1000;
 
 type CachedManifest = {
