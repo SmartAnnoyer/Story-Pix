@@ -439,8 +439,17 @@ export const ARViewer = ({
             if (!entity) return;
 
             entity.addEventListener('targetFound', () => {
+              viewerLog('info', 'targetFound event', {
+                target: target.targetName,
+                mindIndex,
+                scanningEnabled: scanningEnabledRef.current,
+                status: statusRef.current,
+              });
               if (!mounted || !scanningEnabledRef.current) return;
-              if (!isCameraPreviewLive(host)) return;
+              if (!isCameraPreviewLive(host)) {
+                viewerLog('warn', 'targetFound ignored — camera not live');
+                return;
+              }
               targetTrackedRef.current = true;
 
               const pending = targetFoundTimersRef.current.get(mindIndex);
@@ -448,6 +457,10 @@ export const ARViewer = ({
 
               const timer = window.setTimeout(() => {
                 targetFoundTimersRef.current.delete(mindIndex);
+                viewerLog('info', 'target match confirmed — starting video', {
+                  target: target.targetName,
+                  videoAvailable: target.videoAvailable,
+                });
                 confirmTargetMatch(target, mindIndex);
               }, TARGET_FOUND_CONFIRM_MS);
 
@@ -455,6 +468,10 @@ export const ARViewer = ({
             });
 
             entity.addEventListener('targetLost', () => {
+              viewerLog('debug', 'targetLost event', {
+                target: target.targetName,
+                mindIndex,
+              });
               const pending = targetFoundTimersRef.current.get(mindIndex);
               if (pending) {
                 window.clearTimeout(pending);
@@ -473,7 +490,7 @@ export const ARViewer = ({
               setActiveMindIndex(null);
               setVideoMode('frame');
               setStatus('scanning');
-              setStatusDetail(null);
+              setStatusDetail('Point at the printed photo — fill the frame.');
               setProgress(0.92);
               startScanTimers();
             });
@@ -483,25 +500,40 @@ export const ARViewer = ({
         attachTargetListeners();
         scene.addEventListener('loaded', attachTargetListeners, { once: true });
 
+        let scanningBootstrapped = false;
+
         cameraObserver = new MutationObserver(() => {
           ensureCameraPreviewVisible(host);
         });
         cameraObserver.observe(host, { childList: true, subtree: true });
 
         scene.addEventListener('arReady', () => {
-          if (!mounted) return;
-          viewerLog('info', 'arReady fired');
+          if (!mounted || scanningBootstrapped) {
+            viewerLog('debug', 'arReady ignored (already bootstrapped)');
+            return;
+          }
+          scanningBootstrapped = true;
+          viewerLog('info', 'arReady fired — enabling scan');
           ensureCameraPreviewVisible(host);
 
           void (async () => {
             if (!mounted || !containerRef.current) return;
 
             const heldStream = takeHeldCameraStream();
-            viewerLog('info', 'attaching camera', {
+            const mindArAlreadyLive = isCameraPreviewLive(containerRef.current);
+
+            viewerLog('info', 'camera bootstrap', {
               heldStream: Boolean(heldStream),
+              mindArAlreadyLive,
               tracks: heldStream?.getVideoTracks().map((t) => t.label) ?? [],
             });
-            if (heldStream) {
+
+            // Prefer MindAR's own camera when it already started — swapping streams
+            // on iPhone often keeps the preview but kills image tracking.
+            if (heldStream && mindArAlreadyLive) {
+              viewerLog('info', 'keeping MindAR camera; releasing primed stream');
+              heldStream.getTracks().forEach((track) => track.stop());
+            } else if (heldStream) {
               const attached = await attachCameraStream(
                 containerRef.current,
                 heldStream,
@@ -512,7 +544,7 @@ export const ARViewer = ({
               if (!attached) {
                 heldStream.getTracks().forEach((track) => track.stop());
               }
-            } else if (facingMode === 'user') {
+            } else if (facingMode === 'user' && !mindArAlreadyLive) {
               try {
                 await flipMindArCamera(containerRef.current, 'user');
               } catch (error) {
@@ -543,7 +575,8 @@ export const ARViewer = ({
             scanningEnabledRef.current = true;
             setProgress(0.92);
             setStatus('scanning');
-            setStatusDetail(null);
+            setStatusDetail('Point at the printed photo — fill the frame.');
+            viewerLog('info', 'scanning enabled — waiting for targetFound');
             startScanTimers();
           })();
         });

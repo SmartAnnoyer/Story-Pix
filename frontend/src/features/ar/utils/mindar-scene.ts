@@ -45,10 +45,10 @@ export const buildMindArScene = (
       'uiLoading: no',
       'uiScanning: no',
       'uiError: no',
-      'filterMinCF: 0.001',
+      'filterMinCF: 0.0001',
       'filterBeta: 1000',
-      'warmupTolerance: 3',
-      'missTolerance: 5',
+      'warmupTolerance: 5',
+      'missTolerance: 10',
     ].join('; '),
   );
   scene.setAttribute('color-space', 'sRGB');
