@@ -6,6 +6,7 @@ import { AlbumTable } from '@/features/albums/components/AlbumTable';
 import { useAlbumActionMutation, useAlbumsQuery } from '@/hooks/useAlbumQueries';
 import { AlbumStatus, EVENT_TYPE_LABELS, EventType } from '@/types/album.types';
 import { ROUTES } from '@/routes/paths';
+import { getErrorMessage } from '@/api/client';
 
 const { Title, Paragraph } = Typography;
 const { RangePicker } = DatePicker;
@@ -37,8 +38,21 @@ export const AlbumsListPage = () => {
   const actionMutation = useAlbumActionMutation();
 
   const handleArchive = async (id: string) => {
-    await actionMutation.mutateAsync({ id, action: 'archive' });
-    message.success('Album archived');
+    try {
+      await actionMutation.mutateAsync({ id, action: 'archive' });
+      message.success('Album archived');
+    } catch (error) {
+      message.error(getErrorMessage(error, 'Archive failed'));
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await actionMutation.mutateAsync({ id, action: 'delete' });
+      message.success('Album deleted');
+    } catch (error) {
+      message.error(getErrorMessage(error, 'Delete failed'));
+    }
   };
 
   return (
@@ -52,7 +66,11 @@ export const AlbumsListPage = () => {
             Manage event albums for your studio.
           </Paragraph>
         </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate(ROUTES.ALBUM_CREATE)}>
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          onClick={() => navigate(ROUTES.ALBUM_CREATE)}
+        >
           Create Album
         </Button>
       </div>
@@ -135,6 +153,7 @@ export const AlbumsListPage = () => {
           setLimit(ps);
         }}
         onArchive={activeTab === 'all' ? handleArchive : undefined}
+        onDelete={handleDelete}
       />
     </div>
   );

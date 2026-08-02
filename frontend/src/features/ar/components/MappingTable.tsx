@@ -76,11 +76,6 @@ export const MappingTable = ({
               >
                 Publish
               </Button>
-              <Popconfirm title="Delete this mapping?" onConfirm={() => onDelete(record.id)}>
-                <Button size="small" danger icon={<DeleteOutlined />}>
-                  Delete
-                </Button>
-              </Popconfirm>
             </>
           ) : null}
           {record.status === ArTargetStatus.ACTIVE ? (
@@ -88,6 +83,21 @@ export const MappingTable = ({
               Archive
             </Button>
           ) : null}
+          <Popconfirm
+            title="Delete this mapping?"
+            description={
+              record.status === ArTargetStatus.ACTIVE
+                ? 'This removes it from the live AR scan file.'
+                : 'This cannot be undone.'
+            }
+            okText="Delete"
+            okButtonProps={{ danger: true }}
+            onConfirm={() => onDelete(record.id)}
+          >
+            <Button size="small" danger icon={<DeleteOutlined />}>
+              Delete
+            </Button>
+          </Popconfirm>
         </Space>
       ),
     },

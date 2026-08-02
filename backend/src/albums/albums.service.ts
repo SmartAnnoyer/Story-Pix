@@ -139,12 +139,12 @@ export class AlbumsService {
   async softDelete(studioId: string, id: string) {
     const album = await this.findDocument(studioId, id);
 
-    if (album.status === AlbumStatus.PUBLISHED) {
-      throw new BadRequestException('Unpublish the album before deleting');
-    }
-
     album.deletedAt = new Date();
     album.isPublished = false;
+    if (album.status === AlbumStatus.PUBLISHED) {
+      album.status = AlbumStatus.DRAFT;
+      album.publishedAt = null;
+    }
     await album.save();
 
     await this.usageService.decrementAlbumCount(studioId);

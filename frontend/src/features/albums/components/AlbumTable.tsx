@@ -1,8 +1,9 @@
 import { Button, Popconfirm, Space, Table } from 'antd';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
-import { EditOutlined, EyeOutlined, InboxOutlined } from '@ant-design/icons';
+import { DeleteOutlined, EditOutlined, EyeOutlined, InboxOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import type { Album } from '@/types/album.types';
+import { AlbumStatus } from '@/types/album.types';
 import { AlbumStatusBadge } from './AlbumStatusBadge';
 import { EventTypeBadge } from './EventTypeBadge';
 import { ROUTES } from '@/routes/paths';
@@ -13,6 +14,7 @@ interface AlbumTableProps {
   pagination: { page: number; limit: number; total: number };
   onPageChange: (page: number, pageSize: number) => void;
   onArchive?: (id: string) => void;
+  onDelete?: (id: string) => void;
 }
 
 export const AlbumTable = ({
@@ -21,6 +23,7 @@ export const AlbumTable = ({
   pagination,
   onPageChange,
   onArchive,
+  onDelete,
 }: AlbumTableProps) => {
   const navigate = useNavigate();
 
@@ -61,7 +64,7 @@ export const AlbumTable = ({
       title: 'Actions',
       key: 'actions',
       fixed: 'right',
-      width: 140,
+      width: 180,
       render: (_, record) => (
         <Space size="small">
           <Button
@@ -74,9 +77,24 @@ export const AlbumTable = ({
             icon={<EditOutlined />}
             onClick={() => navigate(ROUTES.ALBUM_EDIT.replace(':id', record.id))}
           />
-          {onArchive ? (
+          {onArchive && record.status !== AlbumStatus.ARCHIVED ? (
             <Popconfirm title="Archive this album?" onConfirm={() => onArchive(record.id)}>
               <Button type="text" icon={<InboxOutlined />} />
+            </Popconfirm>
+          ) : null}
+          {onDelete ? (
+            <Popconfirm
+              title="Delete this album?"
+              description={
+                record.status === AlbumStatus.PUBLISHED
+                  ? 'It will be unpublished and removed from your list.'
+                  : 'This permanently removes the album from your list.'
+              }
+              okText="Delete"
+              okButtonProps={{ danger: true }}
+              onConfirm={() => onDelete(record.id)}
+            >
+              <Button type="text" danger icon={<DeleteOutlined />} />
             </Popconfirm>
           ) : null}
         </Space>

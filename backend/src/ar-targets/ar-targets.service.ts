@@ -116,14 +116,16 @@ export class ArTargetsService {
 
   async softDelete(studioId: string, id: string) {
     const target = await this.findDocument(studioId, id);
-
-    if (target.status === ArTargetStatus.ACTIVE) {
-      throw new BadRequestException('Active mappings must be archived before deletion');
-    }
+    const wasActive = target.status === ArTargetStatus.ACTIVE;
 
     target.deletedAt = new Date();
     target.status = ArTargetStatus.ARCHIVED;
+    target.targetIndex = null;
     await target.save();
+
+    if (wasActive) {
+      void this.mindArCompilerService.scheduleAlbumMindRebuild(target.albumId.toString());
+    }
 
     return { id: target._id.toString(), deleted: true };
   }

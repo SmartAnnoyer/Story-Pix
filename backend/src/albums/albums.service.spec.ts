@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { AlbumsService } from './albums.service';
 import { Album } from './schemas/album.schema';
 import { ArTarget } from '../ar-targets/schemas/ar-target.schema';
@@ -123,12 +123,23 @@ describe('AlbumsService', () => {
     expect(result.isPublished).toBe(true);
   });
 
-  it('should reject delete on published album', async () => {
+  it('should soft-delete a published album', async () => {
+    const doc = {
+      ...mockAlbumDoc,
+      status: AlbumStatus.PUBLISHED,
+      isPublished: true,
+      save: jest.fn().mockResolvedValue(undefined),
+    };
     albumModel.findOne.mockReturnValue({
-      exec: jest.fn().mockResolvedValue({ ...mockAlbumDoc, status: AlbumStatus.PUBLISHED }),
+      exec: jest.fn().mockResolvedValue(doc),
     });
 
-    await expect(service.softDelete(STUDIO_ID, ALBUM_ID)).rejects.toThrow(BadRequestException);
+    const result = await service.softDelete(STUDIO_ID, ALBUM_ID);
+
+    expect(result.deleted).toBe(true);
+    expect(doc.deletedAt).toBeInstanceOf(Date);
+    expect(doc.isPublished).toBe(false);
+    expect(usageService.decrementAlbumCount).toHaveBeenCalledWith(STUDIO_ID);
   });
 
   it('should return public album by slug', async () => {

@@ -67,9 +67,13 @@ export const AlbumDetailsPage = () => {
   };
 
   const handleDelete = async () => {
-    await actionMutation.mutateAsync({ id, action: 'delete' });
-    message.success('Album deleted');
-    navigate(ROUTES.ALBUMS);
+    try {
+      await actionMutation.mutateAsync({ id, action: 'delete' });
+      message.success('Album deleted');
+      navigate(ROUTES.ALBUMS);
+    } catch (error) {
+      message.error(getErrorMessage(error, 'Delete failed'));
+    }
   };
 
   const mappingsPath = ROUTES.ALBUM_AR_MAPPINGS.replace(':id', id);
@@ -105,11 +109,19 @@ export const AlbumDetailsPage = () => {
               <Button>Archive</Button>
             </Popconfirm>
           ) : null}
-          {album.status === AlbumStatus.DRAFT ? (
-            <Popconfirm title="Delete this album?" onConfirm={handleDelete}>
-              <Button danger>Delete</Button>
-            </Popconfirm>
-          ) : null}
+          <Popconfirm
+            title="Delete this album?"
+            description={
+              album.status === AlbumStatus.PUBLISHED
+                ? 'The album will be unpublished and permanently removed from your list.'
+                : 'This permanently removes the album from your list.'
+            }
+            okText="Delete"
+            okButtonProps={{ danger: true }}
+            onConfirm={() => void handleDelete()}
+          >
+            <Button danger>Delete</Button>
+          </Popconfirm>
         </Space>
       </div>
 
