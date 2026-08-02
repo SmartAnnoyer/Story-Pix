@@ -89,18 +89,23 @@ export const getPrefetchedBlobUrl = (url: string | null | undefined): string | n
 
 export const resolvePlayableVideoUrl = async (
   preferredUrl: string | null | undefined,
+  options?: { allowBlob?: boolean },
 ): Promise<string | null> => {
   if (!preferredUrl) return null;
-  const cached = blobUrlBySource.get(preferredUrl);
-  if (cached) return cached;
+  const allowBlob = options?.allowBlob !== false;
 
-  const pending = pendingBySource.get(preferredUrl);
-  if (pending) {
-    const blobUrl = await Promise.race([
-      pending,
-      new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 80)),
-    ]);
-    if (blobUrl) return blobUrl;
+  if (allowBlob) {
+    const cached = blobUrlBySource.get(preferredUrl);
+    if (cached) return cached;
+
+    const pending = pendingBySource.get(preferredUrl);
+    if (pending) {
+      const blobUrl = await Promise.race([
+        pending,
+        new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 80)),
+      ]);
+      if (blobUrl) return blobUrl;
+    }
   }
 
   return preferredUrl;

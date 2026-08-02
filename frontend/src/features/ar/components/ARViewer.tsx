@@ -869,6 +869,7 @@ export const ARViewer = ({
         primaryUrl={activeVideoUrl}
         fallbackUrl={activeVideoFallbackUrl}
         preferDirectUrl={false}
+        title={activeTarget?.targetName}
         active={Boolean(activeTarget?.videoAvailable && (activeVideoUrl || activeVideoFallbackUrl))}
         mode={videoMode}
         onModeChange={setVideoMode}

@@ -26,6 +26,7 @@ const formatTime = (at: number) => {
 export const ViewerDebugPanel = () => {
   const [open, setOpen] = useState(true);
   const [logs, setLogs] = useState<ViewerLogEntry[]>(() => getViewerLogs());
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
 
   useEffect(() => subscribeViewerLogs(() => setLogs(getViewerLogs())), []);
 
@@ -36,9 +37,36 @@ export const ViewerDebugPanel = () => {
     return undefined;
   }, [logs, open]);
 
+  const handleCopy = async () => {
+    const text = logs
+      .map((entry) => `${formatTime(entry.at)} [${entry.level}] ${entry.message}`)
+      .join('\n');
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const area = document.createElement('textarea');
+        area.value = text;
+        area.setAttribute('readonly', '');
+        area.style.position = 'fixed';
+        area.style.left = '-9999px';
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand('copy');
+        document.body.removeChild(area);
+      }
+      setCopyState('copied');
+      window.setTimeout(() => setCopyState('idle'), 1600);
+    } catch {
+      setCopyState('failed');
+      window.setTimeout(() => setCopyState('idle'), 1600);
+    }
+  };
+
   return (
     <div className="pointer-events-auto fixed bottom-3 left-3 z-[10050] max-w-[min(100vw-1.5rem,28rem)] font-mono text-[10px] leading-snug text-white">
-      <div className="mb-1 flex gap-1">
+      <div className="mb-1 flex flex-wrap gap-1">
         <button
           type="button"
           className="rounded bg-black/80 px-2 py-1 text-[11px] font-semibold text-white"
@@ -47,13 +75,22 @@ export const ViewerDebugPanel = () => {
           {open ? 'Hide debug' : 'Show debug'}
         </button>
         {open ? (
-          <button
-            type="button"
-            className="rounded bg-black/80 px-2 py-1 text-[11px] text-white/80"
-            onClick={() => clearViewerLogs()}
-          >
-            Clear
-          </button>
+          <>
+            <button
+              type="button"
+              className="rounded bg-black/80 px-2 py-1 text-[11px] text-white/80"
+              onClick={() => void handleCopy()}
+            >
+              {copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Copy failed' : 'Copy'}
+            </button>
+            <button
+              type="button"
+              className="rounded bg-black/80 px-2 py-1 text-[11px] text-white/80"
+              onClick={() => clearViewerLogs()}
+            >
+              Clear
+            </button>
+          </>
         ) : null}
       </div>
 

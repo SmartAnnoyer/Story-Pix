@@ -13,6 +13,7 @@ interface TargetFrameVideoProps {
   fallbackUrl?: string | null;
   active: boolean;
   mode: VideoDisplayMode;
+  title?: string | null;
   preferDirectUrl?: boolean;
   onModeChange: (mode: VideoDisplayMode) => void;
   onPlay?: () => void;
@@ -23,6 +24,8 @@ interface TargetFrameVideoProps {
 }
 
 const LOAD_TIMEOUT_MS = 25_000;
+
+const isIOS = () => typeof navigator !== 'undefined' && /iP(hone|od|ad)/.test(navigator.userAgent);
 
 const buildSourceList = (
   primaryUrl: string | null,
@@ -81,6 +84,7 @@ export const TargetFrameVideo = ({
   fallbackUrl,
   active,
   mode,
+  title,
   preferDirectUrl = true,
   onModeChange,
   onPlay,
@@ -172,21 +176,33 @@ export const TargetFrameVideo = ({
 
       for (const source of uniqueSources) {
         try {
-          const resolved = (await resolvePlayableVideoUrl(source)) ?? source;
-          const blobCached = getPrefetchedBlobUrl(source);
+          // Prefer HTTPS/API URL on iPhone — blob playback often reports ready but paints black.
+          const resolved =
+            (await resolvePlayableVideoUrl(source, { allowBlob: !isIOS() })) ?? source;
+          const blobCached = !isIOS() ? getPrefetchedBlobUrl(source) : null;
           const src = blobCached ?? resolved;
           viewerLog('debug', 'video trying source', {
-            blob: Boolean(blobCached),
-            src: src.slice(0, 96),
+            blob: src.startsWith('blob:'),
+            ios: isIOS(),
+            src: src.slice(0, 120),
           });
           video.src = src;
           video.load();
           await waitForVideoReady(video);
           const played = await tryPlay(false);
           if (played) {
+            const rect = video.getBoundingClientRect();
             viewerLog('info', 'video play ok', {
               width: video.videoWidth,
               height: video.videoHeight,
+              paused: video.paused,
+              muted: video.muted,
+              rect: {
+                w: Math.round(rect.width),
+                h: Math.round(rect.height),
+                top: Math.round(rect.top),
+                left: Math.round(rect.left),
+              },
             });
             return;
           }
@@ -302,6 +318,9 @@ export const TargetFrameVideo = ({
       className={`ar-video-shell${showFullscreen ? ' ar-video-shell--fullscreen' : ''}`}
       role="presentation"
     >
+      {!showFullscreen && title ? (
+        <p className="ar-video-nowplaying">Now playing · {title}</p>
+      ) : null}
       <div className="ar-video-stage">
         {!showFullscreen ? <div className="ar-video-glow-pulse" aria-hidden /> : null}
         <div className="ar-video-glow" aria-hidden />
