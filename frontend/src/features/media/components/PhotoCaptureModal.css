@@ -1,0 +1,94 @@
+.photo-capture-modal .ant-modal-content {
+  background: #0a0a0a;
+  color: #fff;
+  padding: 0;
+  overflow: hidden;
+}
+
+.photo-capture-modal .ant-modal-header {
+  background: transparent;
+  border-bottom: none;
+  margin: 0;
+  padding: 12px 16px 0;
+}
+
+.photo-capture-modal .ant-modal-title {
+  color: #fff;
+}
+
+.photo-capture-modal .ant-modal-close {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.photo-capture-shell {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  max-height: min(70vh, 560px);
+  margin: 0 auto;
+  background: #000;
+  overflow: hidden;
+}
+
+.photo-capture-shell video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photo-capture-frame {
+  pointer-events: none;
+  position: absolute;
+  inset: 8%;
+  border: 2px solid rgba(255, 255, 255, 0.92);
+  border-radius: 10px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+}
+
+.photo-capture-frame::before,
+.photo-capture-frame::after {
+  content: '';
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border: 3px solid #ff4fa3;
+}
+
+.photo-capture-frame::before {
+  top: -2px;
+  left: -2px;
+  border-right: none;
+  border-bottom: none;
+  border-radius: 8px 0 0 0;
+}
+
+.photo-capture-frame::after {
+  right: -2px;
+  bottom: -2px;
+  border-left: none;
+  border-top: none;
+  border-radius: 0 0 8px 0;
+}
+
+.photo-capture-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.photo-capture-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px;
+}

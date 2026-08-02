@@ -1,0 +1,80 @@
+.scan-focus-frame {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 18;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scan-focus-frame__dim {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 35%, rgba(0, 0, 0, 0.35) 72%);
+}
+
+.scan-focus-frame__box {
+  position: relative;
+  width: min(78vw, 340px);
+  aspect-ratio: 3 / 4;
+  max-height: min(58vh, 460px);
+  border: 2px solid rgba(255, 255, 255, 0.88);
+  border-radius: 14px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.28);
+}
+
+.scan-focus-frame__corner {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  border: 3px solid #ff4fa3;
+}
+
+.scan-focus-frame__corner--tl {
+  top: -2px;
+  left: -2px;
+  border-right: none;
+  border-bottom: none;
+  border-radius: 12px 0 0 0;
+}
+
+.scan-focus-frame__corner--tr {
+  top: -2px;
+  right: -2px;
+  border-left: none;
+  border-bottom: none;
+  border-radius: 0 12px 0 0;
+}
+
+.scan-focus-frame__corner--bl {
+  bottom: -2px;
+  left: -2px;
+  border-right: none;
+  border-top: none;
+  border-radius: 0 0 0 12px;
+}
+
+.scan-focus-frame__corner--br {
+  right: -2px;
+  bottom: -2px;
+  border-left: none;
+  border-top: none;
+  border-radius: 0 0 12px 0;
+}
+
+.scan-focus-frame__label {
+  position: absolute;
+  left: 50%;
+  bottom: -2.5rem;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}

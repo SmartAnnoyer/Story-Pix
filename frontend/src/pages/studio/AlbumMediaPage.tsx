@@ -21,7 +21,11 @@ export const AlbumMediaPage = () => {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const { data: album, isLoading: albumLoading } = useAlbumQuery(id);
-  const { data: mediaData, isLoading: mediaLoading, refetch } = useAlbumMediaQuery(id, { limit: 100 });
+  const {
+    data: mediaData,
+    isLoading: mediaLoading,
+    refetch,
+  } = useAlbumMediaQuery(id, { limit: 100 });
   const deleteMutation = useDeleteMediaMutation();
 
   const photos = useMemo(
@@ -63,7 +67,8 @@ export const AlbumMediaPage = () => {
             {album.albumName} — Media
           </Title>
           <Paragraph type="secondary" className="!mb-2">
-            Upload photos and videos for this album.
+            Upload photos and videos for this album. For AR photos, use the camera frame or crop
+            from gallery so guests can scan the same image.
           </Paragraph>
           <AlbumStatusBadge status={album.status} />
         </div>

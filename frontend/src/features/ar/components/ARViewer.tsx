@@ -8,6 +8,7 @@ import { ScanEventType } from '@/types/ar-target.types';
 import { detectDeviceInfo, getViewerSessionId, viewerService } from '@/services/viewer.service';
 import { BrandLogo } from '@/components/BrandLogo';
 import { ScanStatusOverlay } from './ScanStatusOverlay';
+import { ScanFocusFrame } from './ScanFocusFrame';
 import { TargetFrameVideo, type VideoDisplayMode } from './TargetFrameVideo';
 import { ViewerControlBar } from './ViewerControlBar';
 import type { ViewerPhase } from './ViewerProgressBar';
@@ -778,6 +779,13 @@ export const ARViewer = ({
   return (
     <div className="relative h-[100dvh] w-full overflow-hidden bg-black">
       <div ref={containerRef} className="ar-scene-host" />
+      <ScanFocusFrame
+        visible={
+          videoMode !== 'fullscreen' &&
+          !activeTarget &&
+          (status === 'scanning' || status === 'move_closer' || status === 'loading')
+        }
+      />
       <TargetFrameVideo
         host={containerRef.current}
         targetEntity={

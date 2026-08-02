@@ -101,7 +101,7 @@ export const ScanStatusOverlay = ({
 
         {status === 'scanning' || status === 'move_closer' ? (
           <p className="mb-0 mt-1 text-center text-xs text-white/65">
-            Hold the printed photo flat. Video opens fullscreen when matched.
+            Fill the on-screen frame with the photo and hold steady. Video opens when matched.
           </p>
         ) : null}
 
