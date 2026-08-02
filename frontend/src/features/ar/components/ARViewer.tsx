@@ -723,13 +723,12 @@ export const ARViewer = ({
   }, [startScanTimers, stopVideoPlayback]);
 
   const handleExitFullscreen = useCallback(() => {
-    // After auto-fullscreen play, Back returns to scanning (frame overlay is unreliable on phones).
-    resumeScanningAfterVideo();
-  }, [resumeScanningAfterVideo]);
+    setVideoMode('frame');
+  }, []);
 
   const handleFullscreenEnded = useCallback(() => {
-    resumeScanningAfterVideo();
-  }, [resumeScanningAfterVideo]);
+    setVideoMode('frame');
+  }, []);
 
   const handleRetryScan = () => {
     clearScanTimers();
@@ -799,12 +798,10 @@ export const ARViewer = ({
         mode={videoMode}
         onModeChange={setVideoMode}
         onPlay={() => {
-          // Frame projection is often wrong vs camera object-fit on phones — play fullscreen
-          // so guests always see the clip after a successful match.
-          setVideoMode('fullscreen');
+          setVideoMode('frame');
           viewerLog('info', 'video playing', {
             target: activeTarget?.targetName,
-            mode: 'fullscreen',
+            mode: 'frame',
           });
           setStatus('recognized');
           setStatusDetail(null);
@@ -827,6 +824,7 @@ export const ARViewer = ({
         }}
         onEnded={handleFullscreenEnded}
         onExitFullscreen={handleExitFullscreen}
+        onClose={resumeScanningAfterVideo}
       />
       <ScanStatusOverlay
         albumSlug={albumSlug}
@@ -854,7 +852,7 @@ export const ARViewer = ({
 
       <div
         className={`pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/85 via-black/40 to-transparent p-4 text-white transition-opacity ${
-          videoMode === 'fullscreen' ? 'opacity-0' : activeTarget ? 'opacity-40' : 'opacity-100'
+          videoMode === 'fullscreen' || activeTarget ? 'opacity-0' : 'opacity-100'
         }`}
       >
         <p className="text-lg font-semibold">{manifest.album.albumName}</p>

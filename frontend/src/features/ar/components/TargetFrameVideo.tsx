@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getTargetScreenBounds, type TargetScreenBounds } from '../utils/target-projection';
-
 import { getPrefetchedBlobUrl, resolvePlayableVideoUrl } from '../utils/video-prefetch';
 import { viewerLog } from '../utils/viewer-debug-log';
+import './TargetFrameVideo.css';
 
 export type VideoDisplayMode = 'frame' | 'fullscreen';
 
@@ -20,10 +19,10 @@ interface TargetFrameVideoProps {
   onError?: (message: string) => void;
   onEnded?: () => void;
   onExitFullscreen?: () => void;
+  onClose?: () => void;
 }
 
 const LOAD_TIMEOUT_MS = 25_000;
-const DOUBLE_TAP_MS = 320;
 
 const buildSourceList = (
   primaryUrl: string | null,
@@ -32,7 +31,6 @@ const buildSourceList = (
 ): string[] => {
   const direct = fallbackUrl ?? null;
   const proxied = primaryUrl ?? null;
-  // Always prefer CDN / direct URL first when available — proxy is a fallback only
   const ordered = preferDirect || Boolean(direct) ? [direct, proxied] : [proxied, direct];
   return ordered.filter((url): url is string => Boolean(url));
 };
@@ -79,9 +77,6 @@ const prepareVideoElement = (video: HTMLVideoElement) => {
 };
 
 export const TargetFrameVideo = ({
-  host,
-  targetEntity,
-  aspectRatio,
   primaryUrl,
   fallbackUrl,
   active,
@@ -91,15 +86,13 @@ export const TargetFrameVideo = ({
   onPlay,
   onError,
   onEnded,
-  onExitFullscreen,
+  onClose,
 }: TargetFrameVideoProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const onPlayRef = useRef(onPlay);
   const onErrorRef = useRef(onError);
   const onEndedRef = useRef(onEnded);
   const hasNotifiedPlayRef = useRef(false);
-  const lastTapRef = useRef(0);
-  const [bounds, setBounds] = useState<TargetScreenBounds | null>(null);
   const [needsTap, setNeedsTap] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -114,7 +107,6 @@ export const TargetFrameVideo = ({
   const enableSound = useCallback(() => {
     const video = videoRef.current;
     if (!video) return false;
-
     video.muted = false;
     video.volume = 1;
     setSoundOn(true);
@@ -134,9 +126,7 @@ export const TargetFrameVideo = ({
       if (!video || video.videoWidth === 0) return false;
 
       video.muted = !withSound;
-      if (withSound) {
-        video.volume = 1;
-      }
+      if (withSound) video.volume = 1;
 
       try {
         await video.play();
@@ -160,11 +150,9 @@ export const TargetFrameVideo = ({
         return false;
       }
 
-      if (withSound && !video.muted) {
-        setSoundOn(true);
-      }
-
+      if (withSound && !video.muted) setSoundOn(true);
       setNeedsTap(false);
+      setIsPlaying(true);
       notifyPlay();
       return true;
     },
@@ -174,9 +162,7 @@ export const TargetFrameVideo = ({
   const loadAndPlay = useCallback(
     async (sources: string[]) => {
       const video = videoRef.current;
-      if (!video || !sources.length) {
-        throw new Error('No video source');
-      }
+      if (!video || !sources.length) throw new Error('No video source');
 
       prepareVideoElement(video);
       video.muted = true;
@@ -263,190 +249,106 @@ export const TargetFrameVideo = ({
     const video = videoRef.current;
     if (!video) return;
     video.loop = mode === 'frame';
-    if (mode === 'fullscreen' && isPlaying) {
-      enableSound();
-      void video.play().catch(() => undefined);
-    }
-  }, [mode, isPlaying, enableSound]);
+  }, [mode]);
 
   useEffect(() => {
-    if (!active || mode !== 'frame' || !host || !targetEntity) {
-      setBounds(null);
-      return undefined;
-    }
+    const video = videoRef.current;
+    if (!video || !active) return;
 
-    let frameId = 0;
-
-    const tick = () => {
-      setBounds(getTargetScreenBounds(host, targetEntity, aspectRatio));
-      frameId = window.requestAnimationFrame(tick);
+    const onPlayEvt = () => setIsPlaying(true);
+    const onPauseEvt = () => setIsPlaying(false);
+    video.addEventListener('play', onPlayEvt);
+    video.addEventListener('pause', onPauseEvt);
+    return () => {
+      video.removeEventListener('play', onPlayEvt);
+      video.removeEventListener('pause', onPauseEvt);
     };
+  }, [active]);
 
-    frameId = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(frameId);
-  }, [active, mode, host, targetEntity, aspectRatio]);
+  const handleTogglePlay = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) {
+      void tryPlay(soundOn);
+      return;
+    }
+    video.pause();
+    setIsPlaying(false);
+  }, [tryPlay, soundOn]);
 
-  const handleDoubleTap = useCallback(() => {
-    if (!isPlaying && !needsTap) return;
+  const handleToggleMute = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (soundOn) {
+      video.muted = true;
+      setSoundOn(false);
+      return;
+    }
     enableSound();
-    onModeChange('fullscreen');
-  }, [isPlaying, needsTap, enableSound, onModeChange]);
+    if (video.paused) void video.play().catch(() => undefined);
+  }, [soundOn, enableSound]);
 
-  const handleTap = useCallback(
-    (event: React.MouseEvent | React.TouchEvent) => {
-      if ('detail' in event && event.detail === 2) {
-        handleDoubleTap();
-        return;
-      }
-
-      const now = Date.now();
-      if (now - lastTapRef.current < DOUBLE_TAP_MS) {
-        handleDoubleTap();
-        lastTapRef.current = 0;
-        return;
-      }
-      lastTapRef.current = now;
-
-      if (isPlaying && !soundOn) {
-        enableSound();
-        void videoRef.current?.play().catch(() => undefined);
-      }
-    },
-    [handleDoubleTap, isPlaying, soundOn, enableSound],
-  );
-
-  const handleTapPlay = useCallback(() => {
-    void tryPlay(true);
-  }, [tryPlay]);
-
-  const handleSoundToggle = useCallback(
-    (event: React.MouseEvent) => {
-      event.stopPropagation();
-      if (soundOn) {
-        const video = videoRef.current;
-        if (video) video.muted = true;
-        setSoundOn(false);
-        return;
-      }
-      enableSound();
-      void videoRef.current?.play().catch(() => undefined);
-    },
-    [soundOn, enableSound],
-  );
+  const handleToggleFullscreen = useCallback(() => {
+    onModeChange(mode === 'fullscreen' ? 'frame' : 'fullscreen');
+  }, [mode, onModeChange]);
 
   if (!active) return null;
 
-  // When projection isn't ready (or target briefly lost), keep a visible centered frame
-  // so iOS can autoplay and the guest still sees the clip.
-  const hostW = host?.clientWidth ?? 0;
-  const hostH = host?.clientHeight ?? 0;
-  const fallbackFrame =
-    hostW > 0 && hostH > 0
-      ? {
-          left: hostW * 0.08,
-          top: hostH * 0.22,
-          width: hostW * 0.84,
-          height: Math.min(hostH * 0.5, hostW * 0.84 * Math.max(aspectRatio, 0.5)),
-          visible: true,
-        }
-      : null;
-  const layoutBounds = bounds?.visible ? bounds : fallbackFrame;
-  const showFrame = mode === 'frame' && Boolean(layoutBounds) && !loading;
   const showFullscreen = mode === 'fullscreen';
-
-  const frameStyle =
-    showFrame && layoutBounds
-      ? {
-          left: layoutBounds.left,
-          top: layoutBounds.top,
-          width: layoutBounds.width,
-          height: layoutBounds.height,
-        }
-      : showFullscreen
-        ? { inset: 0, width: '100%', height: '100%' }
-        : {
-            left: fallbackFrame?.left ?? hostW * 0.08,
-            top: fallbackFrame?.top ?? hostH * 0.22,
-            width: fallbackFrame?.width ?? Math.max(hostW * 0.84, 160),
-            height: fallbackFrame?.height ?? 240,
-          };
+  const showControls = !loading;
 
   return (
     <div
-      className={`pointer-events-auto absolute overflow-hidden ${
-        showFullscreen
-          ? 'ar-target-video-fullscreen inset-0 z-[40] flex flex-col bg-black'
-          : 'ar-target-video-frame z-[25] rounded-sm shadow-lg'
-      } ${showFrame || showFullscreen || loading ? '' : 'opacity-0'}`}
-      style={frameStyle}
-      onClick={showFrame || showFullscreen ? handleTap : undefined}
-      onTouchEnd={showFrame || showFullscreen ? handleTap : undefined}
+      className={`ar-video-shell${showFullscreen ? ' ar-video-shell--fullscreen' : ''}`}
       role="presentation"
     >
-      <video
-        ref={videoRef}
-        className={
-          showFullscreen
-            ? 'h-full w-full flex-1 bg-black object-contain'
-            : 'h-full w-full object-cover'
-        }
-        playsInline
-        muted={!soundOn}
-        autoPlay
-        onEnded={() => {
-          if (mode === 'fullscreen') onEndedRef.current?.();
-        }}
-      />
+      <div className="ar-video-stage">
+        {!showFullscreen ? <div className="ar-video-glow-pulse" aria-hidden /> : null}
+        <div className="ar-video-glow" aria-hidden />
+        <div className="ar-video-media">
+          <video
+            ref={videoRef}
+            playsInline
+            muted={!soundOn}
+            autoPlay
+            onEnded={() => {
+              if (mode === 'fullscreen') onEndedRef.current?.();
+            }}
+          />
+          {needsTap ? (
+            <button type="button" className="ar-video-tap-play" onClick={() => void tryPlay(true)}>
+              Tap to play
+            </button>
+          ) : null}
+        </div>
+      </div>
 
-      {(showFrame || showFullscreen) && needsTap ? (
-        <button
-          type="button"
-          className="absolute inset-0 flex items-center justify-center bg-black/45 text-sm font-semibold text-white"
-          onClick={(event) => {
-            event.stopPropagation();
-            handleTapPlay();
-          }}
-        >
-          Tap to play
-        </button>
-      ) : null}
-
-      {showFullscreen && isPlaying && !soundOn ? (
-        <button
-          type="button"
-          className="absolute inset-x-0 bottom-24 z-[42] mx-auto w-max rounded-full bg-white/90 px-5 py-2.5 text-sm font-semibold text-black"
-          onClick={(event) => {
-            event.stopPropagation();
-            enableSound();
-            void videoRef.current?.play().catch(() => undefined);
-          }}
-        >
-          Tap for sound
-        </button>
-      ) : null}
-
-      {(showFrame || showFullscreen) && isPlaying ? (
-        <button
-          type="button"
-          aria-label={soundOn ? 'Mute video' : 'Unmute video'}
-          className="absolute right-2 top-2 z-[42] flex h-9 w-9 items-center justify-center rounded-full bg-black/65 text-base text-white backdrop-blur-sm"
-          onClick={handleSoundToggle}
-        >
-          {soundOn ? '🔊' : '🔇'}
-        </button>
-      ) : null}
-
-      {showFullscreen ? (
-        <button
-          type="button"
-          className="absolute left-3 top-3 z-[41] rounded-full bg-black/70 px-4 py-2 text-sm font-medium text-white backdrop-blur-sm"
-          onClick={(event) => {
-            event.stopPropagation();
-            onExitFullscreen?.();
-          }}
-        >
-          Back
-        </button>
+      {showControls ? (
+        <div className="ar-video-controls" onClick={(event) => event.stopPropagation()}>
+          <button
+            type="button"
+            className="ar-video-controls__primary"
+            aria-label={isPlaying ? 'Pause' : 'Play'}
+            onClick={handleTogglePlay}
+          >
+            <span className="ar-video-controls__icon">{isPlaying ? '❚❚' : '▶'}</span>
+          </button>
+          <button type="button" aria-label={soundOn ? 'Mute' : 'Unmute'} onClick={handleToggleMute}>
+            <span className="ar-video-controls__icon">{soundOn ? '🔊' : '🔇'}</span>
+          </button>
+          <button
+            type="button"
+            aria-label={showFullscreen ? 'Exit full screen' : 'Full screen'}
+            onClick={handleToggleFullscreen}
+          >
+            {showFullscreen ? 'Exit' : 'Full'}
+          </button>
+          {onClose ? (
+            <button type="button" aria-label="Close video" onClick={onClose}>
+              Done
+            </button>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );

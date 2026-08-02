@@ -96,7 +96,7 @@ export const ScanStatusOverlay = ({
         <p className="mb-0 text-center text-base font-semibold">{message}</p>
 
         {phase === 'done' && status === 'match_found' ? (
-          <p className="mb-0 mt-1 text-center text-xs text-white/65">Opening video…</p>
+          <p className="mb-0 mt-1 text-center text-xs text-white/65">Playing in the frame…</p>
         ) : null}
 
         {status === 'scanning' || status === 'move_closer' ? (
