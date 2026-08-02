@@ -25,6 +25,7 @@ import {
   destroyMindArScene,
   ensureCameraPreviewVisible,
   flipMindArCamera,
+  getMindArSystem,
   isCameraPreviewLive,
   type CameraFacing,
 } from '../utils/mindar-scene';
@@ -709,6 +710,37 @@ export const ARViewer = ({
 
     frameId = window.requestAnimationFrame(tick);
     return () => window.cancelAnimationFrame(frameId);
+  }, [status]);
+
+  useEffect(() => {
+    if (status !== 'scanning' && status !== 'move_closer' && status !== 'loading') {
+      return undefined;
+    }
+
+    const tick = () => {
+      const host = containerRef.current;
+      const system = host ? getMindArSystem(host) : null;
+      const states = system?.controller?.trackingStates ?? [];
+      viewerLog('debug', 'scan heartbeat', {
+        status,
+        matchPercent: matchPercentRef.current,
+        cameraLive: host ? isCameraPreviewLive(host) : false,
+        videoCount: host?.querySelectorAll('video').length ?? 0,
+        scanningEnabled: scanningEnabledRef.current,
+        targetTracked: targetTrackedRef.current,
+        tracking: states.map((state, index) => ({
+          i: index,
+          showing: Boolean(state.showing),
+          isTracking: Boolean(state.isTracking),
+          trackCount: state.trackCount ?? 0,
+          trackMiss: state.trackMiss ?? 0,
+        })),
+      });
+    };
+
+    tick();
+    const timer = window.setInterval(tick, 2500);
+    return () => window.clearInterval(timer);
   }, [status]);
 
   useEffect(() => {
