@@ -10,6 +10,7 @@ interface ScanStatusOverlayProps {
   progress?: number;
   phase?: ViewerPhase;
   scanSeconds?: number;
+  matchPercent?: number;
 }
 
 const SCAN_FAILURE_REASONS = [
@@ -38,6 +39,7 @@ export const ScanStatusOverlay = ({
   progress = 0,
   phase,
   scanSeconds = 0,
+  matchPercent = 0,
 }: ScanStatusOverlayProps) => {
   if (status === 'idle' || status === 'recognized') {
     return null;
@@ -101,7 +103,8 @@ export const ScanStatusOverlay = ({
 
         {status === 'scanning' || status === 'move_closer' ? (
           <p className="mb-0 mt-1 text-center text-xs text-white/65">
-            Fill the on-screen frame with the photo and hold steady. Video opens when matched.
+            Fill the frame and hold steady — match {Math.round(matchPercent)}%. Video plays when
+            locked.
           </p>
         ) : null}
 

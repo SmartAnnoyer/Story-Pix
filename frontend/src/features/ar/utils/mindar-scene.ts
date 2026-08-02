@@ -14,6 +14,12 @@ type MindArImageSystem = {
     dummyRun: (video: HTMLVideoElement) => Promise<void>;
     processVideo: (video: HTMLVideoElement) => void;
     stopProcessVideo: () => void;
+    trackingStates?: Array<{
+      showing?: boolean;
+      isTracking?: boolean;
+      trackCount?: number;
+      trackMiss?: number;
+    }>;
   };
   video?: HTMLVideoElement | null;
   _resize?: () => void;

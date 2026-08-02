@@ -31,6 +31,7 @@ import {
 import { takeHeldCameraStream, releaseHeldCameraStream } from '../utils/camera-permission';
 import { prefetchManifestVideos } from '../utils/video-prefetch';
 import { getTargetAspectRatio } from '../utils/target-projection';
+import { readMatchPercent, smoothMatchPercent } from '../utils/match-confidence';
 import { viewerLog } from '../utils/viewer-debug-log';
 import './ARViewer.css';
 
@@ -109,6 +110,8 @@ export const ARViewer = ({
   const [statusDetail, setStatusDetail] = useState<string | null>(null);
   const [progress, setProgress] = useState(hasPreparedMind ? 0.72 : 0.05);
   const [scanSeconds, setScanSeconds] = useState(0);
+  const [matchPercent, setMatchPercent] = useState(0);
+  const matchPercentRef = useRef(0);
   const [facingMode, setFacingMode] = useState<CameraFacing>(initialFacingMode);
   const [flipping, setFlipping] = useState(false);
   const [sceneGeneration, setSceneGeneration] = useState(0);
@@ -667,7 +670,46 @@ export const ARViewer = ({
     prefetchManifestVideos(albumSlug, targets);
     setProgress((value) => Math.min(0.99, Math.max(value, 0.92 + scanSeconds * 0.002)));
     return undefined;
-  }, [scanSeconds, status, targets]);
+  }, [scanSeconds, status, targets, albumSlug]);
+
+  useEffect(() => {
+    if (status === 'match_found' || status === 'recognized') {
+      matchPercentRef.current = 100;
+      setMatchPercent(100);
+      return undefined;
+    }
+
+    if (status !== 'scanning' && status !== 'move_closer' && status !== 'loading') {
+      matchPercentRef.current = 0;
+      setMatchPercent(0);
+      return undefined;
+    }
+
+    let frameId = 0;
+    let lastTs = 0;
+
+    const tick = (ts: number) => {
+      if (ts - lastTs >= 80) {
+        lastTs = ts;
+        const host = containerRef.current;
+        const raw = readMatchPercent(host);
+        // While confirming a targetFound, nudge toward a locked read.
+        const boosted =
+          targetTrackedRef.current && (status === 'scanning' || status === 'move_closer')
+            ? Math.max(raw, 88)
+            : raw;
+        const next = Math.round(smoothMatchPercent(matchPercentRef.current, boosted));
+        if (next !== matchPercentRef.current) {
+          matchPercentRef.current = next;
+          setMatchPercent(next);
+        }
+      }
+      frameId = window.requestAnimationFrame(tick);
+    };
+
+    frameId = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frameId);
+  }, [status]);
 
   useEffect(() => {
     if (!mindBundle || status !== 'loading') return undefined;
@@ -784,6 +826,7 @@ export const ARViewer = ({
           !activeTarget &&
           (status === 'scanning' || status === 'move_closer' || status === 'loading')
         }
+        matchPercent={matchPercent}
       />
       <TargetFrameVideo
         host={containerRef.current}
@@ -834,6 +877,7 @@ export const ARViewer = ({
         progress={progress}
         phase={viewerPhase}
         scanSeconds={scanSeconds}
+        matchPercent={matchPercent}
       />
       <ViewerControlBar
         showFlip={showControls}
