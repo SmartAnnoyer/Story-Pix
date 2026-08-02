@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { getPrefetchedBlobUrl, resolvePlayableVideoUrl } from '../utils/video-prefetch';
 import { viewerLog } from '../utils/viewer-debug-log';
 import './TargetFrameVideo.css';
@@ -76,10 +77,12 @@ const prepareVideoElement = (video: HTMLVideoElement) => {
   video.setAttribute('webkit-playsinline', '');
   video.playsInline = true;
   video.preload = 'auto';
+  video.controls = true;
   video.volume = 1;
 };
 
 export const TargetFrameVideo = ({
+  host,
   primaryUrl,
   fallbackUrl,
   active,
@@ -101,12 +104,44 @@ export const TargetFrameVideo = ({
   const [loading, setLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [soundOn, setSoundOn] = useState(false);
+  const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
 
   useEffect(() => {
     onPlayRef.current = onPlay;
     onErrorRef.current = onError;
     onEndedRef.current = onEnded;
   }, [onPlay, onError, onEnded]);
+
+  // Hide MindAR camera layer while our overlay is up (iOS often stacks camera above page UI).
+  useEffect(() => {
+    if (!host) return undefined;
+    const videos = host.querySelectorAll('video');
+    videos.forEach((node) => {
+      const el = node as HTMLVideoElement;
+      if (active) {
+        el.dataset.spPrevVisibility = el.style.visibility || '';
+        el.dataset.spPrevOpacity = el.style.opacity || '';
+        el.style.visibility = 'hidden';
+        el.style.opacity = '0';
+      } else if (el.dataset.spPrevVisibility !== undefined) {
+        el.style.visibility = el.dataset.spPrevVisibility;
+        el.style.opacity = el.dataset.spPrevOpacity || '';
+        delete el.dataset.spPrevVisibility;
+        delete el.dataset.spPrevOpacity;
+      }
+    });
+    return () => {
+      videos.forEach((node) => {
+        const el = node as HTMLVideoElement;
+        if (el.dataset.spPrevVisibility !== undefined) {
+          el.style.visibility = el.dataset.spPrevVisibility;
+          el.style.opacity = el.dataset.spPrevOpacity || '';
+          delete el.dataset.spPrevVisibility;
+          delete el.dataset.spPrevOpacity;
+        }
+      });
+    };
+  }, [active, host]);
 
   const enableSound = useCallback(() => {
     const video = videoRef.current;
@@ -121,8 +156,10 @@ export const TargetFrameVideo = ({
     if (hasNotifiedPlayRef.current) return;
     hasNotifiedPlayRef.current = true;
     setIsPlaying(true);
+    // iPhone: force fullscreen overlay so the player can't sit under the camera layer.
+    if (isIOS()) onModeChange('fullscreen');
     onPlayRef.current?.();
-  }, []);
+  }, [onModeChange]);
 
   const tryPlay = useCallback(
     async (withSound = false) => {
@@ -176,11 +213,11 @@ export const TargetFrameVideo = ({
 
       for (const source of uniqueSources) {
         try {
-          // Prefer HTTPS/API URL on iPhone — blob playback often reports ready but paints black.
           const resolved =
             (await resolvePlayableVideoUrl(source, { allowBlob: !isIOS() })) ?? source;
           const blobCached = !isIOS() ? getPrefetchedBlobUrl(source) : null;
           const src = blobCached ?? resolved;
+          setPlaybackUrl(src.startsWith('blob:') ? source : src);
           viewerLog('debug', 'video trying source', {
             blob: src.startsWith('blob:'),
             ios: isIOS(),
@@ -191,19 +228,22 @@ export const TargetFrameVideo = ({
           await waitForVideoReady(video);
           const played = await tryPlay(false);
           if (played) {
-            const rect = video.getBoundingClientRect();
-            viewerLog('info', 'video play ok', {
-              width: video.videoWidth,
-              height: video.videoHeight,
-              paused: video.paused,
-              muted: video.muted,
-              rect: {
-                w: Math.round(rect.width),
-                h: Math.round(rect.height),
-                top: Math.round(rect.top),
-                left: Math.round(rect.left),
-              },
-            });
+            window.setTimeout(() => {
+              const rect = video.getBoundingClientRect();
+              viewerLog('info', 'video play ok', {
+                width: video.videoWidth,
+                height: video.videoHeight,
+                paused: video.paused,
+                muted: video.muted,
+                currentTime: Number(video.currentTime.toFixed(2)),
+                rect: {
+                  w: Math.round(rect.width),
+                  h: Math.round(rect.height),
+                  top: Math.round(rect.top),
+                  left: Math.round(rect.left),
+                },
+              });
+            }, 120);
             return;
           }
           lastError = new Error('play() rejected');
@@ -231,6 +271,7 @@ export const TargetFrameVideo = ({
       setLoading(false);
       setIsPlaying(false);
       setSoundOn(false);
+      setPlaybackUrl(null);
       video.pause();
       video.removeAttribute('src');
       video.load();
@@ -249,7 +290,7 @@ export const TargetFrameVideo = ({
     void loadAndPlay(sources)
       .catch(() => {
         if (!cancelled) {
-          onErrorRef.current?.('Could not play the mapped video. Tap the photo or Try again.');
+          onErrorRef.current?.('Could not play the mapped video. Tap Try again or open the link.');
         }
       })
       .finally(() => {
@@ -308,28 +349,82 @@ export const TargetFrameVideo = ({
     onModeChange(mode === 'fullscreen' ? 'frame' : 'fullscreen');
   }, [mode, onModeChange]);
 
-  if (!active) return null;
+  if (!active || typeof document === 'undefined') return null;
 
   const showFullscreen = mode === 'fullscreen';
   const showControls = !loading;
 
-  return (
+  return createPortal(
     <div
       className={`ar-video-shell${showFullscreen ? ' ar-video-shell--fullscreen' : ''}`}
-      role="presentation"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 10040,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: showFullscreen ? 'stretch' : 'center',
+        gap: showFullscreen ? 0 : 12,
+        padding: showFullscreen ? 0 : '16px 16px 88px',
+        background: showFullscreen ? '#000' : 'rgba(0,0,0,0.78)',
+        pointerEvents: 'auto',
+      }}
+      role="dialog"
+      aria-label={title ? `Playing ${title}` : 'Playing mapped video'}
     >
-      {!showFullscreen && title ? (
-        <p className="ar-video-nowplaying">Now playing · {title}</p>
-      ) : null}
-      <div className="ar-video-stage">
+      <p
+        className="ar-video-nowplaying"
+        style={{
+          margin: 0,
+          padding: '8px 14px',
+          borderRadius: 999,
+          background: 'rgba(138,43,226,0.9)',
+          color: '#fff',
+          fontSize: 13,
+          fontWeight: 700,
+        }}
+      >
+        {loading ? 'Loading video…' : `Now playing${title ? ` · ${title}` : ''}`}
+      </p>
+
+      <div
+        className="ar-video-stage"
+        style={{
+          position: 'relative',
+          width: showFullscreen ? '100%' : 'min(86vw, 360px)',
+          maxHeight: showFullscreen ? 'none' : 'min(62vh, 520px)',
+          aspectRatio: showFullscreen ? undefined : '3 / 4',
+          flex: showFullscreen ? 1 : undefined,
+          minHeight: showFullscreen ? 0 : undefined,
+          border: showFullscreen ? 'none' : '3px solid #FF4FA3',
+          borderRadius: showFullscreen ? 0 : 16,
+          overflow: 'hidden',
+          background: '#000',
+          boxShadow: showFullscreen
+            ? 'none'
+            : '0 0 0 9999px rgba(0,0,0,0.35), 0 0 28px rgba(255,79,163,0.45)',
+        }}
+      >
         {!showFullscreen ? <div className="ar-video-glow-pulse" aria-hidden /> : null}
-        <div className="ar-video-glow" aria-hidden />
-        <div className="ar-video-media">
+        {!showFullscreen ? <div className="ar-video-glow" aria-hidden /> : null}
+        <div
+          className="ar-video-media"
+          style={{ position: 'absolute', inset: 0, zIndex: 2, background: '#000' }}
+        >
           <video
             ref={videoRef}
             playsInline
+            controls
             muted={!soundOn}
             autoPlay
+            style={{
+              display: 'block',
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
+              background: '#000',
+            }}
             onEnded={() => {
               if (mode === 'fullscreen') onEndedRef.current?.();
             }}
@@ -362,6 +457,27 @@ export const TargetFrameVideo = ({
           >
             {showFullscreen ? 'Exit' : 'Full'}
           </button>
+          {playbackUrl ? (
+            <a
+              href={playbackUrl}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                height: '2.5rem',
+                padding: '0 0.85rem',
+                borderRadius: 999,
+                background: 'rgba(255,255,255,0.12)',
+                color: '#fff',
+                fontSize: 12,
+                fontWeight: 600,
+                textDecoration: 'none',
+              }}
+            >
+              Open
+            </a>
+          ) : null}
           {onClose ? (
             <button type="button" aria-label="Close video" onClick={onClose}>
               Done
@@ -369,6 +485,7 @@ export const TargetFrameVideo = ({
           ) : null}
         </div>
       ) : null}
-    </div>
+    </div>,
+    document.body,
   );
 };

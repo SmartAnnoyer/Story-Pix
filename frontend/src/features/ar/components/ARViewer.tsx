@@ -874,10 +874,9 @@ export const ARViewer = ({
         mode={videoMode}
         onModeChange={setVideoMode}
         onPlay={() => {
-          setVideoMode('frame');
           viewerLog('info', 'video playing', {
             target: activeTarget?.targetName,
-            mode: 'frame',
+            mode: videoModeRef.current,
           });
           setStatus('recognized');
           setStatusDetail(null);
