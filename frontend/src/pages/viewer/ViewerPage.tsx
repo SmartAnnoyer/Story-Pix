@@ -17,8 +17,7 @@ import {
 import type { CameraFacing } from '@/features/ar/utils/mindar-scene';
 import { getErrorMessage } from '@/api/client';
 import { ViewerErrorState } from './ViewerErrorState';
-import { ViewerDebugPanel } from '@/features/ar/components/ViewerDebugPanel';
-import { installViewerLogCapture, viewerLog } from '@/features/ar/utils/viewer-debug-log';
+import { viewerLog } from '@/features/ar/utils/viewer-debug-log';
 
 const buildInitialWarmup = (albumSlug: string): WarmupProgress => {
   const cachedRaw = readCachedManifest(albumSlug);
@@ -54,7 +53,6 @@ export const ViewerPage = () => {
   useEffect(() => {
     preloadViewerScripts();
     dismissViewerBootSplash();
-    return installViewerLogCapture();
   }, []);
 
   useEffect(() => {
@@ -107,13 +105,10 @@ export const ViewerPage = () => {
 
   if (warmup.stage === 'error' && !warmup.manifest) {
     return (
-      <>
-        <ViewerErrorState
-          title="Album unavailable"
-          message={warmup.error ?? 'This album is not published.'}
-        />
-        <ViewerDebugPanel />
-      </>
+      <ViewerErrorState
+        title="Album unavailable"
+        message={warmup.error ?? 'This album is not published.'}
+      />
     );
   }
 
@@ -122,41 +117,32 @@ export const ViewerPage = () => {
 
   if (!started) {
     return (
-      <>
-        <ViewerWelcomeScreen
-          albumSlug={albumSlug}
-          manifest={manifest}
-          warmup={warmup}
-          starting={starting}
-          onStart={handleStart}
-        />
-        <ViewerDebugPanel />
-      </>
+      <ViewerWelcomeScreen
+        albumSlug={albumSlug}
+        manifest={manifest}
+        warmup={warmup}
+        starting={starting}
+        onStart={handleStart}
+      />
     );
   }
 
   if (!hasTargets) {
     return (
-      <>
-        <ViewerErrorState
-          variant="warning"
-          title="No AR mappings yet"
-          message="Publish at least one photo–video mapping for this album, then reopen this link."
-        />
-        <ViewerDebugPanel />
-      </>
+      <ViewerErrorState
+        variant="warning"
+        title="No AR mappings yet"
+        message="Publish at least one photo–video mapping for this album, then reopen this link."
+      />
     );
   }
 
   return (
-    <>
-      <ARViewer
-        albumSlug={albumSlug}
-        manifest={manifest!}
-        prefetchedMindBundle={warmup.mindBundle}
-        initialFacingMode={facingMode}
-      />
-      <ViewerDebugPanel />
-    </>
+    <ARViewer
+      albumSlug={albumSlug}
+      manifest={manifest!}
+      prefetchedMindBundle={warmup.mindBundle}
+      initialFacingMode={facingMode}
+    />
   );
 };
