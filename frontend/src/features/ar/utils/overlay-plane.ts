@@ -25,6 +25,7 @@ type ThreeRuntime = {
     position: { set: (x: number, y: number, z: number) => void };
     renderOrder: number;
     visible: boolean;
+    frustumCulled: boolean;
     geometry: { dispose: () => void };
     material: { map: { dispose: () => void } | null; dispose: () => void };
   };
@@ -116,13 +117,15 @@ export const attachOverlayVideoPlane = (
       new THREE.MeshBasicMaterial({
         map: texture,
         side: THREE.DoubleSide,
-        depthTest: true,
-        depthWrite: true,
+        depthTest: false,
+        depthWrite: false,
       }),
     );
     mesh.name = MESH_NAME;
     mesh.position.set(pose.x, pose.y, pose.z);
-    mesh.renderOrder = 20;
+    mesh.renderOrder = 999;
+    mesh.frustumCulled = false;
+    mesh.visible = true;
     object3D.add(mesh);
     return true;
   } catch {

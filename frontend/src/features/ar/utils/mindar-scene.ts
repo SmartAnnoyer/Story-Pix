@@ -34,7 +34,7 @@ export const getMindArSystem = (host: HTMLElement): MindArImageSystem | null => 
   return scene?.systems?.['mindar-image-system'] ?? null;
 };
 
-/** Tracking-only MindAR scene. Video plays via HTML overlay (no WebGL video planes). */
+/** Image-tracked overlay: camera feed below, transparent WebGL canvas with the mapped plane. */
 export const buildMindArScene = (
   host: HTMLElement,
   options: {
@@ -65,7 +65,7 @@ export const buildMindArScene = (
     'renderer',
     'alpha: true; colorManagement: true; physicallyCorrectLights: true',
   );
-  scene.setAttribute('background', 'transparent');
+  scene.removeAttribute('background');
   scene.setAttribute('vr-mode-ui', 'enabled: false');
   scene.setAttribute('device-orientation-permission-ui', 'enabled: false');
   scene.dataset.cameraFacing = options.facingMode ?? 'environment';
@@ -110,56 +110,56 @@ export const getCameraVideo = (host: HTMLElement): HTMLVideoElement | null => {
   return (host.querySelector('video') as HTMLVideoElement | null) ?? null;
 };
 
-const CAMERA_PREVIEW_ID = 'sp-camera-preview';
-const PLAYING_CLASS = 'ar-scene-host--playing';
+/** Keep the live camera <video> visible. WebGL is transparent so the mapped plane shows on the photo. */
+export const ensureTransparentRenderer = (host: HTMLElement): void => {
+  const scene = host.querySelector('a-scene') as
+    | (HTMLElement & {
+        renderer?: {
+          setClearColor: (color: number, alpha: number) => void;
+          setClearAlpha?: (alpha: number) => void;
+        };
+        object3D?: { background: unknown };
+        canvas?: HTMLCanvasElement;
+      })
+    | null;
+  if (!scene) return;
 
-const paintCameraToCanvas = (host: HTMLElement, video: HTMLVideoElement): void => {
-  let canvas = host.querySelector(`#${CAMERA_PREVIEW_ID}`) as HTMLCanvasElement | null;
-  if (!canvas) {
-    canvas = document.createElement('canvas');
-    canvas.id = CAMERA_PREVIEW_ID;
-    canvas.setAttribute('aria-hidden', 'true');
-    host.appendChild(canvas);
+  scene.removeAttribute('background');
+  if (scene.object3D) scene.object3D.background = null;
+  scene.renderer?.setClearColor(0x000000, 0);
+  scene.renderer?.setClearAlpha?.(0);
+  if (scene.canvas) {
+    scene.canvas.style.background = 'transparent';
+    scene.canvas.style.backgroundColor = 'transparent';
   }
 
-  if (canvas.dataset.spPainting === '1') return;
-  canvas.dataset.spPainting = '1';
+  const cameraEl = host.querySelector('a-camera') as
+    | (HTMLElement & {
+        getObject3D?: (type: string) => { near: number; updateProjectionMatrix: () => void };
+      })
+    | null;
+  const camera = cameraEl?.getObject3D?.('camera');
+  if (camera && camera.near > 0.05) {
+    camera.near = 0.01;
+    camera.updateProjectionMatrix();
+  }
 
-  const paint = () => {
-    if (!canvas.isConnected) {
-      canvas.dataset.spPainting = '0';
+  if (host.dataset.spClearLoop === '1') return;
+  host.dataset.spClearLoop = '1';
+  const keepTransparent = () => {
+    if (!host.isConnected) {
+      host.dataset.spClearLoop = '0';
       return;
     }
-    if (!host.classList.contains(PLAYING_CLASS) || !host.contains(video)) {
-      canvas.dataset.spPainting = '0';
-      return;
-    }
-    if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0) {
-      const cssW = Math.max(1, canvas.clientWidth || host.clientWidth);
-      const cssH = Math.max(1, canvas.clientHeight || host.clientHeight);
-      if (canvas.width !== cssW) canvas.width = cssW;
-      if (canvas.height !== cssH) canvas.height = cssH;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        const scale = Math.max(cssW / video.videoWidth, cssH / video.videoHeight);
-        const drawW = video.videoWidth * scale;
-        const drawH = video.videoHeight * scale;
-        ctx.drawImage(video, (cssW - drawW) / 2, (cssH - drawH) / 2, drawW, drawH);
-      }
-    }
-    window.requestAnimationFrame(paint);
+    const live = host.querySelector('a-scene') as typeof scene;
+    live?.renderer?.setClearColor(0x000000, 0);
+    live?.renderer?.setClearAlpha?.(0);
+    window.requestAnimationFrame(keepTransparent);
   };
-
-  window.requestAnimationFrame(paint);
+  window.requestAnimationFrame(keepTransparent);
 };
 
-/** While mapped video plays, camera <video> stays for tracking but preview is a canvas. */
-export const setOverlayPlaybackActive = (host: HTMLElement, active: boolean): void => {
-  host.classList.toggle(PLAYING_CLASS, active);
-  ensureCameraPreviewVisible(host);
-};
-
-/** Style and play the MindAR camera feed (must sit above the hidden tracking canvas). */
+/** Style and play the MindAR camera feed under a transparent tracking canvas. */
 export const ensureCameraPreviewVisible = (host: HTMLElement): HTMLVideoElement | null => {
   const video = getCameraVideo(host);
   if (!video) return null;
@@ -174,21 +174,15 @@ export const ensureCameraPreviewVisible = (host: HTMLElement): HTMLVideoElement 
   video.style.height = '100%';
   video.style.position = 'absolute';
   video.style.inset = '0';
+  video.style.opacity = '1';
+  video.style.zIndex = '1';
   video.style.pointerEvents = 'none';
-
-  if (host.classList.contains(PLAYING_CLASS)) {
-    video.style.opacity = '0';
-    video.style.zIndex = '-10';
-    paintCameraToCanvas(host, video);
-  } else {
-    video.style.opacity = '1';
-    video.style.zIndex = '2';
-  }
 
   if (video.paused) {
     void video.play().catch(() => undefined);
   }
 
+  ensureTransparentRenderer(host);
   return video;
 };
 

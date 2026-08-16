@@ -5,14 +5,13 @@ import {
   DEFAULT_OVERLAY_FRAME,
   type OverlayFrame,
 } from '../utils/overlay-frame';
-import {
-  getOverlayQuadScreenCorners,
-  installPoseCapture,
-  quadToCssMatrix3d,
-  type OverlayQuad,
-} from '../utils/target-projection';
 import { getPlaybackVideoElement } from '../utils/camera-permission';
-import { setOverlayPlaybackActive } from '../utils/mindar-scene';
+import { ensureTransparentRenderer } from '../utils/mindar-scene';
+import {
+  attachOverlayVideoPlane,
+  detachOverlayVideoPlane,
+  setOverlayVideoPlaneVisible,
+} from '../utils/overlay-plane';
 import { getPrefetchedBlobUrl, resolvePlayableVideoUrl } from '../utils/video-prefetch';
 import { viewerLog } from '../utils/viewer-debug-log';
 import './TargetFrameVideo.css';
@@ -113,7 +112,6 @@ export const TargetFrameVideo = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const mediaRef = useRef<HTMLDivElement>(null);
-  const lastQuadRef = useRef<OverlayQuad | null>(null);
   const onPlayRef = useRef(onPlay);
   const onErrorRef = useRef(onError);
   const onEndedRef = useRef(onEnded);
@@ -143,6 +141,8 @@ export const TargetFrameVideo = ({
     video.playsInline = true;
     video.controls = false;
     video.autoplay = true;
+    video.setAttribute('crossorigin', 'anonymous');
+    video.crossOrigin = 'anonymous';
     video.style.position = 'absolute';
     video.style.inset = '0';
     video.style.left = '';
@@ -152,7 +152,7 @@ export const TargetFrameVideo = ({
     video.style.display = 'block';
     video.style.objectFit = mode === 'fullscreen' ? 'contain' : 'fill';
     video.style.background = '#000';
-    video.style.opacity = '1';
+    video.style.opacity = mode === 'fullscreen' ? '1' : '0.02';
     video.style.visibility = 'visible';
     video.style.zIndex = '2';
     video.style.pointerEvents = 'none';
@@ -171,176 +171,56 @@ export const TargetFrameVideo = ({
     };
   }, [active, mode]);
 
-  // Camera <video> cannot stay visible while the mapped clip plays — mobile browsers
-  // only paint one video. Preview the camera on a canvas instead.
-  useEffect(() => {
-    if (!host) return undefined;
-    const overlaying = active && mode === 'frame';
-    setOverlayPlaybackActive(host, overlaying);
-    const preview = host.querySelector('#sp-camera-preview') as HTMLElement | null;
-    if (preview) {
-      preview.style.visibility = active && mode === 'fullscreen' ? 'hidden' : '';
-    }
-    return () => {
-      setOverlayPlaybackActive(host, false);
-      if (preview) preview.style.visibility = '';
-    };
-  }, [active, host, mode]);
-
   useEffect(() => {
     if (!active || mode === 'fullscreen') {
+      setOverlayVideoPlaneVisible(targetEntity, false);
       return undefined;
     }
 
+    const video = videoRef.current;
+    const entity = targetEntity;
+    if (!video || !entity) return undefined;
+
     const frame = clampOverlayFrame(overlayFrame ?? DEFAULT_OVERLAY_FRAME);
-    const SRC = 400;
-    const SMOOTH = 0.42;
-    const SNAP_PX = 140;
-
-    const parkStage = () => {
+    const parkHtmlStage = () => {
       const el = stageRef.current;
       if (!el) return;
       el.style.position = 'fixed';
-      el.style.left = '-2px';
-      el.style.top = '-2px';
-      el.style.width = '2px';
-      el.style.height = '2px';
+      el.style.left = '-4px';
+      el.style.top = '-4px';
+      el.style.width = '4px';
+      el.style.height = '4px';
+      el.style.opacity = '0.04';
+      el.style.visibility = 'visible';
       el.style.transform = 'none';
-      el.style.visibility = 'visible';
-      el.style.opacity = '0';
+      el.style.zIndex = '1';
     };
+    parkHtmlStage();
+    if (host) ensureTransparentRenderer(host);
 
-    const isUsableQuad = (quad: OverlayQuad) => {
-      if (!quad.visible) return false;
-      const xs = quad.corners.map((point) => point.x);
-      const ys = quad.corners.map((point) => point.y);
-      const width = Math.max(...xs) - Math.min(...xs);
-      const height = Math.max(...ys) - Math.min(...ys);
-      const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
-      const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
-      return (
-        width >= 16 &&
-        height >= 16 &&
-        width < window.innerWidth * 3 &&
-        height < window.innerHeight * 3 &&
-        cx > -width &&
-        cx < window.innerWidth + width &&
-        cy > -height &&
-        cy < window.innerHeight + height
-      );
-    };
-
-    const smoothQuad = (next: OverlayQuad): OverlayQuad => {
-      const previous = lastQuadRef.current;
-      if (!previous) return next;
-      const prevCx =
-        (previous.corners[0].x +
-          previous.corners[1].x +
-          previous.corners[2].x +
-          previous.corners[3].x) /
-        4;
-      const nextCx =
-        (next.corners[0].x + next.corners[1].x + next.corners[2].x + next.corners[3].x) / 4;
-      const prevCy =
-        (previous.corners[0].y +
-          previous.corners[1].y +
-          previous.corners[2].y +
-          previous.corners[3].y) /
-        4;
-      const nextCy =
-        (next.corners[0].y + next.corners[1].y + next.corners[2].y + next.corners[3].y) / 4;
-      if (Math.hypot(nextCx - prevCx, nextCy - prevCy) > SNAP_PX) return next;
-      return {
-        visible: true,
-        corners: next.corners.map((point, index) => ({
-          x: previous.corners[index].x + (point.x - previous.corners[index].x) * SMOOTH,
-          y: previous.corners[index].y + (point.y - previous.corners[index].y) * SMOOTH,
-        })) as OverlayQuad['corners'],
-      };
-    };
-
-    const applyBox = (box: { left: number; top: number; width: number; height: number }) => {
-      const el = stageRef.current;
-      if (!el) return;
-      el.style.position = 'fixed';
-      el.style.left = `${Math.round(box.left)}px`;
-      el.style.top = `${Math.round(box.top)}px`;
-      el.style.width = `${Math.round(box.width)}px`;
-      el.style.height = `${Math.round(box.height)}px`;
-      el.style.transformOrigin = '0 0';
-      el.style.transform = 'none';
-      el.style.visibility = 'visible';
-      el.style.opacity = '1';
-      el.style.zIndex = '10080';
-      el.style.background = '#000';
-    };
-
-    const applyQuad = (quad: OverlayQuad) => {
-      const el = stageRef.current;
-      if (!el) return;
-      const matrix = quadToCssMatrix3d(SRC, SRC, quad.corners);
-      el.style.position = 'fixed';
-      el.style.visibility = 'visible';
-      el.style.opacity = '1';
-      el.style.zIndex = '10080';
-      el.style.background = '#000';
-      el.style.transformOrigin = '0 0';
-      if (matrix) {
-        el.style.left = '0px';
-        el.style.top = '0px';
-        el.style.width = `${SRC}px`;
-        el.style.height = `${SRC}px`;
-        el.style.transform = matrix;
+    let cancelled = false;
+    let attempts = 0;
+    const tryAttach = () => {
+      if (cancelled) return;
+      video.setAttribute('crossorigin', 'anonymous');
+      video.crossOrigin = 'anonymous';
+      const attached = attachOverlayVideoPlane(entity, video, frame, aspectRatio);
+      if (attached) {
+        setOverlayVideoPlaneVisible(entity, true);
+        viewerLog('info', 'AR video plane attached to mapped frame');
         return;
       }
-      const xs = quad.corners.map((point) => point.x);
-      const ys = quad.corners.map((point) => point.y);
-      applyBox({
-        left: Math.min(...xs),
-        top: Math.min(...ys),
-        width: Math.max(...xs) - Math.min(...xs),
-        height: Math.max(...ys) - Math.min(...ys),
-      });
+      attempts += 1;
+      if (attempts < 40) window.setTimeout(tryAttach, 120);
+      else viewerLog('warn', 'could not attach AR video plane');
     };
 
-    parkStage();
-
-    let raf = 0;
-    let locked = false;
-    const tick = () => {
-      if (host && targetEntity) {
-        installPoseCapture(targetEntity);
-        const pose = getOverlayQuadScreenCorners(host, targetEntity, aspectRatio, frame);
-        if (pose && isUsableQuad(pose)) {
-          const smoothed = smoothQuad(pose);
-          if (!locked) {
-            locked = true;
-            viewerLog('info', 'overlay pose locked to selected frame', {
-              x: Math.round(smoothed.corners[0].x),
-              y: Math.round(smoothed.corners[0].y),
-            });
-            void videoRef.current?.play().catch(() => undefined);
-          }
-          lastQuadRef.current = smoothed;
-          applyQuad(smoothed);
-        } else if (lastQuadRef.current && isUsableQuad(lastQuadRef.current)) {
-          applyQuad(lastQuadRef.current);
-        } else {
-          parkStage();
-        }
-      } else {
-        parkStage();
-      }
-      raf = window.requestAnimationFrame(tick);
+    tryAttach();
+    return () => {
+      cancelled = true;
+      detachOverlayVideoPlane(entity);
     };
-
-    raf = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(raf);
-  }, [active, mode, host, targetEntity, aspectRatio, overlayFrame]);
-
-  useEffect(() => {
-    if (!active) lastQuadRef.current = null;
-  }, [active]);
+  }, [active, mode, host, targetEntity, overlayFrame, aspectRatio, playbackUrl]);
 
   useEffect(() => {
     if (mode !== 'fullscreen' || !stageRef.current) return;
@@ -349,6 +229,7 @@ export const TargetFrameVideo = ({
     stageRef.current.style.width = '';
     stageRef.current.style.height = '';
     stageRef.current.style.transform = '';
+    stageRef.current.style.opacity = '1';
     stageRef.current.style.visibility = '';
   }, [mode]);
 
@@ -426,7 +307,8 @@ export const TargetFrameVideo = ({
       const video = videoRef.current;
       if (!video || !sources.length) throw new Error('No video source');
 
-      video.removeAttribute('crossorigin');
+      video.crossOrigin = 'anonymous';
+      video.setAttribute('crossorigin', 'anonymous');
       video.setAttribute('playsinline', '');
       video.setAttribute('webkit-playsinline', '');
       video.playsInline = true;

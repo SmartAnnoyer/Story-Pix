@@ -1,5 +1,5 @@
-/* MindAR attaches the camera <video> as a sibling of <a-scene> (default z-index: -2).
-   The WebGL canvas is tracking-only — hide it and let the camera feed fill the screen. */
+/* Camera feed fills the screen. The A-Frame canvas is transparent and only draws
+   the mapped video plane on the tracked photo. */
 html.viewer-route,
 html.viewer-route body,
 html.viewer-route #root {
@@ -19,29 +19,10 @@ html.viewer-route #root {
   inset: 0 !important;
   width: 100% !important;
   height: 100% !important;
-  z-index: 2 !important;
+  z-index: 1 !important;
   opacity: 1 !important;
   object-fit: cover !important;
   pointer-events: none;
-}
-
-.ar-scene-host--playing > video {
-  opacity: 0 !important;
-  z-index: -10 !important;
-}
-
-.ar-scene-host > #sp-camera-preview {
-  display: none;
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 1;
-  pointer-events: none;
-}
-
-.ar-scene-host--playing > #sp-camera-preview {
-  display: block;
 }
 
 .ar-scene-host > a-scene {
@@ -49,15 +30,15 @@ html.viewer-route #root {
   inset: 0 !important;
   width: 100% !important;
   height: 100% !important;
-  z-index: 0 !important;
+  z-index: 2 !important;
   background: transparent !important;
   pointer-events: none !important;
 }
 
 .ar-scene-host .a-canvas {
-  opacity: 0 !important;
   background: transparent !important;
-  pointer-events: none;
+  opacity: 1 !important;
+  pointer-events: none !important;
 }
 
 .ar-video-overlay,
