@@ -13,6 +13,7 @@ import { withViewerMediaProxies } from '@/features/ar/utils/viewer-media-proxy';
 import {
   primeCameraPermission,
   releaseHeldCameraStream,
+  unlockPlaybackAudio,
 } from '@/features/ar/utils/camera-permission';
 import type { CameraFacing } from '@/features/ar/utils/mindar-scene';
 import { getErrorMessage } from '@/api/client';
@@ -83,6 +84,7 @@ export const ViewerPage = () => {
     if (starting || started) return;
     setStarting(true);
     viewerLog('info', 'Open camera tapped — priming permission');
+    unlockPlaybackAudio();
 
     const permission = await primeCameraPermission('environment');
     if (!permission.ok) {

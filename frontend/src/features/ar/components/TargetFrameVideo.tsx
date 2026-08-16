@@ -5,7 +5,11 @@ import {
   DEFAULT_OVERLAY_FRAME,
   type OverlayFrame,
 } from '../utils/overlay-frame';
-import { getOverlayAabbViewport, getFallbackFrameBox } from '../utils/target-projection';
+import {
+  getOverlayQuadScreenCorners,
+  quadToCssMatrix3d,
+  type OverlayQuad,
+} from '../utils/target-projection';
 import { getPrefetchedBlobUrl, resolvePlayableVideoUrl } from '../utils/video-prefetch';
 import { viewerLog } from '../utils/viewer-debug-log';
 import './TargetFrameVideo.css';
@@ -104,7 +108,7 @@ export const TargetFrameVideo = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
-  const lastBoxRef = useRef(getFallbackFrameBox());
+  const lastQuadRef = useRef<OverlayQuad | null>(null);
   const onPlayRef = useRef(onPlay);
   const onErrorRef = useRef(onError);
   const onEndedRef = useRef(onEnded);
@@ -112,8 +116,8 @@ export const TargetFrameVideo = ({
   const [needsTap, setNeedsTap] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [soundOn, setSoundOn] = useState(false);
-  const soundOnRef = useRef(false);
+  const [soundOn, setSoundOn] = useState(true);
+  const soundOnRef = useRef(true);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -160,6 +164,7 @@ export const TargetFrameVideo = ({
     }
 
     const frame = clampOverlayFrame(overlayFrame ?? DEFAULT_OVERLAY_FRAME);
+    const SRC = 160;
 
     const paintCanvas = () => {
       const video = videoRef.current;
@@ -186,26 +191,46 @@ export const TargetFrameVideo = ({
       ctx.drawImage(video, (pixelW - drawW) / 2, (pixelH - drawH) / 2, drawW, drawH);
     };
 
-    const applyBox = (box: { left: number; top: number; width: number; height: number }) => {
+    const applyQuad = (quad: OverlayQuad) => {
       const el = stageRef.current;
       if (!el) return;
-      el.style.left = `${Math.round(box.left)}px`;
-      el.style.top = `${Math.round(box.top)}px`;
-      el.style.width = `${Math.round(box.width)}px`;
-      el.style.height = `${Math.round(box.height)}px`;
-      el.style.transform = 'none';
+      const matrix = quadToCssMatrix3d(SRC, SRC, quad.corners);
+      el.style.position = 'fixed';
+      el.style.left = '0px';
+      el.style.top = '0px';
+      el.style.width = `${SRC}px`;
+      el.style.height = `${SRC}px`;
+      el.style.transformOrigin = '0 0';
       el.style.visibility = 'visible';
+      if (matrix) {
+        el.style.transform = matrix;
+        return;
+      }
+      const xs = quad.corners.map((point) => point.x);
+      const ys = quad.corners.map((point) => point.y);
+      const left = Math.min(...xs);
+      const top = Math.min(...ys);
+      el.style.left = `${Math.round(left)}px`;
+      el.style.top = `${Math.round(top)}px`;
+      el.style.width = `${Math.round(Math.max(...xs) - left)}px`;
+      el.style.height = `${Math.round(Math.max(...ys) - top)}px`;
+      el.style.transform = 'none';
     };
 
-    applyBox(lastBoxRef.current);
+    if (lastQuadRef.current) applyQuad(lastQuadRef.current);
 
     let raf = 0;
     const tick = () => {
       if (host && targetEntity) {
-        const pose = getOverlayAabbViewport(host, targetEntity, aspectRatio, frame);
-        if (pose) lastBoxRef.current = pose;
+        const pose = getOverlayQuadScreenCorners(host, targetEntity, aspectRatio, frame);
+        if (pose?.visible) {
+          if (!lastQuadRef.current) {
+            viewerLog('info', 'overlay pose locked to selected frame');
+          }
+          lastQuadRef.current = pose;
+        }
       }
-      applyBox(lastBoxRef.current);
+      if (lastQuadRef.current) applyQuad(lastQuadRef.current);
       paintCanvas();
       raf = window.requestAnimationFrame(tick);
     };
@@ -226,7 +251,9 @@ export const TargetFrameVideo = ({
 
   useEffect(() => {
     if (!active) {
-      lastBoxRef.current = getFallbackFrameBox();
+      lastQuadRef.current = null;
+      const el = stageRef.current;
+      if (el) el.style.visibility = 'hidden';
     }
   }, [active]);
 
@@ -277,7 +304,10 @@ export const TargetFrameVideo = ({
         return false;
       }
 
-      if (withSound && !video.muted) {
+      if (video.muted) {
+        setSoundOn(false);
+        soundOnRef.current = false;
+      } else {
         setSoundOn(true);
         soundOnRef.current = true;
       }
@@ -301,7 +331,7 @@ export const TargetFrameVideo = ({
       video.preload = 'auto';
       video.controls = false;
       video.volume = 1;
-      video.muted = true;
+      video.muted = !soundOnRef.current;
       let lastError: unknown;
       const uniqueSources = [...new Set(sources)];
       viewerLog('info', 'video load start', { sources: uniqueSources.length });
@@ -365,8 +395,8 @@ export const TargetFrameVideo = ({
       setNeedsTap(false);
       setLoading(false);
       setIsPlaying(false);
-      setSoundOn(false);
-      soundOnRef.current = false;
+      setSoundOn(true);
+      soundOnRef.current = true;
       setPlaybackUrl(null);
       video.pause();
       video.removeAttribute('src');
@@ -446,6 +476,11 @@ export const TargetFrameVideo = ({
     onModeChange(mode === 'fullscreen' ? 'frame' : 'fullscreen');
   }, [mode, onModeChange]);
 
+  const handleOpenVideo = useCallback(() => {
+    if (!playbackUrl) return;
+    window.open(playbackUrl, '_blank', 'noopener,noreferrer');
+  }, [playbackUrl]);
+
   if (!active || typeof document === 'undefined') return null;
 
   const showFullscreen = mode === 'fullscreen';
@@ -494,15 +529,16 @@ export const TargetFrameVideo = ({
               }
             : {
                 position: 'fixed',
-                left: lastBoxRef.current.left,
-                top: lastBoxRef.current.top,
-                width: lastBoxRef.current.width,
-                height: lastBoxRef.current.height,
-                visibility: 'visible',
+                left: 0,
+                top: 0,
+                width: 160,
+                height: 160,
+                visibility: lastQuadRef.current ? 'visible' : 'hidden',
                 overflow: 'hidden',
                 background: '#000',
-                pointerEvents: 'auto',
+                pointerEvents: needsTap ? 'auto' : 'none',
                 zIndex: 10041,
+                transformOrigin: '0 0',
               }
         }
       >
@@ -555,7 +591,7 @@ export const TargetFrameVideo = ({
         <div className="ar-video-controls" onClick={(event) => event.stopPropagation()}>
           <button
             type="button"
-            className="ar-video-ctrl ar-video-ctrl--play"
+            className="ar-video-ctrl"
             aria-label={isPlaying ? 'Pause' : 'Play'}
             onClick={handleTogglePlay}
           >
@@ -629,12 +665,11 @@ export const TargetFrameVideo = ({
             </button>
           ) : null}
           {playbackUrl ? (
-            <a
+            <button
+              type="button"
               className="ar-video-ctrl"
-              href={playbackUrl}
-              target="_blank"
-              rel="noreferrer"
               aria-label="Open video"
+              onClick={handleOpenVideo}
             >
               <span className="ar-video-ctrl__icon" aria-hidden>
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
@@ -642,12 +677,12 @@ export const TargetFrameVideo = ({
                 </svg>
               </span>
               <span className="ar-video-ctrl__label">Open</span>
-            </a>
+            </button>
           ) : null}
           {onClose ? (
             <button
               type="button"
-              className="ar-video-ctrl ar-video-ctrl--done"
+              className="ar-video-ctrl"
               aria-label="Close video"
               onClick={onClose}
             >

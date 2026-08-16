@@ -96,7 +96,9 @@ export const ARViewer = ({
   const hasPreparedMind = Boolean(initialMindBundle);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const [sceneHost, setSceneHost] = useState<HTMLElement | null>(null);
   const targetEntitiesRef = useRef<HTMLElement[]>([]);
+  const [trackedEntity, setTrackedEntity] = useState<HTMLElement | null>(null);
   const targetTrackedRef = useRef(false);
   const videoModeRef = useRef<VideoDisplayMode>('frame');
   const listenersAttachedRef = useRef(false);
@@ -290,6 +292,7 @@ export const ARViewer = ({
       setProgress(0.05);
       setActiveTarget(null);
       setActiveMindIndex(null);
+      setTrackedEntity(null);
       activeMindIndexRef.current = null;
       setVideoMode('frame');
       targetTrackedRef.current = false;
@@ -413,6 +416,7 @@ export const ARViewer = ({
           facingMode,
         });
         targetEntitiesRef.current = targetEntities;
+        setSceneHost(host);
         viewerLog('info', 'a-scene mounted', { targetEntities: targetEntities.length });
 
         const confirmTargetMatch = (mindIndex: number) => {
@@ -449,6 +453,7 @@ export const ARViewer = ({
           activeMindIndexRef.current = mindIndex;
           setActiveTarget(nextTarget);
           setActiveMindIndex(mindIndex);
+          setTrackedEntity(targetEntities[mindIndex] ?? null);
           setTargetAspectRatio(
             manifest.mindFile?.targetDimensions?.[mindIndex]
               ? manifest.mindFile.targetDimensions[mindIndex].height /
@@ -532,6 +537,7 @@ export const ARViewer = ({
               if (activeMindIndexRef.current === mindIndex) {
                 activeMindIndexRef.current = null;
                 setActiveMindIndex(null);
+                setTrackedEntity(null);
               }
               setVideoMode('frame');
               setStatus('scanning');
@@ -815,6 +821,7 @@ export const ARViewer = ({
   const stopVideoPlayback = useCallback(() => {
     setActiveTarget(null);
     setActiveMindIndex(null);
+    setTrackedEntity(null);
     activeMindIndexRef.current = null;
     setVideoMode('frame');
     targetTrackedRef.current = false;
@@ -904,10 +911,8 @@ export const ARViewer = ({
         matchPercent={matchPercent}
       />
       <TargetFrameVideo
-        host={containerRef.current}
-        targetEntity={
-          activeMindIndex !== null ? (targetEntitiesRef.current[activeMindIndex] ?? null) : null
-        }
+        host={sceneHost}
+        targetEntity={trackedEntity}
         aspectRatio={targetAspectRatio}
         overlayFrame={activeTarget?.overlayFrame}
         primaryUrl={activeVideoUrl}
