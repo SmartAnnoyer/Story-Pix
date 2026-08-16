@@ -72,14 +72,15 @@ export const dumpArOverlayDebug = (input: {
           src: input.video.currentSrc?.slice(0, 72) ?? '',
         }
       : null,
-    canvas: canvasCss
-      ? {
-          opacity: canvasCss.opacity,
-          z: canvasCss.zIndex,
-          w: Math.round(canvas.getBoundingClientRect().width),
-          h: Math.round(canvas.getBoundingClientRect().height),
-        }
-      : null,
+    canvas:
+      canvas && canvasCss
+        ? {
+            opacity: canvasCss.opacity,
+            z: canvasCss.zIndex,
+            w: Math.round(canvas.getBoundingClientRect().width),
+            h: Math.round(canvas.getBoundingClientRect().height),
+          }
+        : null,
     camera: cameraCss
       ? {
           opacity: cameraCss.opacity,
