@@ -8,6 +8,7 @@
   background: #000;
 }
 
+/* Keep MindAR's overflow cover crop (top/left/width/height) so the 3D FOV matches the feed. */
 .ar-scene-host > video {
   position: absolute !important;
   z-index: 1 !important;

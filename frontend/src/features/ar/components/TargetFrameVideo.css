@@ -21,22 +21,18 @@
 }
 
 .ar-video-shell--tracked .ar-video-stage {
-  position: fixed !important;
-  left: 0;
-  top: 0;
-  width: 200px;
-  height: 200px;
   max-height: none;
   aspect-ratio: auto;
   border-radius: 0;
   pointer-events: none;
   will-change: transform;
-  opacity: 0;
+  background: transparent;
 }
 
 .ar-video-shell--tracked .ar-video-media {
   inset: 0;
   border-radius: 0;
+  background: transparent;
 }
 
 .ar-video-canvas {
@@ -187,10 +183,13 @@
   display: block !important;
   width: 100% !important;
   height: 100% !important;
-  object-fit: cover;
+  object-fit: fill;
   opacity: 1 !important;
   visibility: visible !important;
   z-index: 2;
+  background: transparent;
+  transform: none;
+  -webkit-transform: none;
 }
 
 .ar-video-tap-play {

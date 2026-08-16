@@ -75,7 +75,8 @@ export const buildMindArScene = (
 
   const camera = document.createElement('a-camera');
   camera.setAttribute('position', '0 0 0');
-  camera.setAttribute('look-controls', 'enabled: false');
+  camera.setAttribute('look-controls', 'enabled: false; magicWindowTrackingEnabled: false');
+  camera.setAttribute('wasd-controls', 'enabled: false');
   scene.appendChild(camera);
 
   const targetEntities: HTMLElement[] = [];
@@ -126,16 +127,6 @@ export const ensureCameraPreviewVisible = (host: HTMLElement): HTMLVideoElement 
 
   if (video.paused) {
     void video.play().catch(() => undefined);
-  }
-
-  if (video.dataset.spCameraLayout !== 'mindar') {
-    video.style.removeProperty('width');
-    video.style.removeProperty('height');
-    video.style.removeProperty('inset');
-    video.style.removeProperty('object-fit');
-    video.dataset.spCameraLayout = 'mindar';
-    const arSystem = getMindArSystem(host);
-    arSystem?._resize?.call(arSystem);
   }
 
   return video;

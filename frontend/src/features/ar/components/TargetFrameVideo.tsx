@@ -7,7 +7,6 @@ import {
 } from '../utils/overlay-frame';
 import {
   getOverlayQuadScreenCorners,
-  installPoseCapture,
   quadToCssMatrix3d,
   type OverlayQuad,
 } from '../utils/target-projection';
@@ -149,8 +148,8 @@ export const TargetFrameVideo = ({
     video.style.width = '100%';
     video.style.height = '100%';
     video.style.display = 'block';
-    video.style.objectFit = mode === 'fullscreen' ? 'contain' : 'cover';
-    video.style.background = '#000';
+    video.style.objectFit = mode === 'fullscreen' ? 'contain' : 'fill';
+    video.style.background = 'transparent';
     video.style.opacity = '1';
     video.style.visibility = 'visible';
     video.style.zIndex = '2';
@@ -208,7 +207,16 @@ export const TargetFrameVideo = ({
     }
 
     const frame = clampOverlayFrame(overlayFrame ?? DEFAULT_OVERLAY_FRAME);
-    const SRC = 200;
+    const SRC = 400;
+    const SMOOTH = 0.42;
+    const SNAP_PX = 140;
+
+    const hideStage = () => {
+      const el = stageRef.current;
+      if (!el) return;
+      el.style.visibility = 'hidden';
+      el.style.opacity = '0';
+    };
 
     const isUsableQuad = (quad: OverlayQuad) => {
       if (!quad.visible) return false;
@@ -219,8 +227,10 @@ export const TargetFrameVideo = ({
       const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
       const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
       return (
-        width >= 24 &&
-        height >= 24 &&
+        width >= 16 &&
+        height >= 16 &&
+        width < window.innerWidth * 3 &&
+        height < window.innerHeight * 3 &&
         cx > -width &&
         cx < window.innerWidth + width &&
         cy > -height &&
@@ -228,10 +238,33 @@ export const TargetFrameVideo = ({
       );
     };
 
-    const hideUntilPose = () => {
-      const el = stageRef.current;
-      if (!el) return;
-      el.style.opacity = '0';
+    const smoothQuad = (next: OverlayQuad): OverlayQuad => {
+      const previous = lastQuadRef.current;
+      if (!previous) return next;
+      const prevCx =
+        (previous.corners[0].x +
+          previous.corners[1].x +
+          previous.corners[2].x +
+          previous.corners[3].x) /
+        4;
+      const nextCx =
+        (next.corners[0].x + next.corners[1].x + next.corners[2].x + next.corners[3].x) / 4;
+      const prevCy =
+        (previous.corners[0].y +
+          previous.corners[1].y +
+          previous.corners[2].y +
+          previous.corners[3].y) /
+        4;
+      const nextCy =
+        (next.corners[0].y + next.corners[1].y + next.corners[2].y + next.corners[3].y) / 4;
+      if (Math.hypot(nextCx - prevCx, nextCy - prevCy) > SNAP_PX) return next;
+      return {
+        visible: true,
+        corners: next.corners.map((point, index) => ({
+          x: previous.corners[index].x + (point.x - previous.corners[index].x) * SMOOTH,
+          y: previous.corners[index].y + (point.y - previous.corners[index].y) * SMOOTH,
+        })) as OverlayQuad['corners'],
+      };
     };
 
     const applyBox = (box: { left: number; top: number; width: number; height: number }) => {
@@ -247,6 +280,7 @@ export const TargetFrameVideo = ({
       el.style.visibility = 'visible';
       el.style.opacity = '1';
       el.style.zIndex = '10080';
+      el.style.background = 'transparent';
     };
 
     const applyQuad = (quad: OverlayQuad) => {
@@ -257,6 +291,7 @@ export const TargetFrameVideo = ({
       el.style.visibility = 'visible';
       el.style.opacity = '1';
       el.style.zIndex = '10080';
+      el.style.background = 'transparent';
       el.style.transformOrigin = '0 0';
       if (matrix) {
         el.style.left = '0px';
@@ -276,34 +311,31 @@ export const TargetFrameVideo = ({
       });
     };
 
-    hideUntilPose();
+    hideStage();
 
     let raf = 0;
     let locked = false;
     const tick = () => {
       if (host && targetEntity) {
-        installPoseCapture(targetEntity);
         const pose = getOverlayQuadScreenCorners(host, targetEntity, aspectRatio, frame);
         if (pose && isUsableQuad(pose)) {
+          const smoothed = smoothQuad(pose);
           if (!locked) {
             locked = true;
             viewerLog('info', 'overlay pose locked to selected frame', {
-              frame,
-              corners: pose.corners.map((point) => ({
-                x: Math.round(point.x),
-                y: Math.round(point.y),
-              })),
+              x: Math.round(smoothed.corners[0].x),
+              y: Math.round(smoothed.corners[0].y),
             });
           }
-          lastQuadRef.current = pose;
-          applyQuad(pose);
+          lastQuadRef.current = smoothed;
+          applyQuad(smoothed);
         } else if (lastQuadRef.current && isUsableQuad(lastQuadRef.current)) {
           applyQuad(lastQuadRef.current);
         } else {
-          hideUntilPose();
+          hideStage();
         }
       } else {
-        hideUntilPose();
+        hideStage();
       }
       raf = window.requestAnimationFrame(tick);
     };
@@ -605,8 +637,13 @@ export const TargetFrameVideo = ({
                 }
               : {
                   position: 'fixed',
+                  left: 0,
+                  top: 0,
+                  width: 400,
+                  height: 400,
+                  visibility: 'hidden',
                   overflow: 'hidden',
-                  background: '#000',
+                  background: 'transparent',
                   pointerEvents: needsTap ? 'auto' : 'none',
                   zIndex: 10080,
                   transformOrigin: '0 0',
