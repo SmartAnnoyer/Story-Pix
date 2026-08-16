@@ -559,16 +559,6 @@ export const ARViewer = ({
           scanningBootstrapped = true;
           viewerLog('info', 'arReady fired — enabling scan');
           ensureCameraPreviewVisible(host);
-          const renderer = (
-            scene as HTMLElement & {
-              renderer?: {
-                setClearColor?: (color: number, alpha: number) => void;
-                setClearAlpha?: (alpha: number) => void;
-              };
-            }
-          ).renderer;
-          renderer?.setClearColor?.(0x000000, 0);
-          renderer?.setClearAlpha?.(0);
 
           void (async () => {
             if (!mounted || !containerRef.current) return;

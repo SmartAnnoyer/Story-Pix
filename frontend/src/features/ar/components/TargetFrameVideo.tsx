@@ -6,10 +6,10 @@ import {
   type OverlayFrame,
 } from '../utils/overlay-frame';
 import {
-  attachOverlayVideoPlane,
-  detachOverlayVideoPlane,
-  setOverlayVideoPlaneVisible,
-} from '../utils/overlay-plane';
+  getOverlayQuadScreenCorners,
+  quadToCssMatrix3d,
+  type OverlayQuad,
+} from '../utils/target-projection';
 import { getPlaybackVideoElement } from '../utils/camera-permission';
 import { getPrefetchedBlobUrl, resolvePlayableVideoUrl } from '../utils/video-prefetch';
 import { viewerLog } from '../utils/viewer-debug-log';
@@ -109,8 +109,10 @@ export const TargetFrameVideo = ({
   onClose,
 }: TargetFrameVideoProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const mediaRef = useRef<HTMLDivElement>(null);
+  const lastQuadRef = useRef<OverlayQuad | null>(null);
   const onPlayRef = useRef(onPlay);
   const onErrorRef = useRef(onError);
   const onEndedRef = useRef(onEnded);
@@ -140,15 +142,15 @@ export const TargetFrameVideo = ({
     video.playsInline = true;
     video.controls = false;
     video.autoplay = true;
-    video.style.position = mode === 'fullscreen' ? 'absolute' : 'fixed';
-    video.style.inset = mode === 'fullscreen' ? '0' : '';
-    video.style.left = mode === 'fullscreen' ? '' : '0';
-    video.style.top = mode === 'fullscreen' ? '' : '0';
-    video.style.width = mode === 'fullscreen' ? '100%' : '16px';
-    video.style.height = mode === 'fullscreen' ? '100%' : '16px';
+    video.style.position = 'absolute';
+    video.style.inset = '0';
+    video.style.left = '';
+    video.style.top = '';
+    video.style.width = '100%';
+    video.style.height = '100%';
     video.style.objectFit = mode === 'fullscreen' ? 'contain' : 'cover';
     video.style.background = '#000';
-    video.style.opacity = mode === 'fullscreen' ? '1' : '0.05';
+    video.style.opacity = mode === 'fullscreen' ? '1' : '0.04';
     video.style.zIndex = '1';
     video.style.pointerEvents = 'none';
     parent.appendChild(video);
@@ -198,43 +200,96 @@ export const TargetFrameVideo = ({
   }, [active, host, mode]);
 
   useEffect(() => {
-    if (!active || !targetEntity) {
+    if (!active || mode === 'fullscreen') {
       return undefined;
     }
 
-    const video = videoRef.current;
-    if (!video) return undefined;
-
     const frame = clampOverlayFrame(overlayFrame ?? DEFAULT_OVERLAY_FRAME);
-    const mount = () => {
-      const attached = attachOverlayVideoPlane(targetEntity, video, frame, aspectRatio);
-      setOverlayVideoPlaneVisible(targetEntity, mode === 'frame');
-      if (attached) {
-        viewerLog('info', 'overlay video plane attached to tracked photo', {
-          width: frame.width,
-          height: frame.height,
-          x: frame.x,
-          y: frame.y,
-        });
+    const SRC = 200;
+
+    const paintCanvas = () => {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      if (!video || !canvas || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
+      if (video.videoWidth <= 0 || video.videoHeight <= 0) return;
+      const cssW = Math.max(1, canvas.clientWidth || SRC);
+      const cssH = Math.max(1, canvas.clientHeight || SRC);
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const pixelW = Math.round(cssW * dpr);
+      const pixelH = Math.round(cssH * dpr);
+      if (canvas.width !== pixelW || canvas.height !== pixelH) {
+        canvas.width = pixelW;
+        canvas.height = pixelH;
       }
-      return attached;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      const scale = Math.max(pixelW / video.videoWidth, pixelH / video.videoHeight);
+      const drawW = video.videoWidth * scale;
+      const drawH = video.videoHeight * scale;
+      ctx.drawImage(video, (pixelW - drawW) / 2, (pixelH - drawH) / 2, drawW, drawH);
     };
 
-    let tries = 0;
-    const timer = window.setInterval(() => {
-      if (mount() || tries >= 50) {
-        window.clearInterval(timer);
+    const applyQuad = (quad: OverlayQuad) => {
+      const el = stageRef.current;
+      if (!el) return;
+      const matrix = quadToCssMatrix3d(SRC, SRC, quad.corners);
+      el.style.position = 'fixed';
+      el.style.left = '0px';
+      el.style.top = '0px';
+      el.style.width = `${SRC}px`;
+      el.style.height = `${SRC}px`;
+      el.style.transformOrigin = '0 0';
+      el.style.visibility = 'visible';
+      el.style.opacity = '1';
+      el.style.zIndex = '10080';
+      if (matrix) {
+        el.style.transform = matrix;
+        return;
       }
-      tries += 1;
-    }, 80);
-    targetEntity.addEventListener('loaded', mount);
-
-    return () => {
-      window.clearInterval(timer);
-      targetEntity.removeEventListener('loaded', mount);
-      detachOverlayVideoPlane(targetEntity);
+      const xs = quad.corners.map((point) => point.x);
+      const ys = quad.corners.map((point) => point.y);
+      const left = Math.min(...xs);
+      const top = Math.min(...ys);
+      el.style.left = `${Math.round(left)}px`;
+      el.style.top = `${Math.round(top)}px`;
+      el.style.width = `${Math.round(Math.max(...xs) - left)}px`;
+      el.style.height = `${Math.round(Math.max(...ys) - top)}px`;
+      el.style.transform = 'none';
     };
-  }, [active, targetEntity, overlayFrame, aspectRatio, mode, isPlaying, playbackUrl]);
+
+    const hideStage = () => {
+      const el = stageRef.current;
+      if (!el) return;
+      el.style.visibility = lastQuadRef.current ? 'visible' : 'hidden';
+    };
+
+    if (lastQuadRef.current) applyQuad(lastQuadRef.current);
+    else hideStage();
+
+    let raf = 0;
+    const tick = () => {
+      if (host && targetEntity) {
+        const pose = getOverlayQuadScreenCorners(host, targetEntity, aspectRatio, frame);
+        if (pose?.visible) {
+          lastQuadRef.current = pose;
+          applyQuad(pose);
+        } else if (lastQuadRef.current) {
+          applyQuad(lastQuadRef.current);
+        } else {
+          hideStage();
+        }
+      }
+      paintCanvas();
+      raf = window.requestAnimationFrame(tick);
+    };
+
+    raf = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(raf);
+  }, [active, mode, host, targetEntity, aspectRatio, overlayFrame]);
+
+  useEffect(() => {
+    if (!active) lastQuadRef.current = null;
+  }, [active]);
 
   useEffect(() => {
     if (mode !== 'fullscreen' || !stageRef.current) return;
@@ -507,68 +562,65 @@ export const TargetFrameVideo = ({
           </p>
         ) : null}
 
-        {showFullscreen ? (
-          <div
-            ref={stageRef}
-            className="ar-video-stage"
-            style={{
-              position: 'relative',
-              width: '100%',
-              flex: 1,
-              minHeight: 0,
-              border: 'none',
-              borderRadius: 0,
-              overflow: 'hidden',
-              background: '#000',
-              pointerEvents: 'auto',
-            }}
-          >
-            <div className="ar-video-media" ref={mediaRef}>
-              {needsTap ? (
-                <button
-                  type="button"
-                  className="ar-video-tap-play"
-                  onClick={() => void tryPlay(true)}
-                >
-                  Tap to play
-                </button>
-              ) : null}
-            </div>
-          </div>
-        ) : (
-          <>
-            <div
-              ref={mediaRef}
-              aria-hidden
-              style={{
-                position: 'fixed',
-                left: 0,
-                top: 0,
-                width: 16,
-                height: 16,
-                overflow: 'hidden',
-                opacity: 0.05,
-                pointerEvents: 'none',
-                zIndex: 1,
-              }}
-            />
+        <div
+          ref={stageRef}
+          className="ar-video-stage"
+          style={
+            showFullscreen
+              ? {
+                  position: 'relative',
+                  width: '100%',
+                  flex: 1,
+                  minHeight: 0,
+                  border: 'none',
+                  borderRadius: 0,
+                  overflow: 'hidden',
+                  background: '#000',
+                  pointerEvents: 'auto',
+                }
+              : {
+                  position: 'fixed',
+                  left: 0,
+                  top: 0,
+                  width: 200,
+                  height: 200,
+                  visibility: lastQuadRef.current ? 'visible' : 'hidden',
+                  overflow: 'hidden',
+                  background: '#000',
+                  pointerEvents: needsTap ? 'auto' : 'none',
+                  zIndex: 10080,
+                  transformOrigin: '0 0',
+                }
+          }
+        >
+          {showFullscreen ? null : <div className="ar-video-frame-edge" aria-hidden />}
+          <div className="ar-video-media" ref={mediaRef}>
+            {!showFullscreen ? (
+              <canvas
+                ref={canvasRef}
+                className="ar-video-canvas"
+                aria-hidden
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  zIndex: 2,
+                  background: '#000',
+                }}
+              />
+            ) : null}
             {needsTap ? (
               <button
                 type="button"
                 className="ar-video-tap-play"
-                style={{
-                  position: 'fixed',
-                  inset: 0,
-                  zIndex: 10070,
-                  pointerEvents: 'auto',
-                }}
                 onClick={() => void tryPlay(true)}
               >
                 Tap to play
               </button>
             ) : null}
-          </>
-        )}
+          </div>
+        </div>
       </div>
 
       <div

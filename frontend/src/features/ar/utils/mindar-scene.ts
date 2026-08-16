@@ -71,24 +71,7 @@ export const buildMindArScene = (
   scene.dataset.cameraFacing = options.facingMode ?? 'environment';
   scene.style.position = 'absolute';
   scene.style.inset = '0';
-  scene.style.zIndex = '2';
   scene.style.pointerEvents = 'none';
-  scene.addEventListener(
-    'loaded',
-    () => {
-      const renderer = (
-        scene as HTMLElement & {
-          renderer?: {
-            setClearColor?: (color: number, alpha: number) => void;
-            setClearAlpha?: (alpha: number) => void;
-          };
-        }
-      ).renderer;
-      renderer?.setClearColor?.(0x000000, 0);
-      renderer?.setClearAlpha?.(0);
-    },
-    { once: true },
-  );
 
   const camera = document.createElement('a-camera');
   camera.setAttribute('position', '0 0 0');
@@ -141,58 +124,15 @@ export const ensureCameraPreviewVisible = (host: HTMLElement): HTMLVideoElement 
   video.style.height = '100%';
   video.style.position = 'absolute';
   video.style.inset = '0';
-  video.style.opacity = '0';
-  video.style.zIndex = '-1';
+  video.style.opacity = '1';
+  video.style.zIndex = '1';
   video.style.pointerEvents = 'none';
 
   if (video.paused) {
     void video.play().catch(() => undefined);
   }
 
-  paintCameraToCanvas(host, video);
   return video;
-};
-
-const paintCameraToCanvas = (host: HTMLElement, video: HTMLVideoElement): void => {
-  let canvas = host.querySelector('#sp-camera-preview') as HTMLCanvasElement | null;
-  if (!canvas) {
-    canvas = document.createElement('canvas');
-    canvas.id = 'sp-camera-preview';
-    canvas.setAttribute('aria-hidden', 'true');
-    canvas.style.position = 'absolute';
-    canvas.style.inset = '0';
-    canvas.style.width = '100%';
-    canvas.style.height = '100%';
-    canvas.style.zIndex = '0';
-    canvas.style.pointerEvents = 'none';
-    host.appendChild(canvas);
-  }
-
-  if (canvas.dataset.spPainting === '1') return;
-  canvas.dataset.spPainting = '1';
-
-  const paint = () => {
-    if (!canvas.isConnected || !host.contains(video)) {
-      canvas.dataset.spPainting = '0';
-      return;
-    }
-    if (video.videoWidth > 0 && video.videoHeight > 0) {
-      const cssW = Math.max(1, canvas.clientWidth || host.clientWidth);
-      const cssH = Math.max(1, canvas.clientHeight || host.clientHeight);
-      if (canvas.width !== cssW) canvas.width = cssW;
-      if (canvas.height !== cssH) canvas.height = cssH;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        const scale = Math.max(cssW / video.videoWidth, cssH / video.videoHeight);
-        const drawW = video.videoWidth * scale;
-        const drawH = video.videoHeight * scale;
-        ctx.drawImage(video, (cssW - drawW) / 2, (cssH - drawH) / 2, drawW, drawH);
-      }
-    }
-    window.requestAnimationFrame(paint);
-  };
-
-  window.requestAnimationFrame(paint);
 };
 
 export const isCameraPreviewLive = (host: HTMLElement): boolean => {
