@@ -92,10 +92,11 @@ export const attachOverlayVideoPlane = (
   video: HTMLVideoElement,
   frame: OverlayFrame,
   aspectRatio: number,
-): boolean => {
+): { ok: boolean; reason: string } => {
   const THREE = getThree();
   const object3D = (entity as EntityWithObject3D).object3D;
-  if (!THREE || !object3D) return false;
+  if (!THREE) return { ok: false, reason: 'THREE missing' };
+  if (!object3D) return { ok: false, reason: 'target object3D missing' };
 
   try {
     detachOverlayVideoPlane(entity);
@@ -127,8 +128,11 @@ export const attachOverlayVideoPlane = (
     mesh.frustumCulled = false;
     mesh.visible = true;
     object3D.add(mesh);
-    return true;
-  } catch {
-    return false;
+    return { ok: true, reason: 'attached' };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: error instanceof Error ? error.message : String(error),
+    };
   }
 };

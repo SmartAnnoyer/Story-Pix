@@ -13,6 +13,7 @@ import {
   setOverlayVideoPlaneVisible,
 } from '../utils/overlay-plane';
 import { getPrefetchedBlobUrl, resolvePlayableVideoUrl } from '../utils/video-prefetch';
+import { dumpArOverlayDebug } from '../utils/ar-overlay-debug';
 import { viewerLog } from '../utils/viewer-debug-log';
 import './TargetFrameVideo.css';
 
@@ -179,7 +180,15 @@ export const TargetFrameVideo = ({
 
     const video = videoRef.current;
     const entity = targetEntity;
-    if (!video || !entity) return undefined;
+    if (!video || !entity) {
+      viewerLog('warn', 'AR plane skipped', {
+        hasVideo: Boolean(video),
+        hasEntity: Boolean(entity),
+        mode,
+        active,
+      });
+      return undefined;
+    }
 
     const frame = clampOverlayFrame(overlayFrame ?? DEFAULT_OVERLAY_FRAME);
     const parkHtmlStage = () => {
@@ -204,15 +213,31 @@ export const TargetFrameVideo = ({
       if (cancelled) return;
       video.setAttribute('crossorigin', 'anonymous');
       video.crossOrigin = 'anonymous';
-      const attached = attachOverlayVideoPlane(entity, video, frame, aspectRatio);
-      if (attached) {
+      const result = attachOverlayVideoPlane(entity, video, frame, aspectRatio);
+      dumpArOverlayDebug({
+        host,
+        entity,
+        video,
+        frame,
+        aspectRatio,
+        attached: result.ok,
+        reason: result.reason,
+      });
+      if (result.ok) {
         setOverlayVideoPlaneVisible(entity, true);
-        viewerLog('info', 'AR video plane attached to mapped frame');
+        viewerLog('info', 'AR video plane attached to mapped frame', {
+          ready: video.readyState,
+          paused: video.paused,
+          size: `${video.videoWidth}x${video.videoHeight}`,
+        });
         return;
       }
       attempts += 1;
+      if (attempts === 1 || attempts % 10 === 0) {
+        viewerLog('warn', 'AR plane attach retry', { attempts, reason: result.reason });
+      }
       if (attempts < 40) window.setTimeout(tryAttach, 120);
-      else viewerLog('warn', 'could not attach AR video plane');
+      else viewerLog('error', 'could not attach AR video plane', { reason: result.reason });
     };
 
     tryAttach();

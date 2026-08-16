@@ -65,7 +65,7 @@ export const ViewerDebugPanel = () => {
   };
 
   return (
-    <div className="pointer-events-auto fixed bottom-3 left-3 z-[10050] max-w-[min(100vw-1.5rem,28rem)] font-mono text-[10px] leading-snug text-white">
+    <div className="pointer-events-auto fixed top-3 left-3 right-3 z-[2147483646] max-w-[min(100vw-1.5rem,36rem)] font-mono text-[11px] leading-snug text-white">
       <div className="mb-1 flex flex-wrap gap-1">
         <button
           type="button"
@@ -78,10 +78,14 @@ export const ViewerDebugPanel = () => {
           <>
             <button
               type="button"
-              className="rounded bg-black/80 px-2 py-1 text-[11px] text-white/80"
+              className="rounded bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white"
               onClick={() => void handleCopy()}
             >
-              {copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Copy failed' : 'Copy'}
+              {copyState === 'copied'
+                ? 'Copied'
+                : copyState === 'failed'
+                  ? 'Copy failed'
+                  : 'Copy logs'}
             </button>
             <button
               type="button"
@@ -97,7 +101,7 @@ export const ViewerDebugPanel = () => {
       {open ? (
         <div
           id="viewer-debug-scroll"
-          className="max-h-[42vh] overflow-y-auto rounded-lg border border-white/15 bg-black/85 p-2 shadow-2xl backdrop-blur-sm"
+          className="max-h-[38vh] overflow-y-auto rounded-lg border border-white/20 bg-black/90 p-2 shadow-2xl"
         >
           {logs.length === 0 ? (
             <p className="mb-0 text-white/50">Waiting for viewer logs…</p>
