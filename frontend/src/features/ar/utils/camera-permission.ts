@@ -8,9 +8,40 @@ export type CameraPermissionResult = {
 
 let heldStream: MediaStream | null = null;
 let unlockedAudioContext: AudioContext | null = null;
+let playbackVideo: HTMLVideoElement | null = null;
+
+/** Same video element from Open camera tap through overlay playback (needed for unmuted iOS play). */
+export const getPlaybackVideoElement = (): HTMLVideoElement => {
+  if (playbackVideo) return playbackVideo;
+  const video = document.createElement('video');
+  video.setAttribute('playsinline', '');
+  video.setAttribute('webkit-playsinline', '');
+  video.playsInline = true;
+  video.preload = 'auto';
+  video.autoplay = true;
+  video.controls = false;
+  video.muted = false;
+  video.volume = 1;
+  playbackVideo = video;
+  return video;
+};
 
 /** Call during the Open camera tap so later video can start with sound. */
 export const unlockPlaybackAudio = (): void => {
+  const video = getPlaybackVideoElement();
+  video.muted = false;
+  video.volume = 1;
+  void video.play().catch(() => {
+    video.muted = true;
+    void video
+      .play()
+      .then(() => {
+        video.pause();
+        video.muted = false;
+      })
+      .catch(() => undefined);
+  });
+
   try {
     const AudioCtx =
       window.AudioContext ||
@@ -28,16 +59,6 @@ export const unlockPlaybackAudio = (): void => {
     }
   } catch {
     // ignore — playback can still start muted
-  }
-
-  try {
-    const beep = new Audio(
-      'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA',
-    );
-    beep.volume = 0.01;
-    void beep.play().catch(() => undefined);
-  } catch {
-    // ignore
   }
 };
 

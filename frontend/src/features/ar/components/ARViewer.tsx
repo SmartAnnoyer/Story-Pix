@@ -31,7 +31,7 @@ import {
 } from '../utils/mindar-scene';
 import { takeHeldCameraStream, releaseHeldCameraStream } from '../utils/camera-permission';
 import { prefetchManifestVideos, prefetchVideo } from '../utils/video-prefetch';
-import { getTargetAspectRatio } from '../utils/target-projection';
+import { getTargetAspectRatio, installPoseCapture } from '../utils/target-projection';
 import { mappingsForMindIndex, uniqueTrackingPhotos } from '../utils/manifest-photos';
 import { readMatchPercent, smoothMatchPercent } from '../utils/match-confidence';
 import { viewerLog } from '../utils/viewer-debug-log';
@@ -416,6 +416,7 @@ export const ARViewer = ({
           facingMode,
         });
         targetEntitiesRef.current = targetEntities;
+        targetEntities.forEach((entity) => installPoseCapture(entity));
         setSceneHost(host);
         viewerLog('info', 'a-scene mounted', { targetEntities: targetEntities.length });
 
@@ -476,6 +477,7 @@ export const ARViewer = ({
             if (!entity) return;
 
             entity.addEventListener('targetFound', () => {
+              installPoseCapture(entity);
               viewerLog('info', 'targetFound event', {
                 target: photoTarget.targetName,
                 mindIndex,
@@ -523,16 +525,7 @@ export const ARViewer = ({
                 targetTrackedRef.current = false;
               }
 
-              const status = statusRef.current;
-              if (
-                videoModeRef.current === 'fullscreen' ||
-                status === 'match_found' ||
-                status === 'recognized'
-              ) {
-                viewerLog('info', 'targetLost during playback — keeping video');
-                return;
-              }
-
+              viewerLog('info', 'targetLost — stopping video and resuming scan');
               setActiveTarget((current) => (current?.targetIndex === mindIndex ? null : current));
               if (activeMindIndexRef.current === mindIndex) {
                 activeMindIndexRef.current = null;

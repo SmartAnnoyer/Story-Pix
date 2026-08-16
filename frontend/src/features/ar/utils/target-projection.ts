@@ -94,11 +94,51 @@ const getSceneCamera = (host: HTMLElement): SceneCamera | null => {
   return cameraEl?.getObject3D?.('camera') ?? null;
 };
 
+type MindArTargetComponent = {
+  updateWorldMatrix: ((worldMatrix: ArrayLike<number> | null) => void) & {
+    __spWrapped?: boolean;
+  };
+  el: ProjectableEntity;
+};
+
+const capturedPose = new WeakMap<HTMLElement, number[]>();
+
+export const installPoseCapture = (entity: HTMLElement): void => {
+  const wrap = () => {
+    const component = (
+      entity as HTMLElement & { components?: Record<string, MindArTargetComponent> }
+    ).components?.['mindar-image-target'];
+    if (!component || component.updateWorldMatrix.__spWrapped) return;
+
+    const original = component.updateWorldMatrix.bind(component);
+    const wrapped = ((worldMatrix: ArrayLike<number> | null) => {
+      original(worldMatrix);
+      if (worldMatrix == null) {
+        capturedPose.delete(entity);
+        return;
+      }
+      const matrix = component.el.object3D?.matrix?.elements ?? worldMatrix;
+      capturedPose.set(entity, copy16(matrix));
+    }) as MindArTargetComponent['updateWorldMatrix'];
+    wrapped.__spWrapped = true;
+    component.updateWorldMatrix = wrapped;
+  };
+
+  wrap();
+  entity.addEventListener('loaded', wrap);
+  entity.addEventListener('componentinitialized', wrap);
+};
+
 /**
- * MindAR writes pose into object3D.matrix with matrixAutoUpdate = false.
- * Read that local matrix; do not wait for a stale identity matrixWorld.
+ * MindAR writes pose into object3D.matrix with matrixAutoUpdate = false,
+ * then A-Frame may reset that matrix. Prefer the copy captured in updateWorldMatrix.
  */
 const getPoseMatrix = (entity: ProjectableEntity, camera: SceneCamera): number[] | null => {
+  camera.updateMatrixWorld?.(true);
+
+  const captured = capturedPose.get(entity);
+  if (captured) return captured;
+
   const object3D = entity.object3D;
   if (!object3D?.matrix) return null;
 
@@ -106,7 +146,6 @@ const getPoseMatrix = (entity: ProjectableEntity, camera: SceneCamera): number[]
   sceneEl?.object3D?.updateMatrixWorld?.(true);
   object3D.matrixWorldNeedsUpdate = true;
   object3D.updateMatrixWorld?.(true);
-  camera.updateMatrixWorld?.(true);
 
   const local = object3D.matrix.elements;
   if (!isIdentityMatrix(local)) {

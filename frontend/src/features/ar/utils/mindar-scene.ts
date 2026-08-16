@@ -1,3 +1,5 @@
+import { installPoseCapture } from './target-projection';
+
 export type CameraFacing = 'environment' | 'user';
 
 export type MindArSceneResult = {
@@ -77,8 +79,10 @@ export const buildMindArScene = (
   for (let mindIndex = 0; mindIndex < options.targetCount; mindIndex += 1) {
     const entity = document.createElement('a-entity');
     entity.setAttribute('mindar-image-target', `targetIndex: ${mindIndex}`);
+    entity.addEventListener('loaded', () => installPoseCapture(entity));
     scene.appendChild(entity);
     targetEntities.push(entity);
+    installPoseCapture(entity);
   }
 
   host.replaceChildren();

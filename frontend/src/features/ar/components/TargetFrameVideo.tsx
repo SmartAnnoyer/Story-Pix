@@ -6,6 +6,7 @@ import {
   type OverlayFrame,
 } from '../utils/overlay-frame';
 import { getFallbackFrameBox, getOverlayAabbViewport } from '../utils/target-projection';
+import { getPlaybackVideoElement } from '../utils/camera-permission';
 import { getPrefetchedBlobUrl, resolvePlayableVideoUrl } from '../utils/video-prefetch';
 import { viewerLog } from '../utils/viewer-debug-log';
 import './TargetFrameVideo.css';
@@ -105,6 +106,7 @@ export const TargetFrameVideo = ({
 }: TargetFrameVideoProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
+  const mediaRef = useRef<HTMLDivElement>(null);
   const lastBoxRef = useRef(getFallbackFrameBox());
   const onPlayRef = useRef(onPlay);
   const onErrorRef = useRef(onError);
@@ -122,6 +124,39 @@ export const TargetFrameVideo = ({
     onErrorRef.current = onError;
     onEndedRef.current = onEnded;
   }, [onPlay, onError, onEnded]);
+
+  useEffect(() => {
+    if (!active) return undefined;
+    const video = getPlaybackVideoElement();
+    videoRef.current = video;
+    const parent = mediaRef.current;
+    if (!parent) return undefined;
+
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+    video.playsInline = true;
+    video.controls = false;
+    video.autoplay = true;
+    video.style.position = 'absolute';
+    video.style.inset = '0';
+    video.style.width = '100%';
+    video.style.height = '100%';
+    video.style.objectFit = mode === 'fullscreen' ? 'contain' : 'cover';
+    video.style.background = '#000';
+    video.style.opacity = '1';
+    parent.appendChild(video);
+
+    const onEndedEvt = () => {
+      if (mode === 'fullscreen') onEndedRef.current?.();
+    };
+    video.addEventListener('ended', onEndedEvt);
+
+    return () => {
+      video.removeEventListener('ended', onEndedEvt);
+      video.pause();
+      if (video.parentNode === parent) parent.removeChild(video);
+    };
+  }, [active, mode]);
 
   // Hide the MindAR camera only in full-screen so in-frame AR can sit on the live photo.
   useEffect(() => {
@@ -171,12 +206,17 @@ export const TargetFrameVideo = ({
       el.style.width = `${Math.round(box.width)}px`;
       el.style.height = `${Math.round(box.height)}px`;
       el.style.transform = 'none';
-      el.style.transformOrigin = 'center';
       el.style.visibility = 'visible';
       el.style.opacity = '1';
     };
 
-    applyBox(lastBoxRef.current);
+    const hideBox = () => {
+      const el = stageRef.current;
+      if (!el) return;
+      el.style.visibility = 'hidden';
+    };
+
+    hideBox();
 
     let raf = 0;
     let locked = false;
@@ -189,12 +229,18 @@ export const TargetFrameVideo = ({
             viewerLog('info', 'overlay pose locked to selected frame', {
               w: Math.round(pose.width),
               h: Math.round(pose.height),
+              left: Math.round(pose.left),
+              top: Math.round(pose.top),
             });
           }
           lastBoxRef.current = pose;
+          applyBox(pose);
+        } else {
+          hideBox();
         }
+      } else {
+        hideBox();
       }
-      applyBox(lastBoxRef.current);
       raf = window.requestAnimationFrame(tick);
     };
 
@@ -250,6 +296,8 @@ export const TargetFrameVideo = ({
           video.muted = true;
           try {
             await video.play();
+            video.muted = false;
+            video.volume = 1;
           } catch {
             setNeedsTap(true);
             return false;
@@ -263,6 +311,11 @@ export const TargetFrameVideo = ({
       if (video.paused) {
         setNeedsTap(true);
         return false;
+      }
+
+      if (withSound && video.muted) {
+        video.muted = false;
+        video.volume = 1;
       }
 
       if (video.muted) {
@@ -495,7 +548,7 @@ export const TargetFrameVideo = ({
                   top: frameBox.top,
                   width: frameBox.width,
                   height: frameBox.height,
-                  visibility: 'visible',
+                  visibility: 'hidden',
                   overflow: 'hidden',
                   background: '#000',
                   pointerEvents: needsTap ? 'auto' : 'none',
@@ -504,27 +557,7 @@ export const TargetFrameVideo = ({
           }
         >
           {showFullscreen ? null : <div className="ar-video-frame-edge" aria-hidden />}
-          <div className="ar-video-media">
-            <video
-              ref={videoRef}
-              playsInline
-              muted={!soundOn}
-              autoPlay
-              style={{
-                display: 'block',
-                width: '100%',
-                height: '100%',
-                objectFit: showFullscreen ? 'contain' : 'cover',
-                background: '#000',
-                opacity: 1,
-                position: 'absolute',
-                inset: 0,
-                zIndex: 1,
-              }}
-              onEnded={() => {
-                if (mode === 'fullscreen') onEndedRef.current?.();
-              }}
-            />
+          <div className="ar-video-media" ref={mediaRef}>
             {needsTap ? (
               <button
                 type="button"
@@ -547,6 +580,8 @@ export const TargetFrameVideo = ({
           transform: 'translateX(-50%)',
           zIndex: 2147483000,
           pointerEvents: 'auto',
+          flexWrap: 'nowrap',
+          whiteSpace: 'nowrap',
         }}
         onPointerDown={(event) => event.stopPropagation()}
         onClick={(event) => event.stopPropagation()}
