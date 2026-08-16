@@ -105,6 +105,7 @@ export const TargetFrameVideo = ({
   onClose,
 }: TargetFrameVideoProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const mediaRef = useRef<HTMLDivElement>(null);
   const lastBoxRef = useRef(getFallbackFrameBox());
@@ -143,7 +144,8 @@ export const TargetFrameVideo = ({
     video.style.height = '100%';
     video.style.objectFit = mode === 'fullscreen' ? 'contain' : 'cover';
     video.style.background = '#000';
-    video.style.opacity = '1';
+    video.style.opacity = '0.04';
+    video.style.zIndex = '1';
     parent.appendChild(video);
 
     const onEndedEvt = () => {
@@ -205,18 +207,38 @@ export const TargetFrameVideo = ({
       el.style.top = `${Math.round(box.top)}px`;
       el.style.width = `${Math.round(box.width)}px`;
       el.style.height = `${Math.round(box.height)}px`;
-      el.style.transform = 'none';
+      el.style.transform = 'translate3d(0,0,1px)';
+      el.style.webkitTransform = 'translate3d(0,0,1px)';
       el.style.visibility = 'visible';
       el.style.opacity = '1';
+      el.style.zIndex = '10080';
     };
 
-    const hideBox = () => {
-      const el = stageRef.current;
-      if (!el) return;
-      el.style.visibility = 'hidden';
+    const paintCanvas = () => {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      if (!video || !canvas || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
+      if (video.videoWidth <= 0 || video.videoHeight <= 0) return;
+
+      const cssW = Math.max(1, canvas.clientWidth || Math.round(lastBoxRef.current.width));
+      const cssH = Math.max(1, canvas.clientHeight || Math.round(lastBoxRef.current.height));
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const pixelW = Math.round(cssW * dpr);
+      const pixelH = Math.round(cssH * dpr);
+      if (canvas.width !== pixelW || canvas.height !== pixelH) {
+        canvas.width = pixelW;
+        canvas.height = pixelH;
+      }
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      const scale = Math.max(pixelW / video.videoWidth, pixelH / video.videoHeight);
+      const drawW = video.videoWidth * scale;
+      const drawH = video.videoHeight * scale;
+      ctx.drawImage(video, (pixelW - drawW) / 2, (pixelH - drawH) / 2, drawW, drawH);
     };
 
-    hideBox();
+    applyBox(lastBoxRef.current);
 
     let raf = 0;
     let locked = false;
@@ -234,13 +256,10 @@ export const TargetFrameVideo = ({
             });
           }
           lastBoxRef.current = pose;
-          applyBox(pose);
-        } else {
-          hideBox();
         }
-      } else {
-        hideBox();
       }
+      applyBox(lastBoxRef.current);
+      paintCanvas();
       raf = window.requestAnimationFrame(tick);
     };
 
@@ -507,7 +526,7 @@ export const TargetFrameVideo = ({
         style={{
           position: 'fixed',
           inset: 0,
-          zIndex: 10040,
+          zIndex: 10050,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -548,16 +567,34 @@ export const TargetFrameVideo = ({
                   top: frameBox.top,
                   width: frameBox.width,
                   height: frameBox.height,
-                  visibility: 'hidden',
+                  visibility: 'visible',
                   overflow: 'hidden',
                   background: '#000',
                   pointerEvents: needsTap ? 'auto' : 'none',
-                  zIndex: 10041,
+                  zIndex: 10080,
+                  transform: 'translate3d(0,0,1px)',
+                  WebkitTransform: 'translate3d(0,0,1px)',
                 }
           }
         >
           {showFullscreen ? null : <div className="ar-video-frame-edge" aria-hidden />}
           <div className="ar-video-media" ref={mediaRef}>
+            {!showFullscreen ? (
+              <canvas
+                ref={canvasRef}
+                className="ar-video-canvas"
+                aria-hidden
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  zIndex: 2,
+                  background: '#000',
+                  transform: 'translate3d(0,0,1px)',
+                }}
+              />
+            ) : null}
             {needsTap ? (
               <button
                 type="button"
