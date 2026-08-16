@@ -81,6 +81,48 @@ export const prefetchVideo = (url: string | null | undefined): void => {
   }
 };
 
+/** Fetch a same-origin blob URL so iOS can copy frames into WebGL. */
+export const awaitSameOriginVideoUrl = async (
+  url: string,
+  timeoutMs = 20_000,
+): Promise<string | null> => {
+  const cached = blobUrlBySource.get(url);
+  if (cached) return cached;
+
+  prefetchVideo(url);
+  const pending = pendingBySource.get(url);
+  if (pending) {
+    const raced = await Promise.race([
+      pending,
+      new Promise<null>((resolve) => window.setTimeout(() => resolve(null), timeoutMs)),
+    ]);
+    if (raced) return raced;
+  }
+
+  try {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+    const response = await fetch(url, {
+      mode: 'cors',
+      credentials: 'omit',
+      signal: controller.signal,
+    });
+    window.clearTimeout(timer);
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    if (blob.size < 64 || blob.size > 40_000_000) return null;
+    const typed =
+      !blob.type || blob.type === 'application/octet-stream'
+        ? blob.slice(0, blob.size, guessVideoMime(url, response.headers.get('content-type')))
+        : blob;
+    const blobUrl = URL.createObjectURL(typed);
+    blobUrlBySource.set(url, blobUrl);
+    return blobUrl;
+  } catch {
+    return null;
+  }
+};
+
 /** Prefer a fully cached blob URL when available (instant start). */
 export const getPrefetchedBlobUrl = (url: string | null | undefined): string | null => {
   if (!url) return null;

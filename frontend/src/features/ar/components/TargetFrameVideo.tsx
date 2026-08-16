@@ -19,7 +19,11 @@ import {
   installPoseCapture,
   quadToCssMatrix3d,
 } from '../utils/target-projection';
-import { getPrefetchedBlobUrl, resolvePlayableVideoUrl } from '../utils/video-prefetch';
+import {
+  awaitSameOriginVideoUrl,
+  getPrefetchedBlobUrl,
+  resolvePlayableVideoUrl,
+} from '../utils/video-prefetch';
 import { dumpArOverlayDebug } from '../utils/ar-overlay-debug';
 import { viewerLog } from '../utils/viewer-debug-log';
 import './TargetFrameVideo.css';
@@ -79,6 +83,11 @@ const waitForVideoReady = (video: HTMLVideoElement): Promise<void> =>
 
     const onReady = () => checkReady();
     const onFail = () => {
+      if (video.videoWidth > 0 && !video.paused) {
+        cleanup();
+        resolve();
+        return;
+      }
       cleanup();
       reject(new Error('Video load failed'));
     };
@@ -445,13 +454,8 @@ export const TargetFrameVideo = ({
       const video = videoRef.current;
       if (!video || !sources.length) throw new Error('No video source');
 
-      if (isIOS()) {
-        video.removeAttribute('crossorigin');
-        video.crossOrigin = null;
-      } else {
-        video.crossOrigin = 'anonymous';
-        video.setAttribute('crossorigin', 'anonymous');
-      }
+      video.removeAttribute('crossorigin');
+      video.crossOrigin = null;
       video.setAttribute('playsinline', '');
       video.setAttribute('webkit-playsinline', '');
       video.playsInline = true;
@@ -465,10 +469,14 @@ export const TargetFrameVideo = ({
 
       for (const source of uniqueSources) {
         try {
+          const blobUrl = (await awaitSameOriginVideoUrl(source)) ?? getPrefetchedBlobUrl(source);
           const resolved =
-            (await resolvePlayableVideoUrl(source, { allowBlob: !isIOS() })) ?? source;
-          const blobCached = !isIOS() ? getPrefetchedBlobUrl(source) : null;
-          const src = blobCached ?? resolved;
+            blobUrl ?? (await resolvePlayableVideoUrl(source, { allowBlob: true })) ?? source;
+          const src = resolved;
+          if (!src.startsWith('blob:')) {
+            video.crossOrigin = 'anonymous';
+            video.setAttribute('crossorigin', 'anonymous');
+          }
           setPlaybackUrl(src.startsWith('blob:') ? source : src);
           viewerLog('debug', 'video trying source', {
             blob: src.startsWith('blob:'),
@@ -500,6 +508,13 @@ export const TargetFrameVideo = ({
           }
           lastError = new Error('play() rejected');
         } catch (error) {
+          if (video.videoWidth > 0 && !video.paused) {
+            viewerLog('warn', 'video error ignored — clip already playing', {
+              message: error instanceof Error ? error.message : String(error),
+            });
+            notifyPlay();
+            return;
+          }
           lastError = error;
           viewerLog('warn', 'video source failed', {
             message: error instanceof Error ? error.message : String(error),
@@ -510,7 +525,7 @@ export const TargetFrameVideo = ({
 
       throw lastError ?? new Error('Video did not start');
     },
-    [tryPlay],
+    [tryPlay, notifyPlay],
   );
 
   useEffect(() => {
