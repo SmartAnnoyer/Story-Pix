@@ -9,37 +9,19 @@ export type TargetScreenBounds = {
   visible: boolean;
 };
 
-type Vec3 = {
-  x: number;
-  y: number;
-  z: number;
-  set: (x: number, y: number, z: number) => Vec3;
-  applyMatrix4: (matrix: unknown) => Vec3;
-  project: (camera: unknown) => Vec3;
-};
-
-type Mat4 = {
-  elements: ArrayLike<number>;
-  fromArray: (values: ArrayLike<number>) => Mat4;
-  multiplyMatrices: (a: unknown, b: unknown) => Mat4;
-  copy: (m: unknown) => Mat4;
-};
-
 type Object3D = {
   matrix: { elements: ArrayLike<number> };
-  matrixWorld: { elements: ArrayLike<number> };
+  matrixWorld?: { elements: ArrayLike<number> };
   matrixWorldNeedsUpdate?: boolean;
   parent?: Object3D | null;
   visible?: boolean;
   updateMatrixWorld?: (force?: boolean) => void;
-  localToWorld?: (vector: Vec3) => Vec3;
 };
 
 type SceneCamera = {
   projectionMatrix: { elements: ArrayLike<number> };
   matrixWorldInverse: { elements: ArrayLike<number> };
   updateMatrixWorld?: (force?: boolean) => void;
-  updateProjectionMatrix?: () => void;
 };
 
 type ProjectableEntity = HTMLElement & {
@@ -52,33 +34,53 @@ type ASceneEl = HTMLElement & {
   object3D?: Object3D;
 };
 
-type ThreeRuntime = {
-  Vector3: new (x?: number, y?: number, z?: number) => Vec3;
-  Matrix4: new () => Mat4;
-};
-
-const getThree = (): ThreeRuntime | null => {
-  const frame = window as Window & {
-    AFRAME?: { THREE?: ThreeRuntime };
-    THREE?: ThreeRuntime;
-  };
-  return frame.AFRAME?.THREE ?? frame.THREE ?? null;
-};
-
 const isIdentityMatrix = (elements: ArrayLike<number> | undefined): boolean => {
   if (!elements || elements.length < 16) return true;
-  const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+  const expected = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
   for (let i = 0; i < 16; i += 1) {
-    if (Math.abs((elements[i] ?? 0) - identity[i]) > 1e-5) return false;
+    if (Math.abs((elements[i] ?? 0) - expected[i]) > 1e-5) return false;
   }
   return true;
 };
 
+const copy16 = (elements: ArrayLike<number>): number[] => {
+  const out = new Array<number>(16);
+  for (let i = 0; i < 16; i += 1) out[i] = Number(elements[i] ?? 0);
+  return out;
+};
+
+/** Column-major 4x4 multiply: out = a * b */
+const multiplyMat4 = (a: ArrayLike<number>, b: ArrayLike<number>): number[] => {
+  const out = new Array<number>(16);
+  for (let col = 0; col < 4; col += 1) {
+    const b0 = Number(b[col * 4] ?? 0);
+    const b1 = Number(b[col * 4 + 1] ?? 0);
+    const b2 = Number(b[col * 4 + 2] ?? 0);
+    const b3 = Number(b[col * 4 + 3] ?? 0);
+    out[col * 4] = Number(a[0]) * b0 + Number(a[4]) * b1 + Number(a[8]) * b2 + Number(a[12]) * b3;
+    out[col * 4 + 1] =
+      Number(a[1]) * b0 + Number(a[5]) * b1 + Number(a[9]) * b2 + Number(a[13]) * b3;
+    out[col * 4 + 2] =
+      Number(a[2]) * b0 + Number(a[6]) * b1 + Number(a[10]) * b2 + Number(a[14]) * b3;
+    out[col * 4 + 3] =
+      Number(a[3]) * b0 + Number(a[7]) * b1 + Number(a[11]) * b2 + Number(a[15]) * b3;
+  }
+  return out;
+};
+
+const applyMat4 = (m: ArrayLike<number>, x: number, y: number, z: number) => {
+  const w = Number(m[3]) * x + Number(m[7]) * y + Number(m[11]) * z + Number(m[15]);
+  const invW = w !== 0 ? 1 / w : 1;
+  return {
+    x: (Number(m[0]) * x + Number(m[4]) * y + Number(m[8]) * z + Number(m[12])) * invW,
+    y: (Number(m[1]) * x + Number(m[5]) * y + Number(m[9]) * z + Number(m[13])) * invW,
+    z: (Number(m[2]) * x + Number(m[6]) * y + Number(m[10]) * z + Number(m[14])) * invW,
+  };
+};
+
 const getProjectionRect = (host: HTMLElement): DOMRect | null => {
   const scene = host.querySelector('a-scene') as HTMLElement | null;
-  const canvas = host.querySelector('.a-canvas, canvas.a-canvas') as HTMLElement | null;
   const rect =
-    (canvas && canvas.clientWidth > 0 ? canvas.getBoundingClientRect() : null) ??
     (scene && scene.clientWidth > 0 ? scene.getBoundingClientRect() : null) ??
     host.getBoundingClientRect();
   if (rect.width <= 0 || rect.height <= 0) return null;
@@ -88,70 +90,56 @@ const getProjectionRect = (host: HTMLElement): DOMRect | null => {
 const getSceneCamera = (host: HTMLElement): SceneCamera | null => {
   const scene = host.querySelector('a-scene') as ASceneEl | null;
   if (scene?.camera) return scene.camera;
-
   const cameraEl = host.querySelector('a-camera') as ProjectableEntity | null;
-  const fromEntity = cameraEl?.getObject3D?.('camera');
-  return fromEntity ?? null;
+  return cameraEl?.getObject3D?.('camera') ?? null;
 };
 
 /**
- * MindAR sets object3D.matrix directly with matrixAutoUpdate = false and does not
- * flag matrixWorldNeedsUpdate, so matrixWorld can stay identity (screen center).
+ * MindAR writes pose into object3D.matrix with matrixAutoUpdate = false.
+ * Read that local matrix; do not wait for a stale identity matrixWorld.
  */
-const syncTrackedWorldMatrix = (entity: ProjectableEntity, camera: SceneCamera): boolean => {
+const getPoseMatrix = (entity: ProjectableEntity, camera: SceneCamera): number[] | null => {
   const object3D = entity.object3D;
-  if (!object3D?.matrix) return false;
+  if (!object3D?.matrix) return null;
 
   const sceneEl = entity.closest('a-scene') as ASceneEl | null;
   sceneEl?.object3D?.updateMatrixWorld?.(true);
-
   object3D.matrixWorldNeedsUpdate = true;
   object3D.updateMatrixWorld?.(true);
   camera.updateMatrixWorld?.(true);
 
-  if (!isIdentityMatrix(object3D.matrixWorld?.elements)) return true;
-  if (isIdentityMatrix(object3D.matrix.elements)) return false;
+  const local = object3D.matrix.elements;
+  if (!isIdentityMatrix(local)) {
+    const parent = object3D.parent?.matrixWorld?.elements;
+    if (parent && !isIdentityMatrix(parent)) {
+      return multiplyMat4(parent, local);
+    }
+    return copy16(local);
+  }
 
-  const THREE = getThree();
-  if (!THREE || !object3D.matrixWorld) return false;
-  const world = new THREE.Matrix4();
-  if (object3D.parent?.matrixWorld) {
-    world.multiplyMatrices(object3D.parent.matrixWorld, object3D.matrix);
-  } else {
-    world.fromArray(object3D.matrix.elements);
+  const world = object3D.matrixWorld?.elements;
+  if (world && !isIdentityMatrix(world)) {
+    return copy16(world);
   }
-  const dest = object3D.matrixWorld.elements as number[] | Float32Array;
-  const src = world.elements;
-  for (let i = 0; i < 16; i += 1) {
-    dest[i] = Number(src[i] ?? 0);
-  }
-  return !isIdentityMatrix(object3D.matrixWorld.elements);
+
+  return null;
 };
 
 const projectLocalPoint = (
-  THREE: ThreeRuntime,
-  entity: ProjectableEntity,
+  pose: ArrayLike<number>,
   camera: SceneCamera,
   viewRect: DOMRect,
   localX: number,
   localY: number,
 ): ScreenPoint | null => {
-  if (!entity.object3D) return null;
-
-  const point = new THREE.Vector3(localX, localY, 0);
-  if (typeof entity.object3D.localToWorld === 'function') {
-    entity.object3D.localToWorld(point);
-  } else {
-    const matrixWorld = new THREE.Matrix4().fromArray(entity.object3D.matrixWorld.elements);
-    point.applyMatrix4(matrixWorld);
-  }
-
-  const projected = point.project(camera);
-  if (!Number.isFinite(projected.x) || !Number.isFinite(projected.y)) return null;
+  const world = applyMat4(pose, localX, localY, 0);
+  const view = applyMat4(camera.matrixWorldInverse.elements, world.x, world.y, world.z);
+  const clip = applyMat4(camera.projectionMatrix.elements, view.x, view.y, view.z);
+  if (!Number.isFinite(clip.x) || !Number.isFinite(clip.y)) return null;
 
   return {
-    x: (projected.x * 0.5 + 0.5) * viewRect.width + viewRect.left,
-    y: (-projected.y * 0.5 + 0.5) * viewRect.height + viewRect.top,
+    x: (clip.x * 0.5 + 0.5) * viewRect.width + viewRect.left,
+    y: (-clip.y * 0.5 + 0.5) * viewRect.height + viewRect.top,
   };
 };
 
@@ -170,6 +158,28 @@ const overlayLocalCorners = (aspectRatio: number, frame: OverlayFrame): Array<[n
   ];
 };
 
+const projectCorners = (
+  host: HTMLElement,
+  targetEntity: HTMLElement,
+  locals: Array<[number, number]>,
+): ScreenPoint[] | null => {
+  const entity = targetEntity as ProjectableEntity;
+  const camera = getSceneCamera(host);
+  const viewRect = getProjectionRect(host);
+  if (!entity.object3D || !camera || !viewRect) return null;
+
+  const pose = getPoseMatrix(entity, camera);
+  if (!pose) return null;
+
+  const points: ScreenPoint[] = [];
+  for (const [x, y] of locals) {
+    const projected = projectLocalPoint(pose, camera, viewRect, x, y);
+    if (!projected) return null;
+    points.push(projected);
+  }
+  return points;
+};
+
 /**
  * Project MindAR target corners to 2D coordinates inside the AR host.
  * MindAR targets are 1 world unit wide; height = aspectRatio (h/w).
@@ -179,46 +189,22 @@ export const getTargetScreenBounds = (
   targetEntity: HTMLElement,
   aspectRatio: number,
 ): TargetScreenBounds | null => {
-  const THREE = getThree();
-  const entity = targetEntity as ProjectableEntity;
-  const camera = getSceneCamera(host);
   const viewRect = getProjectionRect(host);
-
-  if (!THREE || !entity.object3D || !camera || !viewRect) return null;
-  if (!syncTrackedWorldMatrix(entity, camera)) {
-    return { left: 0, top: 0, width: 0, height: 0, visible: false };
-  }
-
   const halfH = aspectRatio * 0.5;
-  const localCorners: Array<[number, number]> = [
+  const points = projectCorners(host, targetEntity, [
     [-0.5, halfH],
     [0.5, halfH],
     [0.5, -halfH],
     [-0.5, -halfH],
-  ];
+  ]);
+  if (!points || !viewRect) return { left: 0, top: 0, width: 0, height: 0, visible: false };
 
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  let visibleCorners = 0;
-
-  for (const [x, y] of localCorners) {
-    const projected = projectLocalPoint(THREE, entity, camera, viewRect, x, y);
-    if (!projected) continue;
-    visibleCorners += 1;
-    minX = Math.min(minX, projected.x - viewRect.left);
-    minY = Math.min(minY, projected.y - viewRect.top);
-    maxX = Math.max(maxX, projected.x - viewRect.left);
-    maxY = Math.max(maxY, projected.y - viewRect.top);
-  }
-
-  if (visibleCorners < 2) {
-    return { left: 0, top: 0, width: 0, height: 0, visible: false };
-  }
-
-  const width = Math.max(0, maxX - minX);
-  const height = Math.max(0, maxY - minY);
+  const xs = points.map((point) => point.x - viewRect.left);
+  const ys = points.map((point) => point.y - viewRect.top);
+  const minX = Math.min(...xs);
+  const minY = Math.min(...ys);
+  const width = Math.max(...xs) - minX;
+  const height = Math.max(...ys) - minY;
 
   return {
     left: minX,
@@ -247,27 +233,12 @@ export const getOverlayQuadScreenCorners = (
   frame: OverlayFrame,
 ): OverlayQuad | null => {
   const overlay = clampOverlayFrame(frame);
-  const THREE = getThree();
-  const entity = targetEntity as ProjectableEntity;
-  const camera = getSceneCamera(host);
-  const viewRect = getProjectionRect(host);
-
-  if (!THREE || !entity.object3D || !camera || !viewRect) {
-    return getOverlayQuadFromBounds(host, targetEntity, aspectRatio, overlay);
-  }
-  if (!syncTrackedWorldMatrix(entity, camera)) {
+  const points = projectCorners(host, targetEntity, overlayLocalCorners(aspectRatio, overlay));
+  if (!points || points.length !== 4) {
     return getOverlayQuadFromBounds(host, targetEntity, aspectRatio, overlay);
   }
 
-  const corners = overlayLocalCorners(aspectRatio, overlay).map(([x, y]) =>
-    projectLocalPoint(THREE, entity, camera, viewRect, x, y),
-  );
-
-  if (corners.some((corner) => !corner)) {
-    return getOverlayQuadFromBounds(host, targetEntity, aspectRatio, overlay);
-  }
-
-  const quad = corners as [ScreenPoint, ScreenPoint, ScreenPoint, ScreenPoint];
+  const quad = points as [ScreenPoint, ScreenPoint, ScreenPoint, ScreenPoint];
   const xs = quad.map((point) => point.x);
   const ys = quad.map((point) => point.y);
   const width = Math.max(...xs) - Math.min(...xs);
@@ -315,10 +286,22 @@ export const getFallbackFrameBox = (): ViewportBox => {
   const height = Math.min(width * (4 / 3), vh * 0.58, 460);
   return {
     left: Math.max(0, (vw - width) / 2),
-    top: Math.max(12, (vh - height) / 2 - 36),
+    top: Math.max(0, (vh - height) / 2),
     width,
     height,
   };
+};
+
+const aabbFromQuad = (quad: OverlayQuad): ViewportBox | null => {
+  if (!quad.visible) return null;
+  const xs = quad.corners.map((point) => point.x);
+  const ys = quad.corners.map((point) => point.y);
+  const left = Math.min(...xs);
+  const top = Math.min(...ys);
+  const width = Math.max(...xs) - left;
+  const height = Math.max(...ys) - top;
+  if (width < 8 || height < 8) return null;
+  return { left, top, width, height };
 };
 
 /** Axis-aligned viewport box of the studio overlay on the tracked photo. */
@@ -329,15 +312,8 @@ export const getOverlayAabbViewport = (
   frame: OverlayFrame,
 ): ViewportBox | null => {
   const quad = getOverlayQuadScreenCorners(host, targetEntity, aspectRatio, frame);
-  if (!quad?.visible) return null;
-  const xs = quad.corners.map((point) => point.x);
-  const ys = quad.corners.map((point) => point.y);
-  const left = Math.min(...xs);
-  const top = Math.min(...ys);
-  const width = Math.max(...xs) - left;
-  const height = Math.max(...ys) - top;
-  if (width < 8 || height < 8) return null;
-  return { left, top, width, height };
+  if (!quad) return null;
+  return aabbFromQuad(quad);
 };
 
 const solveLinearSystem = (inputA: number[][], inputB: number[]): number[] | null => {

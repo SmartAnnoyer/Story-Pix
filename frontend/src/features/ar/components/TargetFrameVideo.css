@@ -38,10 +38,6 @@
   pointer-events: none;
 }
 
-.ar-video-shell--tracked .ar-video-media video {
-  object-fit: cover;
-}
-
 .ar-video-frame-edge {
   position: absolute;
   inset: 0;
@@ -181,6 +177,11 @@
   transform: translateZ(0);
 }
 
+.ar-video-shell--tracked .ar-video-media video {
+  object-fit: cover;
+  opacity: 1 !important;
+}
+
 .ar-video-tap-play {
   position: absolute;
   inset: 0;
@@ -198,14 +199,14 @@
 
 /* Controls sit under the frame so they don’t cover the video */
 .ar-video-controls {
-  pointer-events: auto;
+  pointer-events: auto !important;
   display: flex;
   align-items: stretch;
   justify-content: center;
   gap: 0.2rem;
   padding: 0.4rem 0.45rem 0.35rem;
   border-radius: 28px;
-  background: rgba(18, 18, 24, 0.82);
+  background: rgba(18, 18, 24, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.16);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.38);
   backdrop-filter: blur(18px);

@@ -891,17 +891,23 @@ export const ARViewer = ({
 
   const showControls =
     videoMode !== 'fullscreen' &&
+    !activeTarget &&
     status !== 'recognized' &&
     (status === 'scanning' ||
       status === 'move_closer' ||
       status === 'loading' ||
-      status === 'match_found' ||
       status === 'no_match' ||
       status === 'camera_required');
 
   return (
     <div className="relative h-[100dvh] w-full overflow-hidden bg-black">
-      <div ref={containerRef} className="ar-scene-host" />
+      <div
+        ref={(node) => {
+          containerRef.current = node;
+          setSceneHost(node);
+        }}
+        className="ar-scene-host"
+      />
       <ScanFocusFrame
         visible={
           videoMode !== 'fullscreen' &&

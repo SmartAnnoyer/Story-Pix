@@ -5,11 +5,7 @@ import {
   DEFAULT_OVERLAY_FRAME,
   type OverlayFrame,
 } from '../utils/overlay-frame';
-import {
-  getOverlayQuadScreenCorners,
-  quadToCssMatrix3d,
-  type OverlayQuad,
-} from '../utils/target-projection';
+import { getFallbackFrameBox, getOverlayAabbViewport } from '../utils/target-projection';
 import { getPrefetchedBlobUrl, resolvePlayableVideoUrl } from '../utils/video-prefetch';
 import { viewerLog } from '../utils/viewer-debug-log';
 import './TargetFrameVideo.css';
@@ -61,7 +57,7 @@ const waitForVideoReady = (video: HTMLVideoElement): Promise<void> =>
     }, LOAD_TIMEOUT_MS);
 
     const checkReady = () => {
-      if (video.videoWidth > 0 && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+      if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
         cleanup();
         resolve();
       }
@@ -74,12 +70,14 @@ const waitForVideoReady = (video: HTMLVideoElement): Promise<void> =>
     };
     const cleanup = () => {
       window.clearTimeout(timeout);
+      video.removeEventListener('loadedmetadata', onReady);
       video.removeEventListener('loadeddata', onReady);
       video.removeEventListener('canplay', onReady);
       video.removeEventListener('error', onFail);
     };
 
     checkReady();
+    video.addEventListener('loadedmetadata', onReady);
     video.addEventListener('loadeddata', onReady);
     video.addEventListener('canplay', onReady);
     video.addEventListener('error', onFail);
@@ -106,9 +104,8 @@ export const TargetFrameVideo = ({
   onClose,
 }: TargetFrameVideoProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
-  const lastQuadRef = useRef<OverlayQuad | null>(null);
+  const lastBoxRef = useRef(getFallbackFrameBox());
   const onPlayRef = useRef(onPlay);
   const onErrorRef = useRef(onError);
   const onEndedRef = useRef(onEnded);
@@ -164,74 +161,40 @@ export const TargetFrameVideo = ({
     }
 
     const frame = clampOverlayFrame(overlayFrame ?? DEFAULT_OVERLAY_FRAME);
-    const SRC = 160;
 
-    const paintCanvas = () => {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      if (!video || !canvas || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
-      if (video.videoWidth <= 0 || video.videoHeight <= 0) return;
-
-      const cssW = Math.max(1, canvas.clientWidth);
-      const cssH = Math.max(1, canvas.clientHeight);
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const pixelW = Math.round(cssW * dpr);
-      const pixelH = Math.round(cssH * dpr);
-      if (canvas.width !== pixelW || canvas.height !== pixelH) {
-        canvas.width = pixelW;
-        canvas.height = pixelH;
-      }
-
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      const scale = Math.max(pixelW / video.videoWidth, pixelH / video.videoHeight);
-      const drawW = video.videoWidth * scale;
-      const drawH = video.videoHeight * scale;
-      ctx.drawImage(video, (pixelW - drawW) / 2, (pixelH - drawH) / 2, drawW, drawH);
-    };
-
-    const applyQuad = (quad: OverlayQuad) => {
+    const applyBox = (box: { left: number; top: number; width: number; height: number }) => {
       const el = stageRef.current;
       if (!el) return;
-      const matrix = quadToCssMatrix3d(SRC, SRC, quad.corners);
       el.style.position = 'fixed';
-      el.style.left = '0px';
-      el.style.top = '0px';
-      el.style.width = `${SRC}px`;
-      el.style.height = `${SRC}px`;
-      el.style.transformOrigin = '0 0';
-      el.style.visibility = 'visible';
-      if (matrix) {
-        el.style.transform = matrix;
-        return;
-      }
-      const xs = quad.corners.map((point) => point.x);
-      const ys = quad.corners.map((point) => point.y);
-      const left = Math.min(...xs);
-      const top = Math.min(...ys);
-      el.style.left = `${Math.round(left)}px`;
-      el.style.top = `${Math.round(top)}px`;
-      el.style.width = `${Math.round(Math.max(...xs) - left)}px`;
-      el.style.height = `${Math.round(Math.max(...ys) - top)}px`;
+      el.style.left = `${Math.round(box.left)}px`;
+      el.style.top = `${Math.round(box.top)}px`;
+      el.style.width = `${Math.round(box.width)}px`;
+      el.style.height = `${Math.round(box.height)}px`;
       el.style.transform = 'none';
+      el.style.transformOrigin = 'center';
+      el.style.visibility = 'visible';
+      el.style.opacity = '1';
     };
 
-    if (lastQuadRef.current) applyQuad(lastQuadRef.current);
+    applyBox(lastBoxRef.current);
 
     let raf = 0;
+    let locked = false;
     const tick = () => {
       if (host && targetEntity) {
-        const pose = getOverlayQuadScreenCorners(host, targetEntity, aspectRatio, frame);
-        if (pose?.visible) {
-          if (!lastQuadRef.current) {
-            viewerLog('info', 'overlay pose locked to selected frame');
+        const pose = getOverlayAabbViewport(host, targetEntity, aspectRatio, frame);
+        if (pose) {
+          if (!locked) {
+            locked = true;
+            viewerLog('info', 'overlay pose locked to selected frame', {
+              w: Math.round(pose.width),
+              h: Math.round(pose.height),
+            });
           }
-          lastQuadRef.current = pose;
+          lastBoxRef.current = pose;
         }
       }
-      if (lastQuadRef.current) applyQuad(lastQuadRef.current);
-      paintCanvas();
+      applyBox(lastBoxRef.current);
       raf = window.requestAnimationFrame(tick);
     };
 
@@ -251,9 +214,7 @@ export const TargetFrameVideo = ({
 
   useEffect(() => {
     if (!active) {
-      lastQuadRef.current = null;
-      const el = stageRef.current;
-      if (el) el.style.visibility = 'hidden';
+      lastBoxRef.current = getFallbackFrameBox();
     }
   }, [active]);
 
@@ -277,7 +238,7 @@ export const TargetFrameVideo = ({
   const tryPlay = useCallback(
     async (withSound = false) => {
       const video = videoRef.current;
-      if (!video || video.videoWidth === 0) return false;
+      if (!video) return false;
 
       video.muted = !withSound;
       if (withSound) video.volume = 1;
@@ -299,7 +260,7 @@ export const TargetFrameVideo = ({
         }
       }
 
-      if (video.paused || video.videoWidth === 0) {
+      if (video.paused) {
         setNeedsTap(true);
         return false;
       }
@@ -452,12 +413,12 @@ export const TargetFrameVideo = ({
     const video = videoRef.current;
     if (!video) return;
     if (video.paused) {
-      void tryPlay(soundOn);
+      void tryPlay(true);
       return;
     }
     video.pause();
     setIsPlaying(false);
-  }, [tryPlay, soundOn]);
+  }, [tryPlay]);
 
   const handleToggleMute = useCallback(() => {
     const video = videoRef.current;
@@ -484,219 +445,219 @@ export const TargetFrameVideo = ({
   if (!active || typeof document === 'undefined') return null;
 
   const showFullscreen = mode === 'fullscreen';
-  const showControls = !loading;
+  const frameBox = lastBoxRef.current;
 
   return createPortal(
-    <div
-      className={`ar-video-shell${showFullscreen ? ' ar-video-shell--fullscreen' : ' ar-video-shell--tracked'}`}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 10040,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: showFullscreen ? 'stretch' : 'flex-end',
-        gap: showFullscreen ? 0 : 12,
-        padding: showFullscreen ? 0 : '0 16px max(16px, env(safe-area-inset-bottom))',
-        background: showFullscreen ? '#000' : 'transparent',
-        pointerEvents: showFullscreen ? 'auto' : 'none',
-      }}
-      role="dialog"
-      aria-label={title ? `Playing ${title}` : 'Playing mapped video'}
-    >
-      {showFullscreen ? (
-        <p className="ar-video-nowplaying">
-          {loading ? 'Loading video…' : `Now playing${title ? ` · ${title}` : ''}`}
-        </p>
-      ) : null}
-
+    <>
       <div
-        ref={stageRef}
-        className="ar-video-stage"
-        style={
-          showFullscreen
-            ? {
-                position: 'relative',
-                width: '100%',
-                flex: 1,
-                minHeight: 0,
-                border: 'none',
-                borderRadius: 0,
-                overflow: 'hidden',
-                background: '#000',
-                pointerEvents: 'auto',
-              }
-            : {
-                position: 'fixed',
-                left: 0,
-                top: 0,
-                width: 160,
-                height: 160,
-                visibility: lastQuadRef.current ? 'visible' : 'hidden',
-                overflow: 'hidden',
-                background: '#000',
-                pointerEvents: needsTap ? 'auto' : 'none',
-                zIndex: 10041,
-                transformOrigin: '0 0',
-              }
-        }
+        className={`ar-video-shell${showFullscreen ? ' ar-video-shell--fullscreen' : ' ar-video-shell--tracked'}`}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 10040,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: showFullscreen ? 'stretch' : 'flex-end',
+          gap: showFullscreen ? 0 : 12,
+          padding: showFullscreen ? 0 : '0 16px max(16px, env(safe-area-inset-bottom))',
+          background: showFullscreen ? '#000' : 'transparent',
+          pointerEvents: showFullscreen ? 'auto' : 'none',
+        }}
+        role="dialog"
+        aria-label={title ? `Playing ${title}` : 'Playing mapped video'}
       >
-        {showFullscreen ? null : <div className="ar-video-frame-edge" aria-hidden />}
-        <div className="ar-video-media">
-          {!showFullscreen ? (
-            <canvas
-              ref={canvasRef}
-              className="ar-video-canvas"
-              aria-hidden
+        {showFullscreen ? (
+          <p className="ar-video-nowplaying">
+            {loading ? 'Loading video…' : `Now playing${title ? ` · ${title}` : ''}`}
+          </p>
+        ) : null}
+
+        <div
+          ref={stageRef}
+          className="ar-video-stage"
+          style={
+            showFullscreen
+              ? {
+                  position: 'relative',
+                  width: '100%',
+                  flex: 1,
+                  minHeight: 0,
+                  border: 'none',
+                  borderRadius: 0,
+                  overflow: 'hidden',
+                  background: '#000',
+                  pointerEvents: 'auto',
+                }
+              : {
+                  position: 'fixed',
+                  left: frameBox.left,
+                  top: frameBox.top,
+                  width: frameBox.width,
+                  height: frameBox.height,
+                  visibility: 'visible',
+                  overflow: 'hidden',
+                  background: '#000',
+                  pointerEvents: needsTap ? 'auto' : 'none',
+                  zIndex: 10041,
+                }
+          }
+        >
+          {showFullscreen ? null : <div className="ar-video-frame-edge" aria-hidden />}
+          <div className="ar-video-media">
+            <video
+              ref={videoRef}
+              playsInline
+              muted={!soundOn}
+              autoPlay
               style={{
-                position: 'absolute',
-                inset: 0,
+                display: 'block',
                 width: '100%',
                 height: '100%',
-                zIndex: 2,
+                objectFit: showFullscreen ? 'contain' : 'cover',
                 background: '#000',
+                opacity: 1,
+                position: 'absolute',
+                inset: 0,
+                zIndex: 1,
+              }}
+              onEnded={() => {
+                if (mode === 'fullscreen') onEndedRef.current?.();
               }}
             />
-          ) : null}
-          <video
-            ref={videoRef}
-            playsInline
-            muted={!soundOn}
-            autoPlay
-            style={{
-              display: 'block',
-              width: '100%',
-              height: '100%',
-              objectFit: showFullscreen ? 'contain' : 'cover',
-              background: '#000',
-              opacity: showFullscreen ? 1 : 0.02,
-              position: showFullscreen ? 'relative' : 'absolute',
-              inset: 0,
-              zIndex: 1,
-            }}
-            onEnded={() => {
-              if (mode === 'fullscreen') onEndedRef.current?.();
-            }}
-          />
-          {needsTap ? (
-            <button type="button" className="ar-video-tap-play" onClick={() => void tryPlay(true)}>
-              Tap to play
-            </button>
-          ) : null}
+            {needsTap ? (
+              <button
+                type="button"
+                className="ar-video-tap-play"
+                onClick={() => void tryPlay(true)}
+              >
+                Tap to play
+              </button>
+            ) : null}
+          </div>
         </div>
       </div>
 
-      {showControls ? (
-        <div className="ar-video-controls" onClick={(event) => event.stopPropagation()}>
+      <div
+        className="ar-video-controls"
+        style={{
+          position: 'fixed',
+          left: '50%',
+          bottom: 'max(14px, env(safe-area-inset-bottom, 0px))',
+          transform: 'translateX(-50%)',
+          zIndex: 2147483000,
+          pointerEvents: 'auto',
+        }}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          className="ar-video-ctrl"
+          aria-label={isPlaying ? 'Pause' : 'Play'}
+          onClick={handleTogglePlay}
+        >
+          <span className="ar-video-ctrl__icon" aria-hidden>
+            {isPlaying ? (
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <rect x="5" y="4" width="5" height="16" rx="1.5" />
+                <rect x="14" y="4" width="5" height="16" rx="1.5" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M8 5.2v13.6c0 .9 1 1.4 1.7.9l10-6.8c.7-.5.7-1.4 0-1.8l-10-6.8C9 3.8 8 4.3 8 5.2z" />
+              </svg>
+            )}
+          </span>
+          <span className="ar-video-ctrl__label">{isPlaying ? 'Pause' : 'Play'}</span>
+        </button>
+        <button
+          type="button"
+          className="ar-video-ctrl"
+          aria-label={soundOn ? 'Mute' : 'Unmute'}
+          onClick={handleToggleMute}
+        >
+          <span className="ar-video-ctrl__icon" aria-hidden>
+            {soundOn ? (
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M4 9v6h3.2L12 19.2V4.8L7.2 9H4zm13.5 3c0-1.8-1-3.3-2.5-4.1v8.2c1.5-.8 2.5-2.3 2.5-4.1zm-2.5-7v1.6c2.9.9 5 3.6 5 6.9s-2.1 6-5 6.9V20c3.8-1 6.5-4.5 6.5-8.5S18.8 6 15 5z" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M4 9v6h3.2L12 19.2V4.8L7.2 9H4zm16.3-3.1-1.4-1.4L15 8.4l-3.9 3.9v.1L15 15.6l3.9 3.9 1.4-1.4L16.4 14l3.9-3.9-1.4-1.4L15 12.2z" />
+              </svg>
+            )}
+          </span>
+          <span className="ar-video-ctrl__label">{soundOn ? 'Mute' : 'Sound'}</span>
+        </button>
+        <button
+          type="button"
+          className="ar-video-ctrl"
+          aria-label={showFullscreen ? 'Exit full screen' : 'Full screen'}
+          onClick={handleToggleFullscreen}
+        >
+          <span className="ar-video-ctrl__icon" aria-hidden>
+            {showFullscreen ? (
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M7 14H5v5h5v-2H7v-3zm0-4h2V7h3V5H5v5h2zm10 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M7 14H5v5h5v-2H7v-3zm12 5h-5v-2h3v-3h2v5zM5 5h5v2H7v3H5V5zm14 5h-2V7h-3V5h5v5z" />
+              </svg>
+            )}
+          </span>
+          <span className="ar-video-ctrl__label">{showFullscreen ? 'Exit' : 'Full'}</span>
+        </button>
+        {videoCount > 1 && onCycleVideo ? (
           <button
             type="button"
             className="ar-video-ctrl"
-            aria-label={isPlaying ? 'Pause' : 'Play'}
-            onClick={handleTogglePlay}
+            aria-label="Next mapped video"
+            onClick={() => onCycleVideo(1)}
           >
             <span className="ar-video-ctrl__icon" aria-hidden>
-              {isPlaying ? (
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                  <rect x="5" y="4" width="5" height="16" rx="1.5" />
-                  <rect x="14" y="4" width="5" height="16" rx="1.5" />
-                </svg>
-              ) : (
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                  <path d="M8 5.2v13.6c0 .9 1 1.4 1.7.9l10-6.8c.7-.5.7-1.4 0-1.8l-10-6.8C9 3.8 8 4.3 8 5.2z" />
-                </svg>
-              )}
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M8 5.2v13.6c0 .9 1 1.4 1.7.9l10-6.8c.7-.5.7-1.4 0-1.8l-10-6.8C9 3.8 8 4.3 8 5.2z" />
+              </svg>
             </span>
-            <span className="ar-video-ctrl__label">{isPlaying ? 'Pause' : 'Play'}</span>
+            <span className="ar-video-ctrl__label">
+              {videoIndex + 1}/{videoCount}
+            </span>
           </button>
+        ) : null}
+        {playbackUrl ? (
           <button
             type="button"
             className="ar-video-ctrl"
-            aria-label={soundOn ? 'Mute' : 'Unmute'}
-            onClick={handleToggleMute}
+            aria-label="Open video"
+            onClick={handleOpenVideo}
           >
             <span className="ar-video-ctrl__icon" aria-hidden>
-              {soundOn ? (
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                  <path d="M4 9v6h3.2L12 19.2V4.8L7.2 9H4zm13.5 3c0-1.8-1-3.3-2.5-4.1v8.2c1.5-.8 2.5-2.3 2.5-4.1zm-2.5-7v1.6c2.9.9 5 3.6 5 6.9s-2.1 6-5 6.9V20c3.8-1 6.5-4.5 6.5-8.5S18.8 6 15 5z" />
-                </svg>
-              ) : (
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                  <path d="M4 9v6h3.2L12 19.2V4.8L7.2 9H4zm16.3-3.1-1.4-1.4L15 8.4l-3.9 3.9v.1L15 15.6l3.9 3.9 1.4-1.4L16.4 14l3.9-3.9-1.4-1.4L15 12.2z" />
-                </svg>
-              )}
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M14 3h7v7h-2V6.4l-9.3 9.3-1.4-1.4L17.6 5H14V3zM5 5h6v2H7v10h10v-4h2v6H5V5z" />
+              </svg>
             </span>
-            <span className="ar-video-ctrl__label">{soundOn ? 'Mute' : 'Sound'}</span>
+            <span className="ar-video-ctrl__label">Open</span>
           </button>
+        ) : null}
+        {onClose ? (
           <button
             type="button"
             className="ar-video-ctrl"
-            aria-label={showFullscreen ? 'Exit full screen' : 'Full screen'}
-            onClick={handleToggleFullscreen}
+            aria-label="Close video"
+            onClick={onClose}
           >
             <span className="ar-video-ctrl__icon" aria-hidden>
-              {showFullscreen ? (
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                  <path d="M7 14H5v5h5v-2H7v-3zm0-4h2V7h3V5H5v5h2zm10 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
-                </svg>
-              ) : (
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                  <path d="M7 14H5v5h5v-2H7v-3zm12 5h-5v-2h3v-3h2v5zM5 5h5v2H7v3H5V5zm14 5h-2V7h-3V5h5v5z" />
-                </svg>
-              )}
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6 6.4 5z" />
+              </svg>
             </span>
-            <span className="ar-video-ctrl__label">{showFullscreen ? 'Exit' : 'Full'}</span>
+            <span className="ar-video-ctrl__label">Done</span>
           </button>
-          {videoCount > 1 && onCycleVideo ? (
-            <button
-              type="button"
-              className="ar-video-ctrl"
-              aria-label="Next mapped video"
-              onClick={() => onCycleVideo(1)}
-            >
-              <span className="ar-video-ctrl__icon" aria-hidden>
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                  <path d="M8 5.2v13.6c0 .9 1 1.4 1.7.9l10-6.8c.7-.5.7-1.4 0-1.8l-10-6.8C9 3.8 8 4.3 8 5.2z" />
-                </svg>
-              </span>
-              <span className="ar-video-ctrl__label">
-                {videoIndex + 1}/{videoCount}
-              </span>
-            </button>
-          ) : null}
-          {playbackUrl ? (
-            <button
-              type="button"
-              className="ar-video-ctrl"
-              aria-label="Open video"
-              onClick={handleOpenVideo}
-            >
-              <span className="ar-video-ctrl__icon" aria-hidden>
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                  <path d="M14 3h7v7h-2V6.4l-9.3 9.3-1.4-1.4L17.6 5H14V3zM5 5h6v2H7v10h10v-4h2v6H5V5z" />
-                </svg>
-              </span>
-              <span className="ar-video-ctrl__label">Open</span>
-            </button>
-          ) : null}
-          {onClose ? (
-            <button
-              type="button"
-              className="ar-video-ctrl"
-              aria-label="Close video"
-              onClick={onClose}
-            >
-              <span className="ar-video-ctrl__icon" aria-hidden>
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                  <path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6 6.4 5z" />
-                </svg>
-              </span>
-              <span className="ar-video-ctrl__label">Done</span>
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-    </div>,
+        ) : null}
+      </div>
+    </>,
     document.body,
   );
 };
