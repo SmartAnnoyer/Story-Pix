@@ -7,7 +7,11 @@ import {
 } from '../utils/overlay-frame';
 import { getPlaybackVideoElement } from '../utils/camera-permission';
 import { ensureTransparentRenderer, setOverlayPlaybackActive } from '../utils/mindar-scene';
-import { detachOverlayVideoPlane, setOverlayVideoPlaneVisible } from '../utils/overlay-plane';
+import {
+  attachOverlayVideoPlane,
+  detachOverlayVideoPlane,
+  setOverlayVideoPlaneVisible,
+} from '../utils/overlay-plane';
 import {
   describeOverlayLayout,
   getOverlayAabbViewport,
@@ -212,9 +216,32 @@ export const TargetFrameVideo = ({
     installPoseCapture(entity);
     ensureTransparentRenderer(host);
 
+    const parkDecoder = () => {
+      const video = videoRef.current;
+      if (!video) return;
+      video.id = 'sp-mapped-video';
+      video.style.position = 'absolute';
+      video.style.left = '0px';
+      video.style.top = '0px';
+      video.style.width = '360px';
+      video.style.height = '640px';
+      video.style.opacity = '1';
+      video.style.visibility = 'visible';
+      video.style.zIndex = '0';
+      video.style.objectFit = 'fill';
+      if (video.parentElement !== host) {
+        host.insertBefore(video, host.firstChild);
+      }
+    };
+    parkDecoder();
+    stage.style.opacity = '0';
+    stage.style.visibility = 'hidden';
+    stage.style.width = '0px';
+    stage.style.height = '0px';
+
     let cancelled = false;
-    let loggedLayout = false;
     let missFrames = 0;
+    let planeAttached = false;
     let lastBox: { left: number; top: number; width: number; height: number } | null = null;
     const srcSize = 400;
 
@@ -227,10 +254,9 @@ export const TargetFrameVideo = ({
       stage.style.height = `${box.height}px`;
       stage.style.transform = 'none';
       stage.style.transformOrigin = '0 0';
-      stage.style.opacity = '1';
-      stage.style.visibility = 'visible';
+      stage.style.opacity = '0';
+      stage.style.visibility = 'hidden';
       stage.style.zIndex = '10080';
-      stage.style.background = '#000';
       stage.style.pointerEvents = 'none';
     };
 
@@ -278,45 +304,51 @@ export const TargetFrameVideo = ({
       return false;
     };
 
+    const tryAttachPlane = () => {
+      if (cancelled || planeAttached) return false;
+      const video = videoRef.current;
+      if (!video || video.videoWidth < 2) return false;
+      parkDecoder();
+      const result = attachOverlayVideoPlane(entity, video, frame, aspectRatio);
+      if (!result.ok) return false;
+      planeAttached = true;
+      setOverlayVideoPlaneVisible(entity, true);
+      dumpArOverlayDebug({
+        host,
+        entity,
+        video,
+        frame,
+        aspectRatio,
+        attached: true,
+        reason: 'crop-plane',
+      });
+      viewerLog('info', 'mapped video placed in studio crop', {
+        ios,
+        ready: video.readyState,
+        paused: video.paused,
+        size: `${video.videoWidth}x${video.videoHeight}`,
+        reason: result.reason,
+        frame,
+      });
+      return true;
+    };
+
     const tick = () => {
       if (cancelled) return;
-      const placed = layoutOverlay();
-      if (!placed) {
+      parkDecoder();
+      layoutOverlay();
+      const attachedNow = tryAttachPlane();
+      if (!attachedNow && !planeAttached) {
         missFrames += 1;
         if (missFrames === 1 || missFrames % 45 === 0) {
-          viewerLog('warn', 'crop overlay pose not ready', {
+          const video = videoRef.current;
+          viewerLog('warn', 'crop overlay waiting', {
             misses: missFrames,
+            size: `${video?.videoWidth ?? 0}x${video?.videoHeight ?? 0}`,
+            ready: video?.readyState,
             ...describeOverlayLayout(host, entity),
           });
         }
-      } else if (!loggedLayout) {
-        loggedLayout = true;
-        const video = videoRef.current;
-        const rect = video?.getBoundingClientRect();
-        dumpArOverlayDebug({
-          host,
-          entity,
-          video: video ?? null,
-          frame,
-          aspectRatio,
-          attached: true,
-          reason: ios ? 'ios-html-crop' : 'html-crop',
-        });
-        viewerLog('info', 'mapped video placed in studio crop', {
-          ios,
-          ready: video?.readyState,
-          paused: video?.paused,
-          size: `${video?.videoWidth ?? 0}x${video?.videoHeight ?? 0}`,
-          rect: rect
-            ? {
-                w: Math.round(rect.width),
-                h: Math.round(rect.height),
-                top: Math.round(rect.top),
-                left: Math.round(rect.left),
-              }
-            : null,
-          frame,
-        });
       }
       window.requestAnimationFrame(tick);
     };

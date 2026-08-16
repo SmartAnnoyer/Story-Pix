@@ -157,7 +157,7 @@ export const attachOverlayVideoPlane = (
     let loggedDrawError = false;
     const paint = () => {
       if (!painting) return;
-      if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0) {
+      if (video.readyState >= HTMLMediaElement.HAVE_METADATA && video.videoWidth > 0) {
         if (canvas.width !== video.videoWidth) canvas.width = video.videoWidth;
         if (canvas.height !== video.videoHeight) canvas.height = video.videoHeight;
         try {

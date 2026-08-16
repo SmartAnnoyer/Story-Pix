@@ -102,12 +102,14 @@ export const getCameraVideo = (host: HTMLElement): HTMLVideoElement | null => {
     return arSystem.video;
   }
 
-  const withStream = host.querySelector('video') as HTMLVideoElement | null;
-  if (withStream?.srcObject) {
+  const withStream = [...host.querySelectorAll('video')].find((node) =>
+    Boolean((node as HTMLVideoElement).srcObject),
+  ) as HTMLVideoElement | undefined;
+  if (withStream) {
     return withStream;
   }
 
-  return (host.querySelector('video') as HTMLVideoElement | null) ?? null;
+  return host.querySelector('video:not(#sp-mapped-video)') as HTMLVideoElement | null;
 };
 
 /** Keep the live camera <video> visible. WebGL is transparent so the mapped plane shows on the photo. */
@@ -169,21 +171,18 @@ export const ensureCameraPreviewVisible = (host: HTMLElement): HTMLVideoElement 
   video.muted = true;
   video.playsInline = true;
   video.autoplay = true;
-  video.style.objectFit = 'cover';
-  video.style.width = '100%';
-  video.style.height = '100%';
-  video.style.minWidth = '100%';
-  video.style.minHeight = '100%';
   video.style.position = 'absolute';
-  video.style.inset = '0';
-  video.style.opacity = '1';
-  video.style.zIndex = '1';
   video.style.pointerEvents = 'none';
 
   if (host.classList.contains('ar-scene-host--crop-playing')) {
-    video.style.opacity = '0';
-    video.style.zIndex = '-10';
+    if (video.id !== 'sp-mapped-video') {
+      video.style.opacity = '0';
+      video.style.zIndex = '-10';
+    }
     paintCameraToCanvas(host, video);
+  } else {
+    video.style.opacity = '1';
+    video.style.zIndex = '1';
   }
 
   if (video.paused) {

@@ -90,10 +90,27 @@ const getProjectionRect = (host: HTMLElement): DOMRect | null => {
 };
 
 const getSceneCamera = (host: HTMLElement): SceneCamera | null => {
-  const scene = host.querySelector('a-scene') as ASceneEl | null;
-  if (scene?.camera) return scene.camera;
   const cameraEl = host.querySelector('a-camera') as ProjectableEntity | null;
-  return cameraEl?.getObject3D?.('camera') ?? null;
+  const fromEl = cameraEl?.getObject3D?.('camera');
+  if (fromEl?.projectionMatrix) {
+    fromEl.updateMatrixWorld?.(true);
+    return fromEl;
+  }
+  const scene = host.querySelector('a-scene') as ASceneEl | null;
+  scene?.camera?.updateMatrixWorld?.(true);
+  return scene?.camera ?? null;
+};
+
+const getMindArProjection = (host: HTMLElement): ArrayLike<number> | null => {
+  const scene = host.querySelector('a-scene') as
+    | (HTMLElement & {
+        systems?: Record<
+          string,
+          { controller?: { getProjectionMatrix?: () => ArrayLike<number> } }
+        >;
+      })
+    | null;
+  return scene?.systems?.['mindar-image-system']?.controller?.getProjectionMatrix?.() ?? null;
 };
 
 type ThreeMatrix4 = {
@@ -248,7 +265,20 @@ const projectLocalPoint = (
   const view = applyMat4(camera.matrixWorldInverse.elements, world.x, world.y, world.z);
   const clip = applyMat4(camera.projectionMatrix.elements, view.x, view.y, view.z);
   if (!Number.isFinite(clip.x) || !Number.isFinite(clip.y)) return null;
+  if (Math.abs(clip.x) > 8 || Math.abs(clip.y) > 8) return null;
   return ndcToViewport(clip.x, clip.y, viewRect);
+};
+
+const projectWithMvp = (
+  mvp: ArrayLike<number>,
+  localX: number,
+  localY: number,
+  destRect: DOMRect,
+): ScreenPoint | null => {
+  const clip = applyMat4(mvp, localX, localY, 0);
+  if (!Number.isFinite(clip.x) || !Number.isFinite(clip.y)) return null;
+  if (Math.abs(clip.x) > 8 || Math.abs(clip.y) > 8) return null;
+  return ndcToViewport(clip.x, clip.y, destRect);
 };
 
 const overlayLocalCorners = (aspectRatio: number, frame: OverlayFrame): Array<[number, number]> => {
@@ -274,33 +304,52 @@ const projectCorners = (
   const entity = targetEntity as ProjectableEntity;
   const camera = getSceneCamera(host);
   const viewRect = getProjectionRect(host);
-  if (!entity.object3D || !camera || !viewRect) return null;
+  const pose = camera ? getPoseMatrix(entity, camera) : (capturedPose.get(targetEntity) ?? null);
+  if (!entity.object3D) return null;
 
-  const pose = getPoseMatrix(entity, camera);
-  if (pose) {
+  const collect = (
+    projectOne: (x: number, y: number) => ScreenPoint | null,
+  ): ScreenPoint[] | null => {
     const points: ScreenPoint[] = [];
     for (const [x, y] of locals) {
-      const projected = projectLocalPoint(pose, camera, viewRect, x, y);
-      if (!projected) break;
+      const projected = projectOne(x, y);
+      if (!projected) return null;
       points.push(projected);
     }
-    if (points.length === locals.length) return points;
+    return points;
+  };
+
+  if (pose) {
+    const mindProj = getMindArProjection(host);
+    const video = host.querySelector(
+      ':scope > video:not(#sp-mapped-video)',
+    ) as HTMLVideoElement | null;
+    const videoRect = video?.getBoundingClientRect();
+    if (mindProj && videoRect && videoRect.width > 8 && videoRect.height > 8) {
+      const mvp = multiplyMat4(mindProj, pose);
+      const fromMind = collect((x, y) => projectWithMvp(mvp, x, y, videoRect));
+      if (fromMind) return fromMind;
+    }
+  }
+
+  if (pose && camera && viewRect) {
+    const fromCamera = collect((x, y) => projectLocalPoint(pose, camera, viewRect, x, y));
+    if (fromCamera) return fromCamera;
   }
 
   const THREE = getThree();
-  if (!THREE || !entity.object3D.localToWorld) return null;
+  if (!THREE || !entity.object3D.localToWorld || !camera || !viewRect) return null;
   if (pose) applyPoseToObject(entity, pose);
   entity.object3D.updateMatrixWorld?.(true);
 
-  const points: ScreenPoint[] = [];
-  for (const [x, y] of locals) {
+  return collect((x, y) => {
     const vector = new THREE.Vector3(x, y, 0);
-    entity.object3D.localToWorld(vector);
+    entity.object3D?.localToWorld?.(vector);
     vector.project(camera);
     if (!Number.isFinite(vector.x) || !Number.isFinite(vector.y)) return null;
-    points.push(ndcToViewport(vector.x, vector.y, viewRect));
-  }
-  return points;
+    if (Math.abs(vector.x) > 8 || Math.abs(vector.y) > 8) return null;
+    return ndcToViewport(vector.x, vector.y, viewRect);
+  });
 };
 
 /**
@@ -438,6 +487,9 @@ export const describeOverlayLayout = (
     pose: Boolean(pose),
     object3D: Boolean(entity.object3D),
     matrix0: Number(Number(entity.object3D?.matrix?.elements?.[0] ?? 0).toFixed(3)),
+    matrix14: Number(Number(entity.object3D?.matrix?.elements?.[14] ?? 0).toFixed(3)),
+    proj0: Number(Number(camera?.projectionMatrix?.elements?.[0] ?? 0).toFixed(3)),
+    mindProj: Boolean(getMindArProjection(host)),
   };
 };
 
