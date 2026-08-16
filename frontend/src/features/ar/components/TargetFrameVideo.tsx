@@ -5,7 +5,7 @@ import {
   DEFAULT_OVERLAY_FRAME,
   type OverlayFrame,
 } from '../utils/overlay-frame';
-import { getOverlayQuadScreenCorners, quadToCssMatrix3d } from '../utils/target-projection';
+import { getOverlayAabbViewport, getFallbackFrameBox } from '../utils/target-projection';
 import { getPrefetchedBlobUrl, resolvePlayableVideoUrl } from '../utils/video-prefetch';
 import { viewerLog } from '../utils/viewer-debug-log';
 import './TargetFrameVideo.css';
@@ -21,6 +21,9 @@ interface TargetFrameVideoProps {
   fallbackUrl?: string | null;
   active: boolean;
   mode: VideoDisplayMode;
+  videoCount?: number;
+  videoIndex?: number;
+  onCycleVideo?: (direction: 1 | -1) => void;
   title?: string | null;
   preferDirectUrl?: boolean;
   onModeChange: (mode: VideoDisplayMode) => void;
@@ -32,7 +35,6 @@ interface TargetFrameVideoProps {
 }
 
 const LOAD_TIMEOUT_MS = 25_000;
-const QUAD_SIZE = 1000;
 
 const isIOS = () => typeof navigator !== 'undefined' && /iP(hone|od|ad)/.test(navigator.userAgent);
 
@@ -88,6 +90,9 @@ export const TargetFrameVideo = ({
   fallbackUrl,
   active,
   mode,
+  videoCount = 1,
+  videoIndex = 0,
+  onCycleVideo,
   title,
   preferDirectUrl = true,
   onModeChange,
@@ -97,8 +102,9 @@ export const TargetFrameVideo = ({
   onClose,
 }: TargetFrameVideoProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
-  const lastMatrixRef = useRef<string | null>(null);
+  const lastBoxRef = useRef(getFallbackFrameBox());
   const onPlayRef = useRef(onPlay);
   const onErrorRef = useRef(onError);
   const onEndedRef = useRef(onEnded);
@@ -107,8 +113,8 @@ export const TargetFrameVideo = ({
   const [loading, setLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [soundOn, setSoundOn] = useState(false);
+  const soundOnRef = useRef(false);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
-  const [hasPose, setHasPose] = useState(false);
 
   useEffect(() => {
     onPlayRef.current = onPlay;
@@ -149,29 +155,58 @@ export const TargetFrameVideo = ({
   }, [active, host, mode]);
 
   useEffect(() => {
-    if (!active || mode === 'fullscreen' || !host || !targetEntity) {
+    if (!active || mode === 'fullscreen') {
       return undefined;
     }
 
-    let raf = 0;
     const frame = clampOverlayFrame(overlayFrame ?? DEFAULT_OVERLAY_FRAME);
 
-    const tick = () => {
-      const quad = getOverlayQuadScreenCorners(host, targetEntity, aspectRatio, frame);
-      if (quad?.visible) {
-        const matrix = quadToCssMatrix3d(QUAD_SIZE, QUAD_SIZE, quad.corners);
-        if (matrix) {
-          lastMatrixRef.current = matrix;
-          if (stageRef.current) {
-            stageRef.current.style.transform = matrix;
-            stageRef.current.style.visibility = 'visible';
-          }
-          setHasPose((value) => value || true);
-        }
-      } else if (lastMatrixRef.current && stageRef.current) {
-        stageRef.current.style.transform = lastMatrixRef.current;
-        stageRef.current.style.visibility = 'visible';
+    const paintCanvas = () => {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      if (!video || !canvas || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
+      if (video.videoWidth <= 0 || video.videoHeight <= 0) return;
+
+      const cssW = Math.max(1, canvas.clientWidth);
+      const cssH = Math.max(1, canvas.clientHeight);
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const pixelW = Math.round(cssW * dpr);
+      const pixelH = Math.round(cssH * dpr);
+      if (canvas.width !== pixelW || canvas.height !== pixelH) {
+        canvas.width = pixelW;
+        canvas.height = pixelH;
       }
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const scale = Math.max(pixelW / video.videoWidth, pixelH / video.videoHeight);
+      const drawW = video.videoWidth * scale;
+      const drawH = video.videoHeight * scale;
+      ctx.drawImage(video, (pixelW - drawW) / 2, (pixelH - drawH) / 2, drawW, drawH);
+    };
+
+    const applyBox = (box: { left: number; top: number; width: number; height: number }) => {
+      const el = stageRef.current;
+      if (!el) return;
+      el.style.left = `${Math.round(box.left)}px`;
+      el.style.top = `${Math.round(box.top)}px`;
+      el.style.width = `${Math.round(box.width)}px`;
+      el.style.height = `${Math.round(box.height)}px`;
+      el.style.transform = 'none';
+      el.style.visibility = 'visible';
+    };
+
+    applyBox(lastBoxRef.current);
+
+    let raf = 0;
+    const tick = () => {
+      if (host && targetEntity) {
+        const pose = getOverlayAabbViewport(host, targetEntity, aspectRatio, frame);
+        if (pose) lastBoxRef.current = pose;
+      }
+      applyBox(lastBoxRef.current);
+      paintCanvas();
       raf = window.requestAnimationFrame(tick);
     };
 
@@ -181,14 +216,17 @@ export const TargetFrameVideo = ({
 
   useEffect(() => {
     if (mode !== 'fullscreen' || !stageRef.current) return;
+    stageRef.current.style.left = '';
+    stageRef.current.style.top = '';
+    stageRef.current.style.width = '';
+    stageRef.current.style.height = '';
     stageRef.current.style.transform = '';
     stageRef.current.style.visibility = '';
   }, [mode]);
 
   useEffect(() => {
     if (!active) {
-      lastMatrixRef.current = null;
-      setHasPose(false);
+      lastBoxRef.current = getFallbackFrameBox();
     }
   }, [active]);
 
@@ -198,6 +236,7 @@ export const TargetFrameVideo = ({
     video.muted = false;
     video.volume = 1;
     setSoundOn(true);
+    soundOnRef.current = true;
     return true;
   }, []);
 
@@ -238,7 +277,10 @@ export const TargetFrameVideo = ({
         return false;
       }
 
-      if (withSound && !video.muted) setSoundOn(true);
+      if (withSound && !video.muted) {
+        setSoundOn(true);
+        soundOnRef.current = true;
+      }
       setNeedsTap(false);
       setIsPlaying(true);
       notifyPlay();
@@ -279,7 +321,7 @@ export const TargetFrameVideo = ({
           video.src = src;
           video.load();
           await waitForVideoReady(video);
-          const played = await tryPlay(false);
+          const played = await tryPlay(soundOnRef.current);
           if (played) {
             window.setTimeout(() => {
               const rect = video.getBoundingClientRect();
@@ -324,6 +366,7 @@ export const TargetFrameVideo = ({
       setLoading(false);
       setIsPlaying(false);
       setSoundOn(false);
+      soundOnRef.current = false;
       setPlaybackUrl(null);
       video.pause();
       video.removeAttribute('src');
@@ -336,7 +379,6 @@ export const TargetFrameVideo = ({
     setNeedsTap(false);
     hasNotifiedPlayRef.current = false;
     setIsPlaying(false);
-    setSoundOn(false);
 
     const sources = buildSourceList(primaryUrl, fallbackUrl, preferDirectUrl);
 
@@ -393,6 +435,7 @@ export const TargetFrameVideo = ({
     if (soundOn) {
       video.muted = true;
       setSoundOn(false);
+      soundOnRef.current = false;
       return;
     }
     enableSound();
@@ -451,21 +494,35 @@ export const TargetFrameVideo = ({
               }
             : {
                 position: 'fixed',
-                left: 0,
-                top: 0,
-                width: QUAD_SIZE,
-                height: QUAD_SIZE,
-                transformOrigin: '0 0',
-                visibility: hasPose || lastMatrixRef.current ? 'visible' : 'hidden',
+                left: lastBoxRef.current.left,
+                top: lastBoxRef.current.top,
+                width: lastBoxRef.current.width,
+                height: lastBoxRef.current.height,
+                visibility: 'visible',
                 overflow: 'hidden',
                 background: '#000',
                 pointerEvents: 'auto',
-                willChange: 'transform',
+                zIndex: 10041,
               }
         }
       >
         {showFullscreen ? null : <div className="ar-video-frame-edge" aria-hidden />}
         <div className="ar-video-media">
+          {!showFullscreen ? (
+            <canvas
+              ref={canvasRef}
+              className="ar-video-canvas"
+              aria-hidden
+              style={{
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                zIndex: 2,
+                background: '#000',
+              }}
+            />
+          ) : null}
           <video
             ref={videoRef}
             playsInline
@@ -477,6 +534,10 @@ export const TargetFrameVideo = ({
               height: '100%',
               objectFit: showFullscreen ? 'contain' : 'cover',
               background: '#000',
+              opacity: showFullscreen ? 1 : 0.02,
+              position: showFullscreen ? 'relative' : 'absolute',
+              inset: 0,
+              zIndex: 1,
             }}
             onEnded={() => {
               if (mode === 'fullscreen') onEndedRef.current?.();
@@ -550,6 +611,23 @@ export const TargetFrameVideo = ({
             </span>
             <span className="ar-video-ctrl__label">{showFullscreen ? 'Exit' : 'Full'}</span>
           </button>
+          {videoCount > 1 && onCycleVideo ? (
+            <button
+              type="button"
+              className="ar-video-ctrl"
+              aria-label="Next mapped video"
+              onClick={() => onCycleVideo(1)}
+            >
+              <span className="ar-video-ctrl__icon" aria-hidden>
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                  <path d="M8 5.2v13.6c0 .9 1 1.4 1.7.9l10-6.8c.7-.5.7-1.4 0-1.8l-10-6.8C9 3.8 8 4.3 8 5.2z" />
+                </svg>
+              </span>
+              <span className="ar-video-ctrl__label">
+                {videoIndex + 1}/{videoCount}
+              </span>
+            </button>
+          ) : null}
           {playbackUrl ? (
             <a
               className="ar-video-ctrl"

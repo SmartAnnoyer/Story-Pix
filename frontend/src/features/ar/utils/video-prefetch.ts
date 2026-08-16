@@ -118,11 +118,19 @@ export const prefetchManifestVideos = (
     videoMediaId: string;
     videoUrl?: string | null;
     videoAvailable?: boolean;
+    photoMediaId?: string;
   }>,
 ): void => {
+  const seenPhotos = new Set<string>();
+  let warmed = 0;
+
   for (const target of targets) {
     if (target.videoAvailable === false) continue;
-    // Always prefer API proxy — CDN hosts like media.story-pix.app may not resolve.
+    const photoKey = target.photoMediaId ?? `mapping:${target.id}`;
+    if (seenPhotos.has(photoKey)) continue;
+    seenPhotos.add(photoKey);
     prefetchVideo(viewerService.getMappingVideoUrl(albumSlug, target.id, target.videoMediaId));
+    warmed += 1;
+    if (warmed >= 8) break;
   }
 };

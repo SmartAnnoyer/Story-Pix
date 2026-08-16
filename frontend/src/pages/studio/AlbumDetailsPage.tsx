@@ -178,7 +178,7 @@ export const AlbumDetailsPage = () => {
                 description={
                   draftMappingCount > 0
                     ? `You have ${draftMappingCount} draft mapping${draftMappingCount === 1 ? '' : 's'}. Open AR Mappings and click Publish on each one, then publish the album.`
-                    : 'Create a photo → video mapping, publish it, then publish this album.'
+                    : 'Create photo ↔ video mappings, publish them, then publish this album. One QR covers the whole album.'
                 }
                 action={
                   <Button size="small" type="primary" onClick={() => navigate(mappingsPath)}>

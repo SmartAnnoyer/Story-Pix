@@ -74,6 +74,10 @@ export const MappingForm = ({
         <Input placeholder="e.g. First Dance" maxLength={120} />
       </Form.Item>
 
+      <p className="-mt-2 mb-4 text-xs text-neutral-500">
+        Reuse a photo or video in another mapping anytime. Guests still open this album from one QR.
+      </p>
+
       <Form.Item
         name="photoMediaId"
         label="Photo"

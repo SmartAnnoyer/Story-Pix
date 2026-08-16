@@ -62,7 +62,7 @@ describe('ArTargetsService', () => {
     service = module.get(ArTargetsService);
   });
 
-  it('creates mapping when photo and video are unique', async () => {
+  it('creates mapping when photo and video pair is new', async () => {
     albumsService.findById.mockResolvedValue({ id: albumId });
     mediaService.findById.mockImplementation((_studio: string, id: string) => {
       if (id === photoId) {
@@ -111,7 +111,7 @@ describe('ArTargetsService', () => {
     expect(arTargetModel.create).toHaveBeenCalled();
   });
 
-  it('rejects duplicate photo mapping', async () => {
+  it('rejects the same photo and video mapped twice', async () => {
     albumsService.findById.mockResolvedValue({ id: albumId });
     mediaService.findById.mockImplementation((_studio: string, id: string) =>
       Promise.resolve({
@@ -121,7 +121,9 @@ describe('ArTargetsService', () => {
         status: MediaStatus.READY,
       }),
     );
-    arTargetModel.findOne.mockReturnValue({ exec: jest.fn().mockResolvedValue({ _id: 'existing' }) });
+    arTargetModel.findOne.mockReturnValue({
+      exec: jest.fn().mockResolvedValue({ _id: 'existing' }),
+    });
 
     await expect(
       service.create(studioId, {

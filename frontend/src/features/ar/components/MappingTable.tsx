@@ -93,7 +93,7 @@ export const MappingTable = ({
         ) : null}
         {!loading && items.length === 0 ? (
           <p className="rounded-2xl bg-white p-6 text-center text-sm text-gray-500">
-            No mappings yet. Create one to link a photo to a video.
+            No mappings yet. Create one to link a photo to a video. You can reuse photos and videos.
           </p>
         ) : null}
         {items.map((record) => (

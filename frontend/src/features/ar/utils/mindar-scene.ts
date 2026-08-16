@@ -47,7 +47,7 @@ export const buildMindArScene = (
     [
       `imageTargetSrc: ${options.mindUrl}`,
       'autoStart: true',
-      `maxTrack: ${Math.max(options.targetCount, 1)}`,
+      `maxTrack: 1`,
       'uiLoading: no',
       'uiScanning: no',
       'uiError: no',

@@ -126,8 +126,8 @@ export const AlbumViewerQrCard = ({
       ) : (
         <>
           <Paragraph type="secondary" className="text-sm">
-            Print this QR in the photo album so customers open the experience instantly — no typing
-            URLs.
+            Print this QR once in the album. Guests open every mapped photo from this single code —
+            point the camera at each print to play its video(s).
           </Paragraph>
 
           <div ref={qrWrapRef} className="mb-4 flex justify-center rounded-xl bg-white p-4">

@@ -8,6 +8,7 @@ import {
   readMindCache,
 } from './mindar-loader';
 import { readCachedManifest, writeCachedManifest } from './viewer-manifest-cache';
+import { uniqueTrackingPhotos } from './manifest-photos';
 import { prefetchManifestVideos } from './video-prefetch';
 import { isBrokenCdnUrl, withViewerMediaProxies } from './viewer-media-proxy';
 
@@ -88,9 +89,9 @@ const prefetchAlbumAssets = (
   mindUrl?: string | null,
 ) => {
   const sortedTargets = [...manifest.targets].sort((a, b) => a.targetIndex - b.targetIndex);
+  const uniquePhotos = uniqueTrackingPhotos(sortedTargets);
 
-  // Videos first — time-to-play after match is the product KPI
-  prefetchManifestVideos(albumSlug, sortedTargets);
+  prefetchManifestVideos(albumSlug, uniquePhotos);
 
   if (mindUrl && !isBrokenCdnUrl(mindUrl)) prefetchMindFile(mindUrl);
 
@@ -98,22 +99,22 @@ const prefetchAlbumAssets = (
     prefetchImage(manifest.album.coverImage);
   }
 
-  for (const target of sortedTargets) {
+  for (const target of uniquePhotos) {
     const preview = target.photoThumbnailUrl ?? target.photoUrl;
     if (preview && !isBrokenCdnUrl(preview)) prefetchImage(preview);
   }
 };
 
 const buildMindBundle = (albumSlug: string, manifest: ViewerManifest) => {
-  const sortedTargets = [...manifest.targets].sort((a, b) => a.targetIndex - b.targetIndex);
-  const mindCacheTargets = sortedTargets.map((target) => ({
-    id: target.id,
+  const uniquePhotos = uniqueTrackingPhotos(manifest.targets);
+  const mindCacheTargets = uniquePhotos.map((target) => ({
+    id: target.photoMediaId,
     photoMediaId: target.photoMediaId,
   }));
   const mindCacheKey = getMindCacheKey(albumSlug, mindCacheTargets, manifest.mindFile?.hash);
 
   if (!manifest.mindFile) {
-    return { mindCacheKey, sortedTargets, mindBundle: null as null };
+    return { mindCacheKey, sortedTargets: uniquePhotos, mindBundle: null as null };
   }
 
   // Prefer API proxy so MindAR is not blocked by R2 CORS on mobile browsers.
@@ -122,7 +123,7 @@ const buildMindBundle = (albumSlug: string, manifest: ViewerManifest) => {
 
   return {
     mindCacheKey,
-    sortedTargets,
+    sortedTargets: uniquePhotos,
     mindBundle: { url: mindUrl, cacheKey: mindCacheKey },
   };
 };

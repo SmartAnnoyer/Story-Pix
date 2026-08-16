@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { BrandLogo } from '@/components/BrandLogo';
 import type { ViewerManifest } from '@/types/ar-target.types';
+import { uniqueTrackingPhotos } from '../utils/manifest-photos';
 import type { WarmupProgress } from '../utils/viewer-warmup';
 import { MappingPreviewImage } from './MappingPreviewImage';
 import './ViewerIntro.css';
@@ -16,7 +17,7 @@ interface ViewerWelcomeScreenProps {
 const TIPS = [
   'Find the printed photo in your album — that is what you will scan.',
   'Good lighting helps. Avoid glare on glossy prints.',
-  'When matched, video plays on the photo. Double-tap for full screen.',
+  'Point at another print to switch photos — one QR opens the whole album.',
   'Tap the speaker icon if you want sound.',
 ];
 
@@ -40,10 +41,8 @@ export const ViewerWelcomeScreen = ({
   const studioLogo = manifest?.branding.logoUrl;
   const cover = manifest?.album.coverImage;
   const description = manifest?.album.description;
-  const targets = useMemo(
-    () => [...(manifest?.targets ?? [])].sort((a, b) => a.targetIndex - b.targetIndex),
-    [manifest?.targets],
-  );
+  const targets = useMemo(() => uniqueTrackingPhotos(manifest?.targets ?? []), [manifest?.targets]);
+  const mappingCount = manifest?.targets.length ?? 0;
   const canOpenCamera = Boolean(targets.length) && !warmup.error;
   const scanFileReady = warmup.ready && Boolean(warmup.mindBundle);
   const primaryTarget = targets[0] ?? null;
@@ -168,14 +167,15 @@ export const ViewerWelcomeScreen = ({
             {warmup.detail ? <p className="mt-1 text-sm text-white/55">{warmup.detail}</p> : null}
           </div>
 
-          {targets.length > 1 ? (
+          {targets.length > 0 ? (
             <div className="mb-5">
               <p className="mb-3 text-center text-xs font-medium uppercase tracking-wide text-white/45">
-                {targets.length} interactive photos in this album
+                {targets.length} live photo{targets.length === 1 ? '' : 's'}
+                {mappingCount > targets.length ? ` · ${mappingCount} videos` : ''} · one QR
               </p>
               <div className="flex flex-wrap justify-center gap-3">
-                {targets.slice(0, 6).map((target) => (
-                  <div key={target.id} className="flex flex-col items-center gap-1">
+                {targets.slice(0, 8).map((target) => (
+                  <div key={target.photoMediaId} className="flex flex-col items-center gap-1">
                     <MappingPreviewImage albumSlug={albumSlug} target={target} size="sm" />
                     <span className="max-w-[72px] truncate text-center text-[10px] text-white/70">
                       {target.targetName}

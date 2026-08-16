@@ -51,14 +51,16 @@ export const ScanStatusOverlay = ({
     targets.length === 1
       ? targets[0].targetName
       : targets.length > 1
-        ? `${targets.length} mapped photos`
+        ? `${targets.length} photos in this album`
         : null;
 
   const message =
     status === 'scanning'
-      ? targetLabel
-        ? `Aim at: ${targetLabel}`
-        : 'Aim at your mapped photo'
+      ? targets.length > 1
+        ? `Aim at any mapped photo · ${targets.length} in this album`
+        : targetLabel
+          ? `Aim at: ${targetLabel}`
+          : 'Aim at your mapped photo'
       : status === 'preparing'
         ? 'Setting up your AR experience'
         : status === 'loading'

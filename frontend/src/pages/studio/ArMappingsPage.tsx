@@ -72,7 +72,8 @@ export const ArMappingsPage = () => {
             {album.albumName} — AR Mappings
           </Title>
           <Paragraph type="secondary">
-            Link printed photos to videos for the public WebAR viewer.
+            Map any photo to any video, as many times as you need. One album QR covers every
+            published mapping — guests point at each print to play its video(s).
           </Paragraph>
         </div>
         <Button
@@ -89,7 +90,9 @@ export const ArMappingsPage = () => {
           items={data?.items ?? []}
           loading={isLoading}
           onEdit={(mappingId) =>
-            navigate(ROUTES.ALBUM_AR_MAPPING_EDIT.replace(':id', id).replace(':mappingId', mappingId))
+            navigate(
+              ROUTES.ALBUM_AR_MAPPING_EDIT.replace(':id', id).replace(':mappingId', mappingId),
+            )
           }
           onDelete={handleDelete}
           onPublish={handlePublish}

@@ -81,51 +81,21 @@ export class MindArCompilerService {
         $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
         status: ArTargetStatus.ACTIVE,
       })
-      .sort({ targetIndex: 1 })
+      .sort({ targetIndex: 1, createdAt: 1 })
       .exec();
     if (!targets.length) {
       await this.clearAlbumMindFile(album);
       return;
     }
 
+    const uniquePhotos = this.uniquePhotosInOrder(targets);
+    await this.assignSharedTargetIndexes(uniquePhotos);
+
     const studioId = album.studioId.toString();
-    await this.updateBuildProgress(
-      album,
-      8,
-      `Downloading ${targets.length} photo${targets.length === 1 ? '' : 's'}…`,
-    );
-
-    const imageBuffers = await Promise.all(
-      targets.map(async (target) => {
-        const photo = await this.mediaModel
-          .findOne({
-            _id: target.photoMediaId,
-            studioId,
-            deletedAt: null,
-          })
-          .select('r2ObjectKey')
-          .exec();
-
-        if (!photo?.r2ObjectKey) {
-          throw new Error(`Tracking photo unavailable for target ${target._id.toString()}`);
-        }
-
-        const stored = await this.storageService.getObjectBuffer(photo.r2ObjectKey);
-        if (!stored?.buffer?.length) {
-          throw new Error(`Failed to load tracking photo for target ${target._id.toString()}`);
-        }
-
-        return stored.buffer;
-      }),
-    );
-
-    const hashInput = targets
-      .map(
-        (target) =>
-          `${target._id.toString()}:${target.photoMediaId.toString()}:${target.targetIndex ?? ''}`,
-      )
-      .join('|');
-    const mindFileHash = createHash('sha256').update(hashInput).digest('hex').slice(0, 16);
+    const mindFileHash = createHash('sha256')
+      .update(uniquePhotos.map((photo) => photo.photoMediaId).join('|'))
+      .digest('hex')
+      .slice(0, 16);
 
     if (album.mindFileHash === mindFileHash && album.mindFileUrl && album.mindFileKey) {
       this.logger.log(`Mind file already up to date for album ${albumId}`);
@@ -139,8 +109,38 @@ export class MindArCompilerService {
 
     await this.updateBuildProgress(
       album,
+      8,
+      `Downloading ${uniquePhotos.length} photo${uniquePhotos.length === 1 ? '' : 's'}…`,
+    );
+
+    const imageBuffers = await Promise.all(
+      uniquePhotos.map(async (photoTarget) => {
+        const photo = await this.mediaModel
+          .findOne({
+            _id: photoTarget.photoMediaId,
+            studioId,
+            deletedAt: null,
+          })
+          .select('r2ObjectKey')
+          .exec();
+
+        if (!photo?.r2ObjectKey) {
+          throw new Error(`Tracking photo unavailable for ${photoTarget.photoMediaId}`);
+        }
+
+        const stored = await this.storageService.getObjectBuffer(photo.r2ObjectKey);
+        if (!stored?.buffer?.length) {
+          throw new Error(`Failed to load tracking photo for ${photoTarget.photoMediaId}`);
+        }
+
+        return stored.buffer;
+      }),
+    );
+
+    await this.updateBuildProgress(
+      album,
       18,
-      `Analyzing ${targets.length} photo${targets.length === 1 ? '' : 's'} for AR…`,
+      `Analyzing ${uniquePhotos.length} photo${uniquePhotos.length === 1 ? '' : 's'} for AR…`,
     );
 
     const compiled = await compileAlbumMindFile(imageBuffers, (progress) => {
@@ -182,6 +182,36 @@ export class MindArCompilerService {
 
     this.logger.log(
       `Mind file compiled for album ${albumId} (${compiled.buffer.length} bytes, ${compiled.mindVersion}, ${Date.now() - startedAt}ms)`,
+    );
+  }
+
+  private uniquePhotosInOrder(targets: ArTargetDocument[]) {
+    const photos: Array<{ photoMediaId: string; mappingIds: Types.ObjectId[] }> = [];
+    const indexByPhoto = new Map<string, number>();
+
+    for (const target of targets) {
+      const photoId = target.photoMediaId.toString();
+      const existing = indexByPhoto.get(photoId);
+      if (existing == null) {
+        indexByPhoto.set(photoId, photos.length);
+        photos.push({ photoMediaId: photoId, mappingIds: [target._id] });
+      } else {
+        photos[existing].mappingIds.push(target._id);
+      }
+    }
+
+    return photos;
+  }
+
+  private async assignSharedTargetIndexes(
+    uniquePhotos: Array<{ photoMediaId: string; mappingIds: Types.ObjectId[] }>,
+  ) {
+    await Promise.all(
+      uniquePhotos.map((photo, index) =>
+        this.arTargetModel
+          .updateMany({ _id: { $in: photo.mappingIds } }, { $set: { targetIndex: index } })
+          .exec(),
+      ),
     );
   }
 

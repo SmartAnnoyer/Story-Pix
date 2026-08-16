@@ -68,9 +68,8 @@ export const CreateMappingPage = () => {
         Create AR Mapping
       </Title>
       <Paragraph type="secondary" className="!mb-4 max-w-2xl">
-        Upload photos and videos under <strong>Manage Media</strong> first. This screen only links
-        an existing photo (print target) to a video. Publish each mapping, then publish the album so
-        the AR scan file builds before you print the QR.
+        Link any photo to any video. The same photo can unlock several videos, and the same video
+        can be reused on several photos. Guests still scan one album QR.
       </Paragraph>
 
       <Alert
@@ -82,10 +81,11 @@ export const CreateMappingPage = () => {
           <ol className="mb-0 list-decimal pl-4">
             <li>Album → Manage Media — upload photo(s) and video(s) until status is ready.</li>
             <li>
-              Create mapping here — pick photo + video, mark the printed frame, then save as draft.
+              Create as many mappings as you need — reuse photos or videos. Each mapping is a photo
+              ↔ video pair.
             </li>
             <li>AR Mappings list — Publish each mapping, then publish the album.</li>
-            <li>Wait for the AR scan file / QR on the album page, then share or print the QR.</li>
+            <li>One album QR opens every mapping. Wait for the AR scan file before printing it.</li>
           </ol>
         }
       />

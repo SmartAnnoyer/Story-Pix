@@ -62,8 +62,7 @@ export class ArTargetsService {
   async create(studioId: string, dto: CreateArTargetDto) {
     await this.albumsService.findById(studioId, dto.albumId);
     await this.validateMediaPair(studioId, dto.albumId, dto.photoMediaId, dto.videoMediaId);
-    await this.ensureUniquePhoto(studioId, dto.albumId, dto.photoMediaId);
-    await this.ensureUniqueVideo(studioId, dto.albumId, dto.videoMediaId);
+    await this.ensureUniquePair(studioId, dto.albumId, dto.photoMediaId, dto.videoMediaId);
 
     const overlayFrame = await this.resolveOverlayFrame(
       studioId,
@@ -103,15 +102,14 @@ export class ArTargetsService {
 
     if (dto.photoMediaId || dto.videoMediaId) {
       await this.validateMediaPair(studioId, albumId, photoMediaId, videoMediaId);
+      await this.ensureUniquePair(studioId, albumId, photoMediaId, videoMediaId, id);
     }
 
     if (dto.photoMediaId && dto.photoMediaId !== target.photoMediaId.toString()) {
-      await this.ensureUniquePhoto(studioId, albumId, dto.photoMediaId, id);
       target.photoMediaId = dto.photoMediaId as never;
     }
 
     if (dto.videoMediaId && dto.videoMediaId !== target.videoMediaId.toString()) {
-      await this.ensureUniqueVideo(studioId, albumId, dto.videoMediaId, id);
       target.videoMediaId = dto.videoMediaId as never;
     }
 
@@ -163,7 +161,10 @@ export class ArTargetsService {
       target.videoMediaId.toString(),
     );
 
-    const nextIndex = await this.getNextTargetIndex(target.albumId.toString());
+    const nextIndex = await this.resolvePublishTargetIndex(
+      target.albumId.toString(),
+      target.photoMediaId.toString(),
+    );
     target.targetIndex = nextIndex;
     target.status = ArTargetStatus.ACTIVE;
     await target.save();
@@ -255,47 +256,11 @@ export class ArTargetsService {
     }
   }
 
-  private async ensureUniquePhoto(
+  private async ensureUniquePair(
     studioId: string,
     albumId: string,
     photoMediaId: string,
-    excludeId?: string,
-  ) {
-    const existing = await this.findConflictingMapping(
-      studioId,
-      albumId,
-      'photoMediaId',
-      photoMediaId,
-      excludeId,
-    );
-    if (existing) {
-      throw new ConflictException('This photo is already mapped to another video');
-    }
-  }
-
-  private async ensureUniqueVideo(
-    studioId: string,
-    albumId: string,
     videoMediaId: string,
-    excludeId?: string,
-  ) {
-    const existing = await this.findConflictingMapping(
-      studioId,
-      albumId,
-      'videoMediaId',
-      videoMediaId,
-      excludeId,
-    );
-    if (existing) {
-      throw new ConflictException('This video is already mapped to another photo');
-    }
-  }
-
-  private async findConflictingMapping(
-    studioId: string,
-    albumId: string,
-    field: 'photoMediaId' | 'videoMediaId',
-    mediaId: string,
     excludeId?: string,
   ) {
     const filter: FilterQuery<ArTargetDocument> = {
@@ -303,14 +268,36 @@ export class ArTargetsService {
       albumId,
       deletedAt: null,
       status: { $in: [ArTargetStatus.DRAFT, ArTargetStatus.ACTIVE] },
-      [field]: mediaId,
+      photoMediaId,
+      videoMediaId,
     };
 
     if (excludeId) {
       filter._id = { $ne: excludeId };
     }
 
-    return this.arTargetModel.findOne(filter).exec();
+    const existing = await this.arTargetModel.findOne(filter).exec();
+    if (existing) {
+      throw new ConflictException('This photo and video are already mapped together');
+    }
+  }
+
+  private async resolvePublishTargetIndex(albumId: string, photoMediaId: string) {
+    const existing = await this.arTargetModel
+      .findOne({
+        albumId,
+        photoMediaId,
+        deletedAt: null,
+        status: ArTargetStatus.ACTIVE,
+        targetIndex: { $ne: null },
+      })
+      .exec();
+
+    if (existing?.targetIndex != null) {
+      return existing.targetIndex;
+    }
+
+    return this.getNextTargetIndex(albumId);
   }
 
   private async getNextTargetIndex(albumId: string) {

@@ -229,6 +229,41 @@ const getOverlayQuadFromBounds = (
   };
 };
 
+export type ViewportBox = { left: number; top: number; width: number; height: number };
+
+/** Scan-frame sized box so video is visible even before a tracked pose arrives. */
+export const getFallbackFrameBox = (): ViewportBox => {
+  const vw = typeof window === 'undefined' ? 360 : window.innerWidth;
+  const vh = typeof window === 'undefined' ? 640 : window.innerHeight;
+  const width = Math.min(vw * 0.78, 340);
+  const height = Math.min(width * (4 / 3), vh * 0.58, 460);
+  return {
+    left: Math.max(0, (vw - width) / 2),
+    top: Math.max(12, (vh - height) / 2 - 36),
+    width,
+    height,
+  };
+};
+
+/** Axis-aligned viewport box of the studio overlay on the tracked photo. */
+export const getOverlayAabbViewport = (
+  host: HTMLElement,
+  targetEntity: HTMLElement,
+  aspectRatio: number,
+  frame: OverlayFrame,
+): ViewportBox | null => {
+  const quad = getOverlayQuadScreenCorners(host, targetEntity, aspectRatio, frame);
+  if (!quad?.visible) return null;
+  const xs = quad.corners.map((point) => point.x);
+  const ys = quad.corners.map((point) => point.y);
+  const left = Math.min(...xs);
+  const top = Math.min(...ys);
+  const width = Math.max(...xs) - left;
+  const height = Math.max(...ys) - top;
+  if (width < 8 || height < 8) return null;
+  return { left, top, width, height };
+};
+
 const solveLinearSystem = (inputA: number[][], inputB: number[]): number[] | null => {
   const n = inputB.length;
   const matrix = inputA.map((row, index) => [...row, inputB[index]]);

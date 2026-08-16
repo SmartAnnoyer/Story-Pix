@@ -30,8 +30,9 @@ import {
   type CameraFacing,
 } from '../utils/mindar-scene';
 import { takeHeldCameraStream, releaseHeldCameraStream } from '../utils/camera-permission';
-import { prefetchManifestVideos } from '../utils/video-prefetch';
+import { prefetchManifestVideos, prefetchVideo } from '../utils/video-prefetch';
 import { getTargetAspectRatio } from '../utils/target-projection';
+import { mappingsForMindIndex, uniqueTrackingPhotos } from '../utils/manifest-photos';
 import { readMatchPercent, smoothMatchPercent } from '../utils/match-confidence';
 import { viewerLog } from '../utils/viewer-debug-log';
 import './ARViewer.css';
@@ -58,9 +59,10 @@ const buildServerMindBundle = (albumSlug: string, manifest: ViewerManifest): Min
   if (!manifest.mindFile) return null;
 
   const sortedTargets = [...manifest.targets].sort((a, b) => a.targetIndex - b.targetIndex);
+  const uniquePhotos = uniqueTrackingPhotos(sortedTargets);
   const cacheKey = getMindCacheKey(
     albumSlug,
-    sortedTargets.map((target) => ({ id: target.id, photoMediaId: target.photoMediaId })),
+    uniquePhotos.map((target) => ({ id: target.photoMediaId, photoMediaId: target.photoMediaId })),
     manifest.mindFile.hash,
   );
 
@@ -104,6 +106,7 @@ export const ARViewer = ({
   );
   const [activeTarget, setActiveTarget] = useState<ViewerManifestTarget | null>(null);
   const [activeMindIndex, setActiveMindIndex] = useState<number | null>(null);
+  const activeMindIndexRef = useRef<number | null>(null);
   const [targetAspectRatio, setTargetAspectRatio] = useState(1.414);
   const [videoMode, setVideoMode] = useState<VideoDisplayMode>('frame');
   const [mindBundle, setMindBundle] = useState<MindBundle | null>(initialMindBundle);
@@ -143,10 +146,17 @@ export const ARViewer = ({
     () => [...manifest.targets].sort((a, b) => a.targetIndex - b.targetIndex),
     [manifest.targets],
   );
+  const uniquePhotos = useMemo(() => uniqueTrackingPhotos(targets), [targets]);
+  const targetsRef = useRef(targets);
+  targetsRef.current = targets;
 
   const mindCacheTargets = useMemo(
-    () => targets.map((target) => ({ id: target.id, photoMediaId: target.photoMediaId })),
-    [targets],
+    () =>
+      uniquePhotos.map((target) => ({
+        id: target.photoMediaId,
+        photoMediaId: target.photoMediaId,
+      })),
+    [uniquePhotos],
   );
 
   const mindCacheKey = useMemo(
@@ -156,11 +166,17 @@ export const ARViewer = ({
 
   const trackingImageUrls = useMemo(
     () =>
-      targets.map((target) =>
+      uniquePhotos.map((target) =>
         viewerService.getTrackingImageUrl(albumSlug, target.id, target.photoMediaId),
       ),
-    [albumSlug, targets],
+    [albumSlug, uniquePhotos],
   );
+
+  const siblingVideos = useMemo(
+    () => (activeMindIndex == null ? [] : mappingsForMindIndex(targets, activeMindIndex)),
+    [activeMindIndex, targets],
+  );
+  const siblingIndex = siblingVideos.findIndex((item) => item.id === activeTarget?.id);
 
   const activeVideoUrl = useMemo(() => {
     if (!activeTarget?.videoAvailable) return null;
@@ -274,6 +290,7 @@ export const ARViewer = ({
       setProgress(0.05);
       setActiveTarget(null);
       setActiveMindIndex(null);
+      activeMindIndexRef.current = null;
       setVideoMode('frame');
       targetTrackedRef.current = false;
 
@@ -392,21 +409,29 @@ export const ARViewer = ({
 
         const { scene, targetEntities } = buildMindArScene(host, {
           mindUrl: resolvedMind.url,
-          targetCount: targets.length,
+          targetCount: uniquePhotos.length,
           facingMode,
         });
         targetEntitiesRef.current = targetEntities;
         viewerLog('info', 'a-scene mounted', { targetEntities: targetEntities.length });
 
-        const confirmTargetMatch = (target: ViewerManifestTarget, mindIndex: number) => {
+        const confirmTargetMatch = (mindIndex: number) => {
           if (!mounted) return;
 
           if (!scanningEnabledRef.current || !isCameraPreviewLive(host)) {
             return;
           }
 
+          const group = mappingsForMindIndex(targetsRef.current, mindIndex);
+          const nextTarget = group.find((item) => item.videoAvailable) ?? group[0];
+          if (!nextTarget) return;
+
           const current = statusRef.current;
-          if (current !== 'scanning' && current !== 'move_closer') {
+          const playing = current === 'match_found' || current === 'recognized';
+          if (playing && activeMindIndexRef.current === mindIndex) {
+            return;
+          }
+          if (!playing && current !== 'scanning' && current !== 'move_closer') {
             return;
           }
 
@@ -414,14 +439,15 @@ export const ARViewer = ({
           setProgress(1);
           setStatusDetail(null);
 
-          if (!target.videoAvailable) {
+          if (!nextTarget.videoAvailable) {
             setStatus('video_unavailable');
             setStatusDetail('This mapping has no playable video file.');
-            void recordEventRef.current(ScanEventType.SCAN_FAILED, target);
+            void recordEventRef.current(ScanEventType.SCAN_FAILED, nextTarget);
             return;
           }
 
-          setActiveTarget(target);
+          activeMindIndexRef.current = mindIndex;
+          setActiveTarget(nextTarget);
           setActiveMindIndex(mindIndex);
           setTargetAspectRatio(
             manifest.mindFile?.targetDimensions?.[mindIndex]
@@ -432,20 +458,21 @@ export const ARViewer = ({
           setVideoMode('frame');
           targetTrackedRef.current = true;
           setStatus('match_found');
-          void recordEventRef.current(ScanEventType.SCAN_SUCCESS, target);
+          void recordEventRef.current(ScanEventType.SCAN_SUCCESS, nextTarget);
         };
 
         const attachTargetListeners = () => {
           if (listenersAttachedRef.current) return;
           listenersAttachedRef.current = true;
 
-          targets.forEach((target, mindIndex) => {
+          uniquePhotos.forEach((photoTarget) => {
+            const mindIndex = photoTarget.targetIndex;
             const entity = targetEntities[mindIndex];
             if (!entity) return;
 
             entity.addEventListener('targetFound', () => {
               viewerLog('info', 'targetFound event', {
-                target: target.targetName,
+                target: photoTarget.targetName,
                 mindIndex,
                 scanningEnabled: scanningEnabledRef.current,
                 status: statusRef.current,
@@ -463,10 +490,10 @@ export const ARViewer = ({
               const timer = window.setTimeout(() => {
                 targetFoundTimersRef.current.delete(mindIndex);
                 viewerLog('info', 'target match confirmed — starting video', {
-                  target: target.targetName,
-                  videoAvailable: target.videoAvailable,
+                  target: photoTarget.targetName,
+                  videoCount: mappingsForMindIndex(targetsRef.current, mindIndex).length,
                 });
-                confirmTargetMatch(target, mindIndex);
+                confirmTargetMatch(mindIndex);
               }, TARGET_FOUND_CONFIRM_MS);
 
               targetFoundTimersRef.current.set(mindIndex, timer);
@@ -474,7 +501,7 @@ export const ARViewer = ({
 
             entity.addEventListener('targetLost', () => {
               viewerLog('debug', 'targetLost event', {
-                target: target.targetName,
+                target: photoTarget.targetName,
                 mindIndex,
                 status: statusRef.current,
                 videoMode: videoModeRef.current,
@@ -487,9 +514,10 @@ export const ARViewer = ({
               }
 
               if (!mounted) return;
-              targetTrackedRef.current = false;
+              if (activeMindIndexRef.current === mindIndex) {
+                targetTrackedRef.current = false;
+              }
 
-              // Keep playback after a confirmed match — brief tracking loss is common on phones.
               const status = statusRef.current;
               if (
                 videoModeRef.current === 'fullscreen' ||
@@ -500,11 +528,14 @@ export const ARViewer = ({
                 return;
               }
 
-              setActiveTarget((current) => (current?.id === target.id ? null : current));
-              setActiveMindIndex(null);
+              setActiveTarget((current) => (current?.targetIndex === mindIndex ? null : current));
+              if (activeMindIndexRef.current === mindIndex) {
+                activeMindIndexRef.current = null;
+                setActiveMindIndex(null);
+              }
               setVideoMode('frame');
               setStatus('scanning');
-              setStatusDetail('Point at the printed photo — fill the frame.');
+              setStatusDetail('Point at any mapped photo in this album.');
               setProgress(0.92);
               startScanTimers();
             });
@@ -660,6 +691,7 @@ export const ARViewer = ({
     mindCacheKey,
     mindCacheTargets,
     targets,
+    uniquePhotos,
     sceneGeneration,
     facingMode,
     clearScanTimers,
@@ -783,9 +815,20 @@ export const ARViewer = ({
   const stopVideoPlayback = useCallback(() => {
     setActiveTarget(null);
     setActiveMindIndex(null);
+    activeMindIndexRef.current = null;
     setVideoMode('frame');
     targetTrackedRef.current = false;
   }, []);
+
+  const cycleSiblingVideo = useCallback(
+    (direction: 1 | -1) => {
+      if (siblingVideos.length < 2 || siblingIndex < 0) return;
+      const next =
+        siblingVideos[(siblingIndex + direction + siblingVideos.length) % siblingVideos.length];
+      if (next) setActiveTarget(next);
+    },
+    [siblingIndex, siblingVideos],
+  );
 
   const resumeScanningAfterVideo = useCallback(() => {
     stopVideoPlayback();
@@ -873,6 +916,9 @@ export const ARViewer = ({
         title={activeTarget?.targetName}
         active={Boolean(activeTarget?.videoAvailable && (activeVideoUrl || activeVideoFallbackUrl))}
         mode={videoMode}
+        videoCount={siblingVideos.length}
+        videoIndex={Math.max(0, siblingIndex)}
+        onCycleVideo={cycleSiblingVideo}
         onModeChange={setVideoMode}
         onPlay={() => {
           viewerLog('info', 'video playing', {
@@ -882,6 +928,12 @@ export const ARViewer = ({
           setStatus('recognized');
           setStatusDetail(null);
           if (activeTarget) void recordEvent(ScanEventType.VIDEO_PLAY, activeTarget);
+          for (const sibling of siblingVideos) {
+            if (!sibling.videoAvailable) continue;
+            prefetchVideo(
+              viewerService.getMappingVideoUrl(albumSlug, sibling.id, sibling.videoMediaId),
+            );
+          }
         }}
         onError={(message) => {
           viewerLog('error', 'video playback failed', { message, url: activeVideoUrl });
@@ -906,7 +958,7 @@ export const ARViewer = ({
         albumSlug={albumSlug}
         status={status}
         detail={prepareError ?? statusDetail}
-        targets={targets}
+        targets={uniquePhotos}
         progress={progress}
         phase={viewerPhase}
         scanSeconds={scanSeconds}
