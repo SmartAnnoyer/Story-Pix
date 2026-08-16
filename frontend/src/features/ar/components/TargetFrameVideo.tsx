@@ -6,12 +6,14 @@ import {
   type OverlayFrame,
 } from '../utils/overlay-frame';
 import { getPlaybackVideoElement } from '../utils/camera-permission';
-import { ensureTransparentRenderer } from '../utils/mindar-scene';
+import { ensureTransparentRenderer, setOverlayPlaybackActive } from '../utils/mindar-scene';
+import { detachOverlayVideoPlane, setOverlayVideoPlaneVisible } from '../utils/overlay-plane';
 import {
-  attachOverlayVideoPlane,
-  detachOverlayVideoPlane,
-  setOverlayVideoPlaneVisible,
-} from '../utils/overlay-plane';
+  getOverlayAabbViewport,
+  getOverlayQuadScreenCorners,
+  installPoseCapture,
+  quadToCssMatrix3d,
+} from '../utils/target-projection';
 import { getPrefetchedBlobUrl, resolvePlayableVideoUrl } from '../utils/video-prefetch';
 import { dumpArOverlayDebug } from '../utils/ar-overlay-debug';
 import { viewerLog } from '../utils/viewer-debug-log';
@@ -64,7 +66,7 @@ const waitForVideoReady = (video: HTMLVideoElement): Promise<void> =>
     }, LOAD_TIMEOUT_MS);
 
     const checkReady = () => {
-      if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0) {
+      if (video.videoWidth > 0 && video.readyState >= HTMLMediaElement.HAVE_METADATA) {
         cleanup();
         resolve();
       }
@@ -144,8 +146,13 @@ export const TargetFrameVideo = ({
     video.playsInline = true;
     video.controls = false;
     video.autoplay = true;
-    video.crossOrigin = 'anonymous';
-    video.setAttribute('crossorigin', 'anonymous');
+    if (isIOS()) {
+      video.removeAttribute('crossorigin');
+      video.crossOrigin = null;
+    } else {
+      video.crossOrigin = 'anonymous';
+      video.setAttribute('crossorigin', 'anonymous');
+    }
     video.style.position = 'absolute';
     video.style.inset = '0';
     video.style.width = '100%';
@@ -173,6 +180,13 @@ export const TargetFrameVideo = ({
   }, [active, mode]);
 
   useEffect(() => {
+    if (!host) return undefined;
+    const iosCrop = Boolean(active && mode === 'frame' && isIOS());
+    setOverlayPlaybackActive(host, iosCrop);
+    return () => setOverlayPlaybackActive(host, false);
+  }, [active, mode, host]);
+
+  useEffect(() => {
     if (!active || mode === 'fullscreen') {
       setOverlayVideoPlaneVisible(targetEntity, false);
       return undefined;
@@ -194,65 +208,99 @@ export const TargetFrameVideo = ({
     }
 
     const frame = clampOverlayFrame(overlayFrame ?? DEFAULT_OVERLAY_FRAME);
-    if (host) ensureTransparentRenderer(host);
-
-    // Keep the HTML decoder off-screen at a real size so iOS still produces
-    // frames. The picture on the photo is the WebGL plane in the studio crop.
-    stage.style.position = 'fixed';
-    stage.style.left = '-400px';
-    stage.style.top = '0px';
-    stage.style.width = '360px';
-    stage.style.height = '640px';
-    stage.style.opacity = '1';
-    stage.style.visibility = 'visible';
-    stage.style.transform = 'none';
-    stage.style.background = 'transparent';
-    stage.style.zIndex = '-1';
-    stage.style.pointerEvents = 'none';
+    const ios = isIOS();
+    installPoseCapture(entity);
+    ensureTransparentRenderer(host);
 
     let cancelled = false;
-    let attached = false;
-    let attempts = 0;
+    let loggedLayout = false;
+    const srcSize = 400;
 
-    const tryAttach = () => {
-      if (cancelled || attached) return;
-      video.crossOrigin = 'anonymous';
-      video.setAttribute('crossorigin', 'anonymous');
-      const result = attachOverlayVideoPlane(entity, video, frame, aspectRatio);
-      if (!result.ok) {
-        attempts += 1;
-        if (attempts === 1 || attempts % 15 === 0) {
-          viewerLog('warn', 'AR plane attach retry', {
-            attempts,
-            reason: result.reason,
-            size: `${video.videoWidth}x${video.videoHeight}`,
-            ready: video.readyState,
-          });
-        }
-        return;
-      }
-      attached = true;
-      setOverlayVideoPlaneVisible(entity, true);
-      dumpArOverlayDebug({
-        host,
-        entity,
-        video,
-        frame,
-        aspectRatio,
-        attached: true,
-        reason: 'crop-plane',
-      });
-      viewerLog('info', 'mapped video placed in studio crop', {
-        ready: video.readyState,
-        paused: video.paused,
-        size: `${video.videoWidth}x${video.videoHeight}`,
-        frame,
-      });
+    const hideUntilPose = () => {
+      stage.style.opacity = '0';
+      stage.style.visibility = 'hidden';
     };
+
+    const applyBox = (box: { left: number; top: number; width: number; height: number }) => {
+      stage.style.position = 'fixed';
+      stage.style.left = `${box.left}px`;
+      stage.style.top = `${box.top}px`;
+      stage.style.width = `${box.width}px`;
+      stage.style.height = `${box.height}px`;
+      stage.style.transform = 'none';
+      stage.style.transformOrigin = '0 0';
+      stage.style.opacity = '1';
+      stage.style.visibility = 'visible';
+      stage.style.zIndex = '10080';
+      stage.style.background = '#000';
+      stage.style.pointerEvents = 'none';
+    };
+
+    const applyQuad = (corners: Parameters<typeof quadToCssMatrix3d>[2]) => {
+      const matrix = quadToCssMatrix3d(srcSize, srcSize, corners);
+      if (!matrix) return false;
+      stage.style.position = 'fixed';
+      stage.style.left = '0px';
+      stage.style.top = '0px';
+      stage.style.width = `${srcSize}px`;
+      stage.style.height = `${srcSize}px`;
+      stage.style.transformOrigin = '0 0';
+      stage.style.transform = matrix;
+      stage.style.opacity = '1';
+      stage.style.visibility = 'visible';
+      stage.style.zIndex = '10080';
+      stage.style.background = '#000';
+      stage.style.pointerEvents = 'none';
+      return true;
+    };
+
+    const layoutOverlay = () => {
+      if (ios) {
+        const box = getOverlayAabbViewport(host, entity, aspectRatio, frame);
+        if (!box) {
+          hideUntilPose();
+          return false;
+        }
+        applyBox(box);
+        return true;
+      }
+      const quad = getOverlayQuadScreenCorners(host, entity, aspectRatio, frame);
+      if (quad?.visible && applyQuad(quad.corners)) return true;
+      hideUntilPose();
+      return false;
+    };
+
+    hideUntilPose();
 
     const tick = () => {
       if (cancelled) return;
-      tryAttach();
+      const placed = layoutOverlay();
+      if (placed && !loggedLayout) {
+        loggedLayout = true;
+        const rect = video.getBoundingClientRect();
+        dumpArOverlayDebug({
+          host,
+          entity,
+          video,
+          frame,
+          aspectRatio,
+          attached: true,
+          reason: ios ? 'ios-html-crop' : 'html-crop',
+        });
+        viewerLog('info', 'mapped video placed in studio crop', {
+          ios,
+          ready: video.readyState,
+          paused: video.paused,
+          size: `${video.videoWidth}x${video.videoHeight}`,
+          rect: {
+            w: Math.round(rect.width),
+            h: Math.round(rect.height),
+            top: Math.round(rect.top),
+            left: Math.round(rect.left),
+          },
+          frame,
+        });
+      }
       window.requestAnimationFrame(tick);
     };
     window.requestAnimationFrame(tick);
@@ -348,8 +396,13 @@ export const TargetFrameVideo = ({
       const video = videoRef.current;
       if (!video || !sources.length) throw new Error('No video source');
 
-      video.crossOrigin = 'anonymous';
-      video.setAttribute('crossorigin', 'anonymous');
+      if (isIOS()) {
+        video.removeAttribute('crossorigin');
+        video.crossOrigin = null;
+      } else {
+        video.crossOrigin = 'anonymous';
+        video.setAttribute('crossorigin', 'anonymous');
+      }
       video.setAttribute('playsinline', '');
       video.setAttribute('webkit-playsinline', '');
       video.playsInline = true;
@@ -554,16 +607,16 @@ export const TargetFrameVideo = ({
                 }
               : {
                   position: 'fixed',
-                  left: -400,
+                  left: 0,
                   top: 0,
-                  width: 360,
-                  height: 640,
-                  visibility: 'visible',
-                  opacity: 1,
+                  width: 8,
+                  height: 8,
+                  visibility: 'hidden',
+                  opacity: 0,
                   overflow: 'hidden',
-                  background: 'transparent',
+                  background: '#000',
                   pointerEvents: 'none',
-                  zIndex: -1,
+                  zIndex: 10080,
                   transformOrigin: '0 0',
                 }
           }
