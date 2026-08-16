@@ -61,13 +61,34 @@ export const buildMindArScene = (
   );
   scene.setAttribute('color-space', 'sRGB');
   scene.setAttribute('embedded', '');
-  scene.setAttribute('renderer', 'alpha: true; colorManagement: true, physicallyCorrectLights');
+  scene.setAttribute(
+    'renderer',
+    'alpha: true; colorManagement: true; physicallyCorrectLights: true',
+  );
   scene.setAttribute('background', 'transparent');
   scene.setAttribute('vr-mode-ui', 'enabled: false');
   scene.setAttribute('device-orientation-permission-ui', 'enabled: false');
   scene.dataset.cameraFacing = options.facingMode ?? 'environment';
   scene.style.position = 'absolute';
   scene.style.inset = '0';
+  scene.style.zIndex = '2';
+  scene.style.pointerEvents = 'none';
+  scene.addEventListener(
+    'loaded',
+    () => {
+      const renderer = (
+        scene as HTMLElement & {
+          renderer?: {
+            setClearColor?: (color: number, alpha: number) => void;
+            setClearAlpha?: (alpha: number) => void;
+          };
+        }
+      ).renderer;
+      renderer?.setClearColor?.(0x000000, 0);
+      renderer?.setClearAlpha?.(0);
+    },
+    { once: true },
+  );
 
   const camera = document.createElement('a-camera');
   camera.setAttribute('position', '0 0 0');

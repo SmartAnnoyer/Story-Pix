@@ -33,12 +33,14 @@
   inset: 0 !important;
   width: 100% !important;
   height: 100% !important;
-  z-index: 0 !important;
+  z-index: 2 !important;
   background: transparent !important;
+  pointer-events: none !important;
 }
 
 .ar-scene-host .a-canvas {
-  opacity: 0 !important;
+  opacity: 1 !important;
+  background: transparent !important;
   pointer-events: none;
 }
 

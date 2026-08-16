@@ -5,7 +5,11 @@ import {
   DEFAULT_OVERLAY_FRAME,
   type OverlayFrame,
 } from '../utils/overlay-frame';
-import { getFallbackFrameBox, getOverlayAabbViewport } from '../utils/target-projection';
+import {
+  attachOverlayVideoPlane,
+  detachOverlayVideoPlane,
+  setOverlayVideoPlaneVisible,
+} from '../utils/overlay-plane';
 import { getPlaybackVideoElement } from '../utils/camera-permission';
 import { getPrefetchedBlobUrl, resolvePlayableVideoUrl } from '../utils/video-prefetch';
 import { viewerLog } from '../utils/viewer-debug-log';
@@ -105,10 +109,8 @@ export const TargetFrameVideo = ({
   onClose,
 }: TargetFrameVideoProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const mediaRef = useRef<HTMLDivElement>(null);
-  const lastBoxRef = useRef(getFallbackFrameBox());
   const onPlayRef = useRef(onPlay);
   const onErrorRef = useRef(onError);
   const onEndedRef = useRef(onEnded);
@@ -138,14 +140,17 @@ export const TargetFrameVideo = ({
     video.playsInline = true;
     video.controls = false;
     video.autoplay = true;
-    video.style.position = 'absolute';
-    video.style.inset = '0';
-    video.style.width = '100%';
-    video.style.height = '100%';
+    video.style.position = mode === 'fullscreen' ? 'absolute' : 'fixed';
+    video.style.inset = mode === 'fullscreen' ? '0' : '';
+    video.style.left = mode === 'fullscreen' ? '' : '0';
+    video.style.top = mode === 'fullscreen' ? '' : '0';
+    video.style.width = mode === 'fullscreen' ? '100%' : '16px';
+    video.style.height = mode === 'fullscreen' ? '100%' : '16px';
     video.style.objectFit = mode === 'fullscreen' ? 'contain' : 'cover';
     video.style.background = '#000';
-    video.style.opacity = '0.04';
+    video.style.opacity = mode === 'fullscreen' ? '1' : '0.05';
     video.style.zIndex = '1';
+    video.style.pointerEvents = 'none';
     parent.appendChild(video);
 
     const onEndedEvt = () => {
@@ -193,79 +198,43 @@ export const TargetFrameVideo = ({
   }, [active, host, mode]);
 
   useEffect(() => {
-    if (!active || mode === 'fullscreen') {
+    if (!active || !targetEntity) {
       return undefined;
     }
 
+    const video = videoRef.current;
+    if (!video) return undefined;
+
     const frame = clampOverlayFrame(overlayFrame ?? DEFAULT_OVERLAY_FRAME);
-
-    const applyBox = (box: { left: number; top: number; width: number; height: number }) => {
-      const el = stageRef.current;
-      if (!el) return;
-      el.style.position = 'fixed';
-      el.style.left = `${Math.round(box.left)}px`;
-      el.style.top = `${Math.round(box.top)}px`;
-      el.style.width = `${Math.round(box.width)}px`;
-      el.style.height = `${Math.round(box.height)}px`;
-      el.style.transform = 'translate3d(0,0,1px)';
-      el.style.webkitTransform = 'translate3d(0,0,1px)';
-      el.style.visibility = 'visible';
-      el.style.opacity = '1';
-      el.style.zIndex = '10080';
-    };
-
-    const paintCanvas = () => {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      if (!video || !canvas || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
-      if (video.videoWidth <= 0 || video.videoHeight <= 0) return;
-
-      const cssW = Math.max(1, canvas.clientWidth || Math.round(lastBoxRef.current.width));
-      const cssH = Math.max(1, canvas.clientHeight || Math.round(lastBoxRef.current.height));
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const pixelW = Math.round(cssW * dpr);
-      const pixelH = Math.round(cssH * dpr);
-      if (canvas.width !== pixelW || canvas.height !== pixelH) {
-        canvas.width = pixelW;
-        canvas.height = pixelH;
+    const mount = () => {
+      const attached = attachOverlayVideoPlane(targetEntity, video, frame, aspectRatio);
+      setOverlayVideoPlaneVisible(targetEntity, mode === 'frame');
+      if (attached) {
+        viewerLog('info', 'overlay video plane attached to tracked photo', {
+          width: frame.width,
+          height: frame.height,
+          x: frame.x,
+          y: frame.y,
+        });
       }
-
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      const scale = Math.max(pixelW / video.videoWidth, pixelH / video.videoHeight);
-      const drawW = video.videoWidth * scale;
-      const drawH = video.videoHeight * scale;
-      ctx.drawImage(video, (pixelW - drawW) / 2, (pixelH - drawH) / 2, drawW, drawH);
+      return attached;
     };
 
-    applyBox(lastBoxRef.current);
-
-    let raf = 0;
-    let locked = false;
-    const tick = () => {
-      if (host && targetEntity) {
-        const pose = getOverlayAabbViewport(host, targetEntity, aspectRatio, frame);
-        if (pose) {
-          if (!locked) {
-            locked = true;
-            viewerLog('info', 'overlay pose locked to selected frame', {
-              w: Math.round(pose.width),
-              h: Math.round(pose.height),
-              left: Math.round(pose.left),
-              top: Math.round(pose.top),
-            });
-          }
-          lastBoxRef.current = pose;
-        }
+    let tries = 0;
+    const timer = window.setInterval(() => {
+      if (mount() || tries >= 50) {
+        window.clearInterval(timer);
       }
-      applyBox(lastBoxRef.current);
-      paintCanvas();
-      raf = window.requestAnimationFrame(tick);
-    };
+      tries += 1;
+    }, 80);
+    targetEntity.addEventListener('loaded', mount);
 
-    raf = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(raf);
-  }, [active, mode, host, targetEntity, aspectRatio, overlayFrame]);
+    return () => {
+      window.clearInterval(timer);
+      targetEntity.removeEventListener('loaded', mount);
+      detachOverlayVideoPlane(targetEntity);
+    };
+  }, [active, targetEntity, overlayFrame, aspectRatio, mode, isPlaying, playbackUrl]);
 
   useEffect(() => {
     if (mode !== 'fullscreen' || !stageRef.current) return;
@@ -276,12 +245,6 @@ export const TargetFrameVideo = ({
     stageRef.current.style.transform = '';
     stageRef.current.style.visibility = '';
   }, [mode]);
-
-  useEffect(() => {
-    if (!active) {
-      lastBoxRef.current = getFallbackFrameBox();
-    }
-  }, [active]);
 
   const enableSound = useCallback(() => {
     const video = videoRef.current;
@@ -517,7 +480,6 @@ export const TargetFrameVideo = ({
   if (!active || typeof document === 'undefined') return null;
 
   const showFullscreen = mode === 'fullscreen';
-  const frameBox = lastBoxRef.current;
 
   return createPortal(
     <>
@@ -545,67 +507,68 @@ export const TargetFrameVideo = ({
           </p>
         ) : null}
 
-        <div
-          ref={stageRef}
-          className="ar-video-stage"
-          style={
-            showFullscreen
-              ? {
-                  position: 'relative',
-                  width: '100%',
-                  flex: 1,
-                  minHeight: 0,
-                  border: 'none',
-                  borderRadius: 0,
-                  overflow: 'hidden',
-                  background: '#000',
-                  pointerEvents: 'auto',
-                }
-              : {
-                  position: 'fixed',
-                  left: frameBox.left,
-                  top: frameBox.top,
-                  width: frameBox.width,
-                  height: frameBox.height,
-                  visibility: 'visible',
-                  overflow: 'hidden',
-                  background: '#000',
-                  pointerEvents: needsTap ? 'auto' : 'none',
-                  zIndex: 10080,
-                  transform: 'translate3d(0,0,1px)',
-                  WebkitTransform: 'translate3d(0,0,1px)',
-                }
-          }
-        >
-          {showFullscreen ? null : <div className="ar-video-frame-edge" aria-hidden />}
-          <div className="ar-video-media" ref={mediaRef}>
-            {!showFullscreen ? (
-              <canvas
-                ref={canvasRef}
-                className="ar-video-canvas"
-                aria-hidden
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  width: '100%',
-                  height: '100%',
-                  zIndex: 2,
-                  background: '#000',
-                  transform: 'translate3d(0,0,1px)',
-                }}
-              />
-            ) : null}
+        {showFullscreen ? (
+          <div
+            ref={stageRef}
+            className="ar-video-stage"
+            style={{
+              position: 'relative',
+              width: '100%',
+              flex: 1,
+              minHeight: 0,
+              border: 'none',
+              borderRadius: 0,
+              overflow: 'hidden',
+              background: '#000',
+              pointerEvents: 'auto',
+            }}
+          >
+            <div className="ar-video-media" ref={mediaRef}>
+              {needsTap ? (
+                <button
+                  type="button"
+                  className="ar-video-tap-play"
+                  onClick={() => void tryPlay(true)}
+                >
+                  Tap to play
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : (
+          <>
+            <div
+              ref={mediaRef}
+              aria-hidden
+              style={{
+                position: 'fixed',
+                left: 0,
+                top: 0,
+                width: 16,
+                height: 16,
+                overflow: 'hidden',
+                opacity: 0.05,
+                pointerEvents: 'none',
+                zIndex: 1,
+              }}
+            />
             {needsTap ? (
               <button
                 type="button"
                 className="ar-video-tap-play"
+                style={{
+                  position: 'fixed',
+                  inset: 0,
+                  zIndex: 10070,
+                  pointerEvents: 'auto',
+                }}
                 onClick={() => void tryPlay(true)}
               >
                 Tap to play
               </button>
             ) : null}
-          </div>
-        </div>
+          </>
+        )}
       </div>
 
       <div

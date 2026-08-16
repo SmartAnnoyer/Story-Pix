@@ -113,12 +113,18 @@ export const installPoseCapture = (entity: HTMLElement): void => {
     const original = component.updateWorldMatrix.bind(component);
     const wrapped = ((worldMatrix: ArrayLike<number> | null) => {
       original(worldMatrix);
+      const object3D = component.el.object3D;
       if (worldMatrix == null) {
         capturedPose.delete(entity);
+        if (object3D) object3D.visible = false;
         return;
       }
-      const matrix = component.el.object3D?.matrix?.elements ?? worldMatrix;
+      const matrix = object3D?.matrix?.elements ?? worldMatrix;
       capturedPose.set(entity, copy16(matrix));
+      if (object3D) {
+        object3D.matrixWorldNeedsUpdate = true;
+        object3D.updateMatrixWorld?.(true);
+      }
     }) as MindArTargetComponent['updateWorldMatrix'];
     wrapped.__spWrapped = true;
     component.updateWorldMatrix = wrapped;
