@@ -6,6 +6,7 @@ import {
   type OverlayFrame,
 } from '../utils/overlay-frame';
 import {
+  getFallbackFrameBox,
   getOverlayQuadScreenCorners,
   quadToCssMatrix3d,
   type OverlayQuad,
@@ -109,7 +110,6 @@ export const TargetFrameVideo = ({
   onClose,
 }: TargetFrameVideoProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const mediaRef = useRef<HTMLDivElement>(null);
   const lastQuadRef = useRef<OverlayQuad | null>(null);
@@ -148,11 +148,14 @@ export const TargetFrameVideo = ({
     video.style.top = '';
     video.style.width = '100%';
     video.style.height = '100%';
+    video.style.display = 'block';
     video.style.objectFit = mode === 'fullscreen' ? 'contain' : 'cover';
     video.style.background = '#000';
-    video.style.opacity = mode === 'fullscreen' ? '1' : '0.04';
-    video.style.zIndex = '1';
+    video.style.opacity = '1';
+    video.style.visibility = 'visible';
+    video.style.zIndex = '2';
     video.style.pointerEvents = 'none';
+    video.style.transform = 'none';
     parent.appendChild(video);
 
     const onEndedEvt = () => {
@@ -167,11 +170,11 @@ export const TargetFrameVideo = ({
     };
   }, [active, mode]);
 
-  // Hide the MindAR camera only in full-screen so in-frame AR can sit on the live photo.
+  // Hide the live camera feed only in full-screen so it does not cover the clip.
   useEffect(() => {
     if (!host) return undefined;
     const hideCamera = active && mode === 'fullscreen';
-    const videos = host.querySelectorAll('video');
+    const videos = [...host.querySelectorAll('video')].filter((node) => node !== videoRef.current);
     videos.forEach((node) => {
       const el = node as HTMLVideoElement;
       if (hideCamera) {
@@ -181,7 +184,7 @@ export const TargetFrameVideo = ({
         el.style.opacity = '0';
       } else if (el.dataset.spPrevVisibility !== undefined) {
         el.style.visibility = el.dataset.spPrevVisibility;
-        el.style.opacity = el.dataset.spPrevOpacity || '';
+        el.style.opacity = el.dataset.spPrevOpacity || '1';
         delete el.dataset.spPrevVisibility;
         delete el.dataset.spPrevOpacity;
       }
@@ -191,7 +194,7 @@ export const TargetFrameVideo = ({
         const el = node as HTMLVideoElement;
         if (el.dataset.spPrevVisibility !== undefined) {
           el.style.visibility = el.dataset.spPrevVisibility;
-          el.style.opacity = el.dataset.spPrevOpacity || '';
+          el.style.opacity = el.dataset.spPrevOpacity || '1';
           delete el.dataset.spPrevVisibility;
           delete el.dataset.spPrevOpacity;
         }
@@ -207,26 +210,37 @@ export const TargetFrameVideo = ({
     const frame = clampOverlayFrame(overlayFrame ?? DEFAULT_OVERLAY_FRAME);
     const SRC = 200;
 
-    const paintCanvas = () => {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      if (!video || !canvas || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
-      if (video.videoWidth <= 0 || video.videoHeight <= 0) return;
-      const cssW = Math.max(1, canvas.clientWidth || SRC);
-      const cssH = Math.max(1, canvas.clientHeight || SRC);
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const pixelW = Math.round(cssW * dpr);
-      const pixelH = Math.round(cssH * dpr);
-      if (canvas.width !== pixelW || canvas.height !== pixelH) {
-        canvas.width = pixelW;
-        canvas.height = pixelH;
-      }
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      const scale = Math.max(pixelW / video.videoWidth, pixelH / video.videoHeight);
-      const drawW = video.videoWidth * scale;
-      const drawH = video.videoHeight * scale;
-      ctx.drawImage(video, (pixelW - drawW) / 2, (pixelH - drawH) / 2, drawW, drawH);
+    const isUsableQuad = (quad: OverlayQuad) => {
+      if (!quad.visible) return false;
+      const xs = quad.corners.map((point) => point.x);
+      const ys = quad.corners.map((point) => point.y);
+      const width = Math.max(...xs) - Math.min(...xs);
+      const height = Math.max(...ys) - Math.min(...ys);
+      const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+      const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+      return (
+        width >= 24 &&
+        height >= 24 &&
+        cx > -width &&
+        cx < window.innerWidth + width &&
+        cy > -height &&
+        cy < window.innerHeight + height
+      );
+    };
+
+    const applyBox = (box: { left: number; top: number; width: number; height: number }) => {
+      const el = stageRef.current;
+      if (!el) return;
+      el.style.position = 'fixed';
+      el.style.left = `${Math.round(box.left)}px`;
+      el.style.top = `${Math.round(box.top)}px`;
+      el.style.width = `${Math.round(box.width)}px`;
+      el.style.height = `${Math.round(box.height)}px`;
+      el.style.transformOrigin = '0 0';
+      el.style.transform = 'none';
+      el.style.visibility = 'visible';
+      el.style.opacity = '1';
+      el.style.zIndex = '10080';
     };
 
     const applyQuad = (quad: OverlayQuad) => {
@@ -234,52 +248,50 @@ export const TargetFrameVideo = ({
       if (!el) return;
       const matrix = quadToCssMatrix3d(SRC, SRC, quad.corners);
       el.style.position = 'fixed';
-      el.style.left = '0px';
-      el.style.top = '0px';
-      el.style.width = `${SRC}px`;
-      el.style.height = `${SRC}px`;
-      el.style.transformOrigin = '0 0';
       el.style.visibility = 'visible';
       el.style.opacity = '1';
       el.style.zIndex = '10080';
+      el.style.transformOrigin = '0 0';
       if (matrix) {
+        el.style.left = '0px';
+        el.style.top = '0px';
+        el.style.width = `${SRC}px`;
+        el.style.height = `${SRC}px`;
         el.style.transform = matrix;
         return;
       }
       const xs = quad.corners.map((point) => point.x);
       const ys = quad.corners.map((point) => point.y);
-      const left = Math.min(...xs);
-      const top = Math.min(...ys);
-      el.style.left = `${Math.round(left)}px`;
-      el.style.top = `${Math.round(top)}px`;
-      el.style.width = `${Math.round(Math.max(...xs) - left)}px`;
-      el.style.height = `${Math.round(Math.max(...ys) - top)}px`;
-      el.style.transform = 'none';
+      applyBox({
+        left: Math.min(...xs),
+        top: Math.min(...ys),
+        width: Math.max(...xs) - Math.min(...xs),
+        height: Math.max(...ys) - Math.min(...ys),
+      });
     };
 
-    const hideStage = () => {
-      const el = stageRef.current;
-      if (!el) return;
-      el.style.visibility = lastQuadRef.current ? 'visible' : 'hidden';
-    };
-
-    if (lastQuadRef.current) applyQuad(lastQuadRef.current);
-    else hideStage();
+    applyBox(getFallbackFrameBox());
 
     let raf = 0;
+    let locked = false;
     const tick = () => {
       if (host && targetEntity) {
         const pose = getOverlayQuadScreenCorners(host, targetEntity, aspectRatio, frame);
-        if (pose?.visible) {
+        if (pose && isUsableQuad(pose)) {
+          if (!locked) {
+            locked = true;
+            viewerLog('info', 'overlay pose locked to selected frame');
+          }
           lastQuadRef.current = pose;
           applyQuad(pose);
-        } else if (lastQuadRef.current) {
+        } else if (lastQuadRef.current && isUsableQuad(lastQuadRef.current)) {
           applyQuad(lastQuadRef.current);
         } else {
-          hideStage();
+          applyBox(getFallbackFrameBox());
         }
+      } else {
+        applyBox(getFallbackFrameBox());
       }
-      paintCanvas();
       raf = window.requestAnimationFrame(tick);
     };
 
@@ -584,7 +596,7 @@ export const TargetFrameVideo = ({
                   top: 0,
                   width: 200,
                   height: 200,
-                  visibility: lastQuadRef.current ? 'visible' : 'hidden',
+                  visibility: 'visible',
                   overflow: 'hidden',
                   background: '#000',
                   pointerEvents: needsTap ? 'auto' : 'none',
@@ -595,21 +607,6 @@ export const TargetFrameVideo = ({
         >
           {showFullscreen ? null : <div className="ar-video-frame-edge" aria-hidden />}
           <div className="ar-video-media" ref={mediaRef}>
-            {!showFullscreen ? (
-              <canvas
-                ref={canvasRef}
-                className="ar-video-canvas"
-                aria-hidden
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  width: '100%',
-                  height: '100%',
-                  zIndex: 2,
-                  background: '#000',
-                }}
-              />
-            ) : null}
             {needsTap ? (
               <button
                 type="button"

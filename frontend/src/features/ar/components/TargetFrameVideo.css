@@ -178,8 +178,13 @@
 }
 
 .ar-video-shell--tracked .ar-video-media video {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
   object-fit: cover;
   opacity: 1 !important;
+  visibility: visible !important;
+  z-index: 2;
 }
 
 .ar-video-tap-play {
