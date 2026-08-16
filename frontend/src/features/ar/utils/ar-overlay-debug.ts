@@ -31,7 +31,9 @@ export const dumpArOverlayDebug = (input: {
 }): void => {
   const scene = input.host?.querySelector('a-scene') as SceneEl | null;
   const canvas = (scene?.canvas ?? input.host?.querySelector('.a-canvas')) as HTMLElement | null;
-  const cameraVideo = input.host?.querySelector(':scope > video') as HTMLVideoElement | null;
+  const cameraVideo = input.host?.querySelector(
+    ':scope > video:not(#sp-mapped-video)',
+  ) as HTMLVideoElement | null;
   const object3D = (input.entity as Entity3D | null)?.object3D;
   const canvasCss = canvas ? window.getComputedStyle(canvas) : null;
   const cameraCss = cameraVideo ? window.getComputedStyle(cameraVideo) : null;

@@ -10,6 +10,7 @@ import { ensureTransparentRenderer, setOverlayPlaybackActive } from '../utils/mi
 import {
   attachOverlayVideoPlane,
   detachOverlayVideoPlane,
+  getOverlayMeshViewport,
   setOverlayVideoPlaneVisible,
 } from '../utils/overlay-plane';
 import {
@@ -83,7 +84,7 @@ const waitForVideoReady = (video: HTMLVideoElement): Promise<void> =>
 
     const onReady = () => checkReady();
     const onFail = () => {
-      if (video.videoWidth > 0 && !video.paused) {
+      if (video.videoWidth > 0) {
         cleanup();
         resolve();
         return;
@@ -263,10 +264,24 @@ export const TargetFrameVideo = ({
       stage.style.height = `${box.height}px`;
       stage.style.transform = 'none';
       stage.style.transformOrigin = '0 0';
-      stage.style.opacity = '0';
-      stage.style.visibility = 'hidden';
+      stage.style.opacity = '1';
+      stage.style.visibility = 'visible';
       stage.style.zIndex = '10080';
+      stage.style.background = '#000';
       stage.style.pointerEvents = 'none';
+
+      const video = videoRef.current;
+      const media = mediaRef.current;
+      if (video && media && video.parentElement !== media) {
+        video.style.position = 'absolute';
+        video.style.inset = '0';
+        video.style.width = '100%';
+        video.style.height = '100%';
+        video.style.opacity = '1';
+        video.style.visibility = 'visible';
+        video.style.zIndex = '2';
+        media.appendChild(video);
+      }
     };
 
     const applyQuad = (corners: Parameters<typeof quadToCssMatrix3d>[2]) => {
@@ -288,20 +303,8 @@ export const TargetFrameVideo = ({
     };
 
     const layoutOverlay = () => {
-      const box = getOverlayAabbViewport(host, entity, aspectRatio, frame);
-      if (ios) {
-        if (box) {
-          applyBox(box);
-          return true;
-        }
-        if (lastBox) {
-          applyBox(lastBox);
-          return true;
-        }
-        return false;
-      }
-      const quad = getOverlayQuadScreenCorners(host, entity, aspectRatio, frame);
-      if (quad?.visible && applyQuad(quad.corners)) return true;
+      const meshBox = getOverlayMeshViewport(host, entity, frame, aspectRatio);
+      const box = meshBox ?? getOverlayAabbViewport(host, entity, aspectRatio, frame);
       if (box) {
         applyBox(box);
         return true;
@@ -310,6 +313,10 @@ export const TargetFrameVideo = ({
         applyBox(lastBox);
         return true;
       }
+      if (!ios) {
+        const quad = getOverlayQuadScreenCorners(host, entity, aspectRatio, frame);
+        if (quad?.visible && applyQuad(quad.corners)) return true;
+      }
       return false;
     };
 
@@ -317,7 +324,6 @@ export const TargetFrameVideo = ({
       if (cancelled || planeAttached) return false;
       const video = videoRef.current;
       if (!video || video.videoWidth < 2) return false;
-      parkDecoder();
       const result = attachOverlayVideoPlane(entity, video, frame, aspectRatio);
       if (!result.ok) return false;
       planeAttached = true;
@@ -344,10 +350,27 @@ export const TargetFrameVideo = ({
 
     const tick = () => {
       if (cancelled) return;
-      parkDecoder();
-      layoutOverlay();
-      const attachedNow = tryAttachPlane();
-      if (!attachedNow && !planeAttached) {
+      if (!lastBox) parkDecoder();
+      const placed = layoutOverlay();
+      tryAttachPlane();
+      if (placed && missFrames >= 0) {
+        missFrames = -1;
+        const video = videoRef.current;
+        const rect = video?.getBoundingClientRect();
+        viewerLog('info', 'mapped video on crop rectangle', {
+          ios,
+          size: `${video?.videoWidth ?? 0}x${video?.videoHeight ?? 0}`,
+          rect: rect
+            ? {
+                w: Math.round(rect.width),
+                h: Math.round(rect.height),
+                top: Math.round(rect.top),
+                left: Math.round(rect.left),
+              }
+            : null,
+        });
+      }
+      if (!planeAttached && missFrames >= 0) {
         missFrames += 1;
         if (missFrames === 1 || missFrames % 45 === 0) {
           const video = videoRef.current;

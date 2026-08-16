@@ -15,6 +15,17 @@ type ThreeTexture = {
 
 type ThreeRuntime = {
   CanvasTexture: new (canvas: HTMLCanvasElement) => ThreeTexture;
+  Vector3: new (
+    x?: number,
+    y?: number,
+    z?: number,
+  ) => {
+    set: (x: number, y: number, z: number) => unknown;
+    project: (camera: unknown) => { x: number; y: number; z: number };
+    x: number;
+    y: number;
+    z: number;
+  };
   PlaneGeometry: new (width: number, height: number) => { dispose: () => void };
   MeshBasicMaterial: new (params: Record<string, unknown>) => {
     map: ThreeTexture | null;
@@ -30,7 +41,8 @@ type ThreeRuntime = {
     visible: boolean;
     frustumCulled: boolean;
     userData: { spStopPaint?: () => void };
-    geometry: { dispose: () => void };
+    geometry: { dispose: () => void; parameters?: { width: number; height: number } };
+    localToWorld?: (vector: { x: number; y: number; z: number }) => unknown;
     material: { map: ThreeTexture | null; dispose: () => void };
   };
   LinearFilter: unknown;
@@ -42,7 +54,8 @@ type ThreeRuntime = {
 type OverlayMesh = {
   visible: boolean;
   userData?: { spStopPaint?: () => void };
-  geometry?: { dispose: () => void };
+  geometry?: { dispose: () => void; parameters?: { width: number; height: number } };
+  localToWorld?: (vector: { x: number; y: number; z: number }) => unknown;
   material?: { map?: { dispose: () => void } | null; dispose: () => void };
 };
 
@@ -88,6 +101,53 @@ export const setOverlayVideoPlaneVisible = (entity: HTMLElement | null, visible:
   if (!entity) return;
   const mesh = (entity as EntityWithObject3D).object3D?.getObjectByName(MESH_NAME);
   if (mesh) mesh.visible = visible;
+};
+
+/** Screen box of the crop plane, using the same camera that draws the AR scene. */
+export const getOverlayMeshViewport = (
+  host: HTMLElement,
+  entity: HTMLElement,
+  frame?: OverlayFrame,
+  aspectRatio?: number,
+): { left: number; top: number; width: number; height: number } | null => {
+  const THREE = getThree();
+  const scene = host.querySelector('a-scene') as
+    | (HTMLElement & { camera?: unknown; canvas?: HTMLCanvasElement })
+    | null;
+  const mesh = (entity as EntityWithObject3D).object3D?.getObjectByName(MESH_NAME);
+  const camera = scene?.camera;
+  const canvas = scene?.canvas;
+  const pose = frame && aspectRatio ? overlayFrameToLocalPose(frame, aspectRatio) : null;
+  const width = mesh?.geometry?.parameters?.width ?? pose?.width;
+  const height = mesh?.geometry?.parameters?.height ?? pose?.height;
+  if (!THREE || !mesh?.localToWorld || !camera || !canvas || !width || !height) return null;
+
+  const rect = canvas.getBoundingClientRect();
+  if (rect.width < 8 || rect.height < 8) return null;
+
+  const xs: number[] = [];
+  const ys: number[] = [];
+  const corners: Array<[number, number]> = [
+    [-width / 2, height / 2],
+    [width / 2, height / 2],
+    [width / 2, -height / 2],
+    [-width / 2, -height / 2],
+  ];
+  for (const [x, y] of corners) {
+    const point = new THREE.Vector3(x, y, 0);
+    mesh.localToWorld(point);
+    const projected = point.project(camera);
+    if (!Number.isFinite(projected.x) || !Number.isFinite(projected.y)) return null;
+    xs.push((projected.x * 0.5 + 0.5) * rect.width + rect.left);
+    ys.push((-projected.y * 0.5 + 0.5) * rect.height + rect.top);
+  }
+
+  const left = Math.min(...xs);
+  const top = Math.min(...ys);
+  const boxWidth = Math.max(...xs) - left;
+  const boxHeight = Math.max(...ys) - top;
+  if (boxWidth < 8 || boxHeight < 8) return null;
+  return { left, top, width: boxWidth, height: boxHeight };
 };
 
 /**
@@ -177,7 +237,18 @@ export const attachOverlayVideoPlane = (
     mesh.userData.spStopPaint = () => {
       painting = false;
     };
-    window.requestAnimationFrame(paint);
+    const videoWithFrameCb = video as HTMLVideoElement & {
+      requestVideoFrameCallback?: (cb: () => void) => void;
+    };
+    if (videoWithFrameCb.requestVideoFrameCallback) {
+      const onFrame = () => {
+        paint();
+        if (painting) videoWithFrameCb.requestVideoFrameCallback?.(onFrame);
+      };
+      videoWithFrameCb.requestVideoFrameCallback(onFrame);
+    } else {
+      window.requestAnimationFrame(paint);
+    }
 
     object3D.add(mesh);
     return { ok: true, reason: 'attached' };
