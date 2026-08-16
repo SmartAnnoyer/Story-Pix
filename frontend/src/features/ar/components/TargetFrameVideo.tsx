@@ -9,6 +9,7 @@ import { getPlaybackVideoElement } from '../utils/camera-permission';
 import { ensureTransparentRenderer, setOverlayPlaybackActive } from '../utils/mindar-scene';
 import { detachOverlayVideoPlane, setOverlayVideoPlaneVisible } from '../utils/overlay-plane';
 import {
+  describeOverlayLayout,
   getOverlayAabbViewport,
   getOverlayQuadScreenCorners,
   installPoseCapture,
@@ -192,12 +193,11 @@ export const TargetFrameVideo = ({
       return undefined;
     }
 
-    const video = videoRef.current;
     const entity = targetEntity;
     const stage = stageRef.current;
-    if (!video || !entity || !host || !stage) {
+    if (!entity || !host || !stage) {
       viewerLog('warn', 'AR overlay skipped', {
-        hasVideo: Boolean(video),
+        hasVideo: Boolean(videoRef.current),
         hasEntity: Boolean(entity),
         hasHost: Boolean(host),
         hasStage: Boolean(stage),
@@ -214,14 +214,12 @@ export const TargetFrameVideo = ({
 
     let cancelled = false;
     let loggedLayout = false;
+    let missFrames = 0;
+    let lastBox: { left: number; top: number; width: number; height: number } | null = null;
     const srcSize = 400;
 
-    const hideUntilPose = () => {
-      stage.style.opacity = '0';
-      stage.style.visibility = 'hidden';
-    };
-
     const applyBox = (box: { left: number; top: number; width: number; height: number }) => {
+      lastBox = box;
       stage.style.position = 'fixed';
       stage.style.left = `${box.left}px`;
       stage.style.top = `${box.top}px`;
@@ -255,33 +253,50 @@ export const TargetFrameVideo = ({
     };
 
     const layoutOverlay = () => {
+      const box = getOverlayAabbViewport(host, entity, aspectRatio, frame);
       if (ios) {
-        const box = getOverlayAabbViewport(host, entity, aspectRatio, frame);
-        if (!box) {
-          hideUntilPose();
-          return false;
+        if (box) {
+          applyBox(box);
+          return true;
         }
-        applyBox(box);
-        return true;
+        if (lastBox) {
+          applyBox(lastBox);
+          return true;
+        }
+        return false;
       }
       const quad = getOverlayQuadScreenCorners(host, entity, aspectRatio, frame);
       if (quad?.visible && applyQuad(quad.corners)) return true;
-      hideUntilPose();
+      if (box) {
+        applyBox(box);
+        return true;
+      }
+      if (lastBox) {
+        applyBox(lastBox);
+        return true;
+      }
       return false;
     };
-
-    hideUntilPose();
 
     const tick = () => {
       if (cancelled) return;
       const placed = layoutOverlay();
-      if (placed && !loggedLayout) {
+      if (!placed) {
+        missFrames += 1;
+        if (missFrames === 1 || missFrames % 45 === 0) {
+          viewerLog('warn', 'crop overlay pose not ready', {
+            misses: missFrames,
+            ...describeOverlayLayout(host, entity),
+          });
+        }
+      } else if (!loggedLayout) {
         loggedLayout = true;
-        const rect = video.getBoundingClientRect();
+        const video = videoRef.current;
+        const rect = video?.getBoundingClientRect();
         dumpArOverlayDebug({
           host,
           entity,
-          video,
+          video: video ?? null,
           frame,
           aspectRatio,
           attached: true,
@@ -289,15 +304,17 @@ export const TargetFrameVideo = ({
         });
         viewerLog('info', 'mapped video placed in studio crop', {
           ios,
-          ready: video.readyState,
-          paused: video.paused,
-          size: `${video.videoWidth}x${video.videoHeight}`,
-          rect: {
-            w: Math.round(rect.width),
-            h: Math.round(rect.height),
-            top: Math.round(rect.top),
-            left: Math.round(rect.left),
-          },
+          ready: video?.readyState,
+          paused: video?.paused,
+          size: `${video?.videoWidth ?? 0}x${video?.videoHeight ?? 0}`,
+          rect: rect
+            ? {
+                w: Math.round(rect.width),
+                h: Math.round(rect.height),
+                top: Math.round(rect.top),
+                left: Math.round(rect.left),
+              }
+            : null,
           frame,
         });
       }
@@ -309,7 +326,7 @@ export const TargetFrameVideo = ({
       cancelled = true;
       detachOverlayVideoPlane(entity);
     };
-  }, [active, mode, host, targetEntity, overlayFrame, aspectRatio, playbackUrl]);
+  }, [active, mode, host, targetEntity, overlayFrame, aspectRatio]);
 
   useEffect(() => {
     if (mode !== 'fullscreen' || !stageRef.current) return;
@@ -607,12 +624,6 @@ export const TargetFrameVideo = ({
                 }
               : {
                   position: 'fixed',
-                  left: 0,
-                  top: 0,
-                  width: 8,
-                  height: 8,
-                  visibility: 'hidden',
-                  opacity: 0,
                   overflow: 'hidden',
                   background: '#000',
                   pointerEvents: 'none',

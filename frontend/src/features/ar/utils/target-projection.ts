@@ -277,13 +277,28 @@ const projectCorners = (
   if (!entity.object3D || !camera || !viewRect) return null;
 
   const pose = getPoseMatrix(entity, camera);
-  if (!pose) return null;
+  if (pose) {
+    const points: ScreenPoint[] = [];
+    for (const [x, y] of locals) {
+      const projected = projectLocalPoint(pose, camera, viewRect, x, y);
+      if (!projected) break;
+      points.push(projected);
+    }
+    if (points.length === locals.length) return points;
+  }
+
+  const THREE = getThree();
+  if (!THREE || !entity.object3D.localToWorld) return null;
+  if (pose) applyPoseToObject(entity, pose);
+  entity.object3D.updateMatrixWorld?.(true);
 
   const points: ScreenPoint[] = [];
   for (const [x, y] of locals) {
-    const projected = projectLocalPoint(pose, camera, viewRect, x, y);
-    if (!projected) return null;
-    points.push(projected);
+    const vector = new THREE.Vector3(x, y, 0);
+    entity.object3D.localToWorld(vector);
+    vector.project(camera);
+    if (!Number.isFinite(vector.x) || !Number.isFinite(vector.y)) return null;
+    points.push(ndcToViewport(vector.x, vector.y, viewRect));
   }
   return points;
 };
@@ -319,7 +334,7 @@ export const getTargetScreenBounds = (
     top: minY,
     width,
     height,
-    visible: width > 8 && height > 8,
+    visible: width > 4 && height > 4,
   };
 };
 
@@ -348,7 +363,7 @@ export const getOverlayQuadScreenCorners = (
     const ys = quad.map((point) => point.y);
     const width = Math.max(...xs) - Math.min(...xs);
     const height = Math.max(...ys) - Math.min(...ys);
-    if (width > 8 && height > 8) {
+    if (width > 4 && height > 4) {
       return { corners: quad, visible: true };
     }
   }
@@ -378,7 +393,7 @@ const getOverlayQuadFromBounds = (
       { x: right, y: bottom },
       { x: left, y: bottom },
     ],
-    visible: right - left > 8 && bottom - top > 8,
+    visible: right - left > 4 && bottom - top > 4,
   };
 };
 
@@ -392,7 +407,7 @@ const aabbFromQuad = (quad: OverlayQuad): ViewportBox | null => {
   const top = Math.min(...ys);
   const width = Math.max(...xs) - left;
   const height = Math.max(...ys) - top;
-  if (width < 8 || height < 8) return null;
+  if (width < 4 || height < 4) return null;
   return { left, top, width, height };
 };
 
@@ -406,6 +421,24 @@ export const getOverlayAabbViewport = (
   const quad = getOverlayQuadScreenCorners(host, targetEntity, aspectRatio, frame);
   if (!quad) return null;
   return aabbFromQuad(quad);
+};
+
+export const describeOverlayLayout = (
+  host: HTMLElement,
+  targetEntity: HTMLElement,
+): Record<string, unknown> => {
+  const camera = getSceneCamera(host);
+  const view = getProjectionRect(host);
+  const entity = targetEntity as ProjectableEntity;
+  const pose = camera ? getPoseMatrix(entity, camera) : null;
+  return {
+    camera: Boolean(camera),
+    view: view ? { w: Math.round(view.width), h: Math.round(view.height) } : null,
+    captured: Boolean(capturedPose.get(targetEntity)),
+    pose: Boolean(pose),
+    object3D: Boolean(entity.object3D),
+    matrix0: Number(Number(entity.object3D?.matrix?.elements?.[0] ?? 0).toFixed(3)),
+  };
 };
 
 const solveLinearSystem = (inputA: number[][], inputB: number[]): number[] | null => {

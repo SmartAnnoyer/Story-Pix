@@ -941,18 +941,7 @@ export const ARViewer = ({
         }}
         onError={(message) => {
           viewerLog('error', 'video playback failed', { message, url: activeVideoUrl });
-          stopVideoPlayback();
           setStatusDetail(message);
-          const host = containerRef.current;
-          if (host && isCameraPreviewLive(host)) {
-            scanningEnabledRef.current = true;
-            setStatus('scanning');
-            setProgress(0.92);
-            startScanTimers();
-            return;
-          }
-          scanningEnabledRef.current = false;
-          setStatus('video_unavailable');
         }}
         onEnded={handleFullscreenEnded}
         onExitFullscreen={handleExitFullscreen}
