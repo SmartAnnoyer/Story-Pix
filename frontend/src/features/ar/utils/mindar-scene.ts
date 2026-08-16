@@ -159,6 +159,46 @@ export const ensureTransparentRenderer = (host: HTMLElement): void => {
   window.requestAnimationFrame(keepTransparent);
 };
 
+const CAMERA_PREVIEW_ID = 'sp-camera-preview';
+
+const paintCameraToCanvas = (host: HTMLElement, video: HTMLVideoElement): void => {
+  let canvas = host.querySelector(`#${CAMERA_PREVIEW_ID}`) as HTMLCanvasElement | null;
+  if (!canvas) {
+    canvas = document.createElement('canvas');
+    canvas.id = CAMERA_PREVIEW_ID;
+    canvas.setAttribute('aria-hidden', 'true');
+    host.appendChild(canvas);
+  }
+  if (canvas.dataset.spPainting === '1') return;
+  canvas.dataset.spPainting = '1';
+
+  const paint = () => {
+    if (!canvas.isConnected) {
+      canvas.dataset.spPainting = '0';
+      return;
+    }
+    if (!host.classList.contains('ar-scene-host--playing') || !host.contains(video)) {
+      canvas.dataset.spPainting = '0';
+      return;
+    }
+    if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0) {
+      const cssW = Math.max(1, canvas.clientWidth || host.clientWidth);
+      const cssH = Math.max(1, canvas.clientHeight || host.clientHeight);
+      if (canvas.width !== cssW) canvas.width = cssW;
+      if (canvas.height !== cssH) canvas.height = cssH;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        const scale = Math.max(cssW / video.videoWidth, cssH / video.videoHeight);
+        const drawW = video.videoWidth * scale;
+        const drawH = video.videoHeight * scale;
+        ctx.drawImage(video, (cssW - drawW) / 2, (cssH - drawH) / 2, drawW, drawH);
+      }
+    }
+    window.requestAnimationFrame(paint);
+  };
+  window.requestAnimationFrame(paint);
+};
+
 /** Style and play the MindAR camera feed under a transparent tracking canvas. */
 export const ensureCameraPreviewVisible = (host: HTMLElement): HTMLVideoElement | null => {
   const video = getCameraVideo(host);
@@ -178,12 +218,23 @@ export const ensureCameraPreviewVisible = (host: HTMLElement): HTMLVideoElement 
   video.style.zIndex = '1';
   video.style.pointerEvents = 'none';
 
+  if (host.classList.contains('ar-scene-host--playing')) {
+    video.style.opacity = '0';
+    video.style.zIndex = '-10';
+    paintCameraToCanvas(host, video);
+  }
+
   if (video.paused) {
     void video.play().catch(() => undefined);
   }
 
   ensureTransparentRenderer(host);
   return video;
+};
+
+export const setOverlayPlaybackActive = (host: HTMLElement, active: boolean): void => {
+  host.classList.toggle('ar-scene-host--playing', active);
+  ensureCameraPreviewVisible(host);
 };
 
 export const isCameraPreviewLive = (host: HTMLElement): boolean => {

@@ -97,6 +97,9 @@ export const attachOverlayVideoPlane = (
   const object3D = (entity as EntityWithObject3D).object3D;
   if (!THREE) return { ok: false, reason: 'THREE missing' };
   if (!object3D) return { ok: false, reason: 'target object3D missing' };
+  if (video.videoWidth < 2 || video.videoHeight < 2) {
+    return { ok: false, reason: 'video has no frames yet' };
+  }
 
   try {
     detachOverlayVideoPlane(entity);

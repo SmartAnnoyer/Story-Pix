@@ -6,12 +6,18 @@ import {
   type OverlayFrame,
 } from '../utils/overlay-frame';
 import { getPlaybackVideoElement } from '../utils/camera-permission';
-import { ensureTransparentRenderer } from '../utils/mindar-scene';
+import { ensureTransparentRenderer, setOverlayPlaybackActive } from '../utils/mindar-scene';
 import {
   attachOverlayVideoPlane,
   detachOverlayVideoPlane,
   setOverlayVideoPlaneVisible,
 } from '../utils/overlay-plane';
+import {
+  getOverlayAabbViewport,
+  getOverlayQuadScreenCorners,
+  installPoseCapture,
+  quadToCssMatrix3d,
+} from '../utils/target-projection';
 import { getPrefetchedBlobUrl, resolvePlayableVideoUrl } from '../utils/video-prefetch';
 import { dumpArOverlayDebug } from '../utils/ar-overlay-debug';
 import { viewerLog } from '../utils/viewer-debug-log';
@@ -64,7 +70,7 @@ const waitForVideoReady = (video: HTMLVideoElement): Promise<void> =>
     }, LOAD_TIMEOUT_MS);
 
     const checkReady = () => {
-      if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+      if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0) {
         cleanup();
         resolve();
       }
@@ -80,6 +86,7 @@ const waitForVideoReady = (video: HTMLVideoElement): Promise<void> =>
       video.removeEventListener('loadedmetadata', onReady);
       video.removeEventListener('loadeddata', onReady);
       video.removeEventListener('canplay', onReady);
+      video.removeEventListener('playing', onReady);
       video.removeEventListener('error', onFail);
     };
 
@@ -87,6 +94,7 @@ const waitForVideoReady = (video: HTMLVideoElement): Promise<void> =>
     video.addEventListener('loadedmetadata', onReady);
     video.addEventListener('loadeddata', onReady);
     video.addEventListener('canplay', onReady);
+    video.addEventListener('playing', onReady);
     video.addEventListener('error', onFail);
   });
 
@@ -142,18 +150,18 @@ export const TargetFrameVideo = ({
     video.playsInline = true;
     video.controls = false;
     video.autoplay = true;
-    video.setAttribute('crossorigin', 'anonymous');
-    video.crossOrigin = 'anonymous';
+    if (isIOS()) {
+      video.removeAttribute('crossorigin');
+      video.crossOrigin = null;
+    }
     video.style.position = 'absolute';
     video.style.inset = '0';
-    video.style.left = '';
-    video.style.top = '';
     video.style.width = '100%';
     video.style.height = '100%';
     video.style.display = 'block';
     video.style.objectFit = mode === 'fullscreen' ? 'contain' : 'fill';
     video.style.background = '#000';
-    video.style.opacity = mode === 'fullscreen' ? '1' : '0.02';
+    video.style.opacity = '1';
     video.style.visibility = 'visible';
     video.style.zIndex = '2';
     video.style.pointerEvents = 'none';
@@ -173,6 +181,13 @@ export const TargetFrameVideo = ({
   }, [active, mode]);
 
   useEffect(() => {
+    if (!host) return undefined;
+    const hideCameraForIosOverlay = active && mode === 'frame' && isIOS();
+    setOverlayPlaybackActive(host, hideCameraForIosOverlay);
+    return () => setOverlayPlaybackActive(host, false);
+  }, [active, mode, host]);
+
+  useEffect(() => {
     if (!active || mode === 'fullscreen') {
       setOverlayVideoPlaneVisible(targetEntity, false);
       return undefined;
@@ -180,10 +195,13 @@ export const TargetFrameVideo = ({
 
     const video = videoRef.current;
     const entity = targetEntity;
-    if (!video || !entity) {
-      viewerLog('warn', 'AR plane skipped', {
+    const stage = stageRef.current;
+    if (!video || !entity || !host || !stage) {
+      viewerLog('warn', 'AR overlay skipped', {
         hasVideo: Boolean(video),
         hasEntity: Boolean(entity),
+        hasHost: Boolean(host),
+        hasStage: Boolean(stage),
         mode,
         active,
       });
@@ -191,26 +209,66 @@ export const TargetFrameVideo = ({
     }
 
     const frame = clampOverlayFrame(overlayFrame ?? DEFAULT_OVERLAY_FRAME);
-    const parkHtmlStage = () => {
-      const el = stageRef.current;
-      if (!el) return;
-      el.style.position = 'fixed';
-      el.style.left = '-4px';
-      el.style.top = '-4px';
-      el.style.width = '4px';
-      el.style.height = '4px';
-      el.style.opacity = '0.04';
-      el.style.visibility = 'visible';
-      el.style.transform = 'none';
-      el.style.zIndex = '1';
-    };
-    parkHtmlStage();
+    const ios = isIOS();
+    installPoseCapture(entity);
     if (host) ensureTransparentRenderer(host);
 
     let cancelled = false;
-    let attempts = 0;
-    const tryAttach = () => {
-      if (cancelled) return;
+    let attached = false;
+    let loggedLayout = false;
+    const srcSize = 400;
+
+    const hideStageUntilPose = () => {
+      stage.style.opacity = '0';
+      stage.style.visibility = 'hidden';
+    };
+
+    const applyIosBox = (box: { left: number; top: number; width: number; height: number }) => {
+      stage.style.position = 'fixed';
+      stage.style.left = `${box.left}px`;
+      stage.style.top = `${box.top}px`;
+      stage.style.width = `${box.width}px`;
+      stage.style.height = `${box.height}px`;
+      stage.style.transform = 'none';
+      stage.style.transformOrigin = '0 0';
+      stage.style.opacity = '1';
+      stage.style.visibility = 'visible';
+      stage.style.zIndex = '10080';
+    };
+
+    const applyQuad = (corners: Parameters<typeof quadToCssMatrix3d>[2]) => {
+      const matrix = quadToCssMatrix3d(srcSize, srcSize, corners);
+      if (!matrix) return false;
+      stage.style.position = 'fixed';
+      stage.style.left = '0px';
+      stage.style.top = '0px';
+      stage.style.width = `${srcSize}px`;
+      stage.style.height = `${srcSize}px`;
+      stage.style.transformOrigin = '0 0';
+      stage.style.transform = matrix;
+      stage.style.opacity = '1';
+      stage.style.visibility = 'visible';
+      stage.style.zIndex = '10080';
+      return true;
+    };
+
+    const layoutOverlay = () => {
+      const quad = getOverlayQuadScreenCorners(host, entity, aspectRatio, frame);
+      if (quad?.visible && applyQuad(quad.corners)) return true;
+      if (ios) {
+        const box = getOverlayAabbViewport(host, entity, aspectRatio, frame);
+        if (box) {
+          applyIosBox(box);
+          return true;
+        }
+      }
+      hideStageUntilPose();
+      return false;
+    };
+
+    const tryAttachPlane = () => {
+      if (cancelled || attached || ios) return;
+      if (video.videoWidth < 2) return;
       video.setAttribute('crossorigin', 'anonymous');
       video.crossOrigin = 'anonymous';
       const result = attachOverlayVideoPlane(entity, video, frame, aspectRatio);
@@ -223,24 +281,50 @@ export const TargetFrameVideo = ({
         attached: result.ok,
         reason: result.reason,
       });
-      if (result.ok) {
-        setOverlayVideoPlaneVisible(entity, true);
-        viewerLog('info', 'AR video plane attached to mapped frame', {
-          ready: video.readyState,
-          paused: video.paused,
-          size: `${video.videoWidth}x${video.videoHeight}`,
-        });
-        return;
-      }
-      attempts += 1;
-      if (attempts === 1 || attempts % 10 === 0) {
-        viewerLog('warn', 'AR plane attach retry', { attempts, reason: result.reason });
-      }
-      if (attempts < 40) window.setTimeout(tryAttach, 120);
-      else viewerLog('error', 'could not attach AR video plane', { reason: result.reason });
+      if (!result.ok) return;
+      attached = true;
+      setOverlayVideoPlaneVisible(entity, true);
+      viewerLog('info', 'AR video plane attached to mapped frame', {
+        ready: video.readyState,
+        paused: video.paused,
+        size: `${video.videoWidth}x${video.videoHeight}`,
+      });
     };
 
-    tryAttach();
+    hideStageUntilPose();
+
+    const tick = () => {
+      if (cancelled) return;
+      const placed = layoutOverlay();
+      tryAttachPlane();
+      if (placed && !loggedLayout) {
+        loggedLayout = true;
+        const rect = video.getBoundingClientRect();
+        dumpArOverlayDebug({
+          host,
+          entity,
+          video,
+          frame,
+          aspectRatio,
+          attached,
+          reason: ios ? 'ios-html-overlay' : attached ? 'webgl+html' : 'html-quad',
+        });
+        viewerLog('info', 'AR overlay laid out on mapped frame', {
+          ios,
+          ready: video.readyState,
+          size: `${video.videoWidth}x${video.videoHeight}`,
+          rect: {
+            w: Math.round(rect.width),
+            h: Math.round(rect.height),
+            top: Math.round(rect.top),
+            left: Math.round(rect.left),
+          },
+        });
+      }
+      window.requestAnimationFrame(tick);
+    };
+    window.requestAnimationFrame(tick);
+
     return () => {
       cancelled = true;
       detachOverlayVideoPlane(entity);
@@ -332,8 +416,13 @@ export const TargetFrameVideo = ({
       const video = videoRef.current;
       if (!video || !sources.length) throw new Error('No video source');
 
-      video.crossOrigin = 'anonymous';
-      video.setAttribute('crossorigin', 'anonymous');
+      if (isIOS()) {
+        video.removeAttribute('crossorigin');
+        video.crossOrigin = null;
+      } else {
+        video.crossOrigin = 'anonymous';
+        video.setAttribute('crossorigin', 'anonymous');
+      }
       video.setAttribute('playsinline', '');
       video.setAttribute('webkit-playsinline', '');
       video.playsInline = true;
@@ -538,11 +627,11 @@ export const TargetFrameVideo = ({
                 }
               : {
                   position: 'fixed',
-                  left: -2,
-                  top: -2,
-                  width: 2,
-                  height: 2,
-                  visibility: 'visible',
+                  left: 0,
+                  top: 0,
+                  width: 400,
+                  height: 400,
+                  visibility: 'hidden',
                   opacity: 0,
                   overflow: 'hidden',
                   background: '#000',

@@ -25,6 +25,26 @@ html.viewer-route #root {
   pointer-events: none;
 }
 
+.ar-scene-host--playing > video {
+  opacity: 0 !important;
+  z-index: -10 !important;
+}
+
+.ar-scene-host > #sp-camera-preview {
+  display: none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+  background: #000;
+}
+
+.ar-scene-host--playing > #sp-camera-preview {
+  display: block;
+}
+
 .ar-scene-host > a-scene {
   position: absolute !important;
   inset: 0 !important;
@@ -39,6 +59,10 @@ html.viewer-route #root {
   background: transparent !important;
   opacity: 1 !important;
   pointer-events: none !important;
+}
+
+.ar-scene-host--playing .a-canvas {
+  opacity: 0 !important;
 }
 
 .ar-video-overlay,
