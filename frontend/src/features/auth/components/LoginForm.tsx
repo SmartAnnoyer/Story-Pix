@@ -26,7 +26,8 @@ export const LoginForm = ({ onSubmit, errorMessage, isSubmitting }: LoginFormPro
 
   return (
     <Form layout="vertical" onFinish={handleSubmit(onSubmit)} requiredMark={false}>
-      <h1 className="mb-6 text-2xl font-semibold text-gray-900">Sign in</h1>
+      <h1 className="mb-1 text-[1.65rem] font-bold tracking-tight text-gray-900">Sign in</h1>
+      <p className="mb-6 text-sm text-gray-500">Studio or admin — use your email.</p>
 
       {errorMessage ? (
         <Alert message={errorMessage} type="error" showIcon className="mb-4" />
@@ -40,7 +41,15 @@ export const LoginForm = ({ onSubmit, errorMessage, isSubmitting }: LoginFormPro
         <Controller
           name="email"
           control={control}
-          render={({ field }) => <Input {...field} size="large" placeholder="you@studio.com" />}
+          render={({ field }) => (
+            <Input
+              {...field}
+              size="large"
+              inputMode="email"
+              autoComplete="email"
+              placeholder="you@studio.com"
+            />
+          )}
         />
       </Form.Item>
 
@@ -53,12 +62,17 @@ export const LoginForm = ({ onSubmit, errorMessage, isSubmitting }: LoginFormPro
           name="password"
           control={control}
           render={({ field }) => (
-            <Input.Password {...field} size="large" placeholder="Enter your password" />
+            <Input.Password
+              {...field}
+              size="large"
+              autoComplete="current-password"
+              placeholder="Password"
+            />
           )}
         />
       </Form.Item>
 
-      <div className="mb-4 text-right">
+      <div className="mb-5 text-right">
         <Link
           to={ROUTES.FORGOT_PASSWORD}
           className="text-sm text-primary-600 hover:text-primary-700"
@@ -68,7 +82,7 @@ export const LoginForm = ({ onSubmit, errorMessage, isSubmitting }: LoginFormPro
       </div>
 
       <Button type="primary" htmlType="submit" size="large" block loading={isSubmitting}>
-        Sign in
+        Continue
       </Button>
     </Form>
   );

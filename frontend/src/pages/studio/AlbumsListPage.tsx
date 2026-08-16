@@ -69,9 +69,11 @@ export const AlbumsListPage = () => {
         <Button
           type="primary"
           icon={<PlusOutlined />}
+          block
+          className="md:!w-auto"
           onClick={() => navigate(ROUTES.ALBUM_CREATE)}
         >
-          Create Album
+          New album
         </Button>
       </div>
 

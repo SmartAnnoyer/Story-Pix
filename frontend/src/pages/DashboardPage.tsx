@@ -1,4 +1,4 @@
-import { Card, Col, Row, Statistic, Typography } from 'antd';
+import { Button, Card, Col, Row, Statistic, Typography } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/auth.store';
 import { useCurrentPlanQuery } from '@/hooks/useSubscriptionQueries';
@@ -27,11 +27,20 @@ export const DashboardPage = () => {
   return (
     <div>
       <Title level={3} className="!mb-1">
-        Welcome back{user ? `, ${user.firstName}` : ''}
+        Hi{user ? `, ${user.firstName}` : ''}
       </Title>
-      <Paragraph type="secondary" className="!mb-8">
-        Your studio overview and usage statistics.
+      <Paragraph type="secondary" className="!mb-6">
+        Create albums, map photos, and share the QR.
       </Paragraph>
+      <Button
+        type="primary"
+        size="large"
+        className="mb-6 md:hidden"
+        block
+        onClick={() => navigate(ROUTES.ALBUM_CREATE)}
+      >
+        New album
+      </Button>
 
       <SubscriptionSummaryWidget summary={summary} />
 
@@ -48,7 +57,12 @@ export const DashboardPage = () => {
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card>
-            <Statistic title="Storage Used" suffix="GB" value={summary.usage.storageUsedGB} precision={2} />
+            <Statistic
+              title="Storage Used"
+              suffix="GB"
+              value={summary.usage.storageUsedGB}
+              precision={2}
+            />
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>

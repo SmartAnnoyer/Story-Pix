@@ -15,36 +15,63 @@ export const AdminDashboardPage = () => {
   return (
     <div>
       <Title level={3} className="!mb-1">
-        Platform Dashboard
+        Overview
       </Title>
-      <Paragraph type="secondary" className="!mb-8">
-        Overview of all studios and platform usage.
+      <Paragraph type="secondary" className="!mb-6">
+        Studios, usage, and billing at a glance.
       </Paragraph>
 
       <Row gutter={[16, 16]} className="mb-6">
         <Col xs={24} sm={12} lg={6}>
-          <Card><Statistic title="Total Studios" value={data.totalStudios} /></Card>
+          <Card>
+            <Statistic title="Total Studios" value={data.totalStudios} />
+          </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card><Statistic title="Active" value={data.activeStudios} valueStyle={{ color: '#16a34a' }} /></Card>
+          <Card>
+            <Statistic
+              title="Active"
+              value={data.activeStudios}
+              valueStyle={{ color: '#16a34a' }}
+            />
+          </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card><Statistic title="Suspended" value={data.suspendedStudios} valueStyle={{ color: '#dc2626' }} /></Card>
+          <Card>
+            <Statistic
+              title="Suspended"
+              value={data.suspendedStudios}
+              valueStyle={{ color: '#dc2626' }}
+            />
+          </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card><Statistic title="Trial" value={data.trialStudios} valueStyle={{ color: '#0284c7' }} /></Card>
+          <Card>
+            <Statistic title="Trial" value={data.trialStudios} valueStyle={{ color: '#0284c7' }} />
+          </Card>
         </Col>
       </Row>
 
       <Row gutter={[16, 16]}>
         <Col xs={24} sm={12} lg={6}>
-          <Card><Statistic title="Total Storage Used" suffix="GB" value={data.totalStorageUsedGB} precision={2} /></Card>
+          <Card>
+            <Statistic
+              title="Total Storage Used"
+              suffix="GB"
+              value={data.totalStorageUsedGB}
+              precision={2}
+            />
+          </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card><Statistic title="Total Monthly Scans" value={data.totalMonthlyScans} /></Card>
+          <Card>
+            <Statistic title="Total Monthly Scans" value={data.totalMonthlyScans} />
+          </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card><Statistic title="Revenue (Placeholder)" prefix="₹" value={data.revenuePlaceholder} /></Card>
+          <Card>
+            <Statistic title="Revenue (Placeholder)" prefix="₹" value={data.revenuePlaceholder} />
+          </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card>

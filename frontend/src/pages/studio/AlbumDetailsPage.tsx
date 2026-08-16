@@ -5,7 +5,7 @@ import {
   Card,
   Col,
   Descriptions,
-  Popconfirm,
+  Dropdown,
   Row,
   Space,
   Typography,
@@ -93,36 +93,52 @@ export const AlbumDetailsPage = () => {
             <EventTypeBadge eventType={album.eventType} />
           </Space>
         </div>
-        <Space wrap>
-          {album.status !== AlbumStatus.ARCHIVED ? (
-            <Button onClick={() => navigate(ROUTES.ALBUM_EDIT.replace(':id', id))}>Edit</Button>
-          ) : null}
-          <Button type="primary" onClick={() => navigate(ROUTES.ALBUM_MEDIA.replace(':id', id))}>
-            Manage Media
+        <div className="app-quick-actions md:!flex md:flex-wrap md:gap-2">
+          <Button
+            type="primary"
+            block
+            className="md:!w-auto"
+            onClick={() => navigate(ROUTES.ALBUM_MEDIA.replace(':id', id))}
+          >
+            Media
           </Button>
-          <Button onClick={() => navigate(mappingsPath)}>AR Mappings</Button>
-          <Button onClick={() => navigate(ROUTES.ALBUM_INSIGHTS.replace(':id', id))}>
+          <Button block className="md:!w-auto" onClick={() => navigate(mappingsPath)}>
+            AR mappings
+          </Button>
+          <Button
+            block
+            className="md:!w-auto"
+            onClick={() => navigate(ROUTES.ALBUM_INSIGHTS.replace(':id', id))}
+          >
             Insights
           </Button>
-          {album.status !== AlbumStatus.ARCHIVED ? (
-            <Popconfirm title="Archive this album?" onConfirm={handleArchive}>
-              <Button>Archive</Button>
-            </Popconfirm>
-          ) : null}
-          <Popconfirm
-            title="Delete this album?"
-            description={
-              album.status === AlbumStatus.PUBLISHED
-                ? 'The album will be unpublished and permanently removed from your list.'
-                : 'This permanently removes the album from your list.'
-            }
-            okText="Delete"
-            okButtonProps={{ danger: true }}
-            onConfirm={() => void handleDelete()}
+          <Dropdown
+            menu={{
+              items: [
+                album.status !== AlbumStatus.ARCHIVED
+                  ? {
+                      key: 'edit',
+                      label: 'Edit album',
+                      onClick: () => navigate(ROUTES.ALBUM_EDIT.replace(':id', id)),
+                    }
+                  : null,
+                album.status !== AlbumStatus.ARCHIVED
+                  ? { key: 'archive', label: 'Archive', onClick: () => void handleArchive() }
+                  : null,
+                {
+                  key: 'delete',
+                  label: 'Delete',
+                  danger: true,
+                  onClick: () => void handleDelete(),
+                },
+              ].filter(Boolean),
+            }}
           >
-            <Button danger>Delete</Button>
-          </Popconfirm>
-        </Space>
+            <Button block className="md:!w-auto">
+              More
+            </Button>
+          </Dropdown>
+        </div>
       </div>
 
       <Row gutter={[16, 16]}>

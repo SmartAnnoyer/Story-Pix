@@ -1,18 +1,19 @@
 import { useMemo, useState } from 'react';
-import { Layout, Menu, Button, Avatar, Dropdown, Typography, theme, Drawer, Grid } from 'antd';
+import { Avatar, Button, Drawer, Dropdown, Layout, Menu, theme, Grid } from 'antd';
 import { BrandLogo } from '@/components/BrandLogo';
 import {
+  AppstoreOutlined,
   BarChartOutlined,
   BellOutlined,
-  CloseOutlined,
+  CreditCardOutlined,
+  CrownOutlined,
   DashboardOutlined,
+  DollarOutlined,
   LockOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
-  CrownOutlined,
-  CreditCardOutlined,
-  DollarOutlined,
+  MoreOutlined,
   PictureOutlined,
   ShopOutlined,
   TeamOutlined,
@@ -21,20 +22,30 @@ import {
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/auth.store';
 import { useLogoutMutation } from '@/hooks/useAuthQueries';
-import { useUnreadNotificationsQuery, useMarkNotificationReadMutation } from '@/hooks/useNotificationQueries';
+import {
+  useUnreadNotificationsQuery,
+  useMarkNotificationReadMutation,
+} from '@/hooks/useNotificationQueries';
 import { NotificationBell } from '@/features/notifications/components/NotificationBell';
 import { NotificationDrawer } from '@/features/notifications/components/NotificationDrawer';
 import { ROUTES } from '@/routes/paths';
 import { UserRole } from '@/types/auth.types';
 import type { MenuProps } from 'antd';
+import './app-shell.css';
 
 const { Header, Sider, Content } = Layout;
-const { Text } = Typography;
 const { useBreakpoint } = Grid;
+
+type NavItem = {
+  key: string;
+  label: string;
+  icon: React.ReactNode;
+  path: string;
+};
 
 export const DashboardLayout = () => {
   const [desktopCollapsed, setDesktopCollapsed] = useState(false);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -42,171 +53,159 @@ export const DashboardLayout = () => {
   const logoutMutation = useLogoutMutation();
   const { token } = theme.useToken();
   const screens = useBreakpoint();
-  const isMobile = !screens.lg;
+  const isMobile = !screens.md;
   const { data: unreadNotifications = [] } = useUnreadNotificationsQuery();
   const markReadMutation = useMarkNotificationReadMutation();
-
   const isSuperAdmin = user?.role === UserRole.SUPER_ADMIN;
 
-  const closeMobileNav = () => setMobileNavOpen(false);
+  const primaryTabs: NavItem[] = useMemo(
+    () =>
+      isSuperAdmin
+        ? [
+            {
+              key: 'home',
+              label: 'Home',
+              icon: <DashboardOutlined />,
+              path: ROUTES.ADMIN_DASHBOARD,
+            },
+            { key: 'studios', label: 'Studios', icon: <TeamOutlined />, path: ROUTES.STUDIOS },
+            { key: 'plans', label: 'Plans', icon: <CrownOutlined />, path: ROUTES.PLANS },
+          ]
+        : [
+            { key: 'home', label: 'Home', icon: <DashboardOutlined />, path: ROUTES.DASHBOARD },
+            { key: 'albums', label: 'Albums', icon: <PictureOutlined />, path: ROUTES.ALBUMS },
+            {
+              key: 'analytics',
+              label: 'Analytics',
+              icon: <BarChartOutlined />,
+              path: ROUTES.STUDIO_ANALYTICS,
+            },
+          ],
+    [isSuperAdmin],
+  );
 
-  const goTo = (path: string) => {
-    navigate(path);
-    closeMobileNav();
-  };
+  const moreItems: NavItem[] = useMemo(
+    () =>
+      isSuperAdmin
+        ? [
+            {
+              key: 'subscriptions',
+              label: 'Subscriptions',
+              icon: <CrownOutlined />,
+              path: ROUTES.SUBSCRIPTIONS,
+            },
+            {
+              key: 'billing',
+              label: 'Billing',
+              icon: <DollarOutlined />,
+              path: ROUTES.ADMIN_BILLING,
+            },
+            { key: 'jobs', label: 'Jobs', icon: <BellOutlined />, path: ROUTES.ADMIN_JOBS },
+            {
+              key: 'notifications',
+              label: 'Notifications',
+              icon: <BellOutlined />,
+              path: ROUTES.ADMIN_NOTIFICATIONS,
+            },
+            {
+              key: 'analytics',
+              label: 'Analytics',
+              icon: <BarChartOutlined />,
+              path: ROUTES.ADMIN_ANALYTICS,
+            },
+            {
+              key: 'password',
+              label: 'Change password',
+              icon: <LockOutlined />,
+              path: ROUTES.CHANGE_PASSWORD,
+            },
+          ]
+        : [
+            {
+              key: 'profile',
+              label: 'Studio profile',
+              icon: <ShopOutlined />,
+              path: ROUTES.STUDIO_PROFILE,
+            },
+            {
+              key: 'billing',
+              label: 'Billing',
+              icon: <CreditCardOutlined />,
+              path: ROUTES.STUDIO_BILLING,
+            },
+            {
+              key: 'plan',
+              label: 'Plan & usage',
+              icon: <CrownOutlined />,
+              path: ROUTES.STUDIO_PLAN,
+            },
+            {
+              key: 'notifications',
+              label: 'Notifications',
+              icon: <BellOutlined />,
+              path: ROUTES.NOTIFICATIONS,
+            },
+            {
+              key: 'password',
+              label: 'Change password',
+              icon: <LockOutlined />,
+              path: ROUTES.CHANGE_PASSWORD,
+            },
+          ],
+    [isSuperAdmin],
+  );
 
-  const menuItems: MenuProps['items'] = useMemo(() => {
-    if (isSuperAdmin) {
-      return [
-        {
-          key: ROUTES.ADMIN_DASHBOARD,
-          icon: <DashboardOutlined />,
-          label: 'Dashboard',
-          onClick: () => goTo(ROUTES.ADMIN_DASHBOARD),
-        },
-        {
-          key: ROUTES.STUDIOS,
-          icon: <TeamOutlined />,
-          label: 'Studios',
-          onClick: () => goTo(ROUTES.STUDIOS),
-        },
-        {
-          key: ROUTES.PLANS,
-          icon: <CrownOutlined />,
-          label: 'Plans',
-          onClick: () => goTo(ROUTES.PLANS),
-        },
-        {
-          key: ROUTES.SUBSCRIPTIONS,
-          icon: <CrownOutlined />,
-          label: 'Subscriptions',
-          onClick: () => goTo(ROUTES.SUBSCRIPTIONS),
-        },
-        {
-          key: ROUTES.ADMIN_BILLING,
-          icon: <DollarOutlined />,
-          label: 'Billing',
-          onClick: () => goTo(ROUTES.ADMIN_BILLING),
-        },
-        {
-          key: ROUTES.ADMIN_JOBS,
-          icon: <BellOutlined />,
-          label: 'Jobs',
-          onClick: () => goTo(ROUTES.ADMIN_JOBS),
-        },
-        {
-          key: ROUTES.ADMIN_NOTIFICATIONS,
-          icon: <BellOutlined />,
-          label: 'Notifications',
-          onClick: () => goTo(ROUTES.ADMIN_NOTIFICATIONS),
-        },
-        {
-          key: ROUTES.ADMIN_ANALYTICS,
-          icon: <BarChartOutlined />,
-          label: 'Analytics',
-          onClick: () => goTo(ROUTES.ADMIN_ANALYTICS),
-        },
-        {
-          key: ROUTES.CHANGE_PASSWORD,
-          icon: <LockOutlined />,
-          label: 'Change Password',
-          onClick: () => goTo(ROUTES.CHANGE_PASSWORD),
-        },
-      ];
-    }
+  const desktopMenuItems: MenuProps['items'] = useMemo(
+    () =>
+      [...primaryTabs, ...moreItems].map((item) => ({
+        key: item.path,
+        icon: item.icon,
+        label: item.label,
+        onClick: () => navigate(item.path),
+      })),
+    [primaryTabs, moreItems, navigate],
+  );
 
-    return [
-      {
-        key: ROUTES.DASHBOARD,
-        icon: <DashboardOutlined />,
-        label: 'Dashboard',
-        onClick: () => goTo(ROUTES.DASHBOARD),
-      },
-      {
-        key: ROUTES.STUDIO_PROFILE,
-        icon: <ShopOutlined />,
-        label: 'Studio Profile',
-        onClick: () => goTo(ROUTES.STUDIO_PROFILE),
-      },
-      {
-        key: ROUTES.STUDIO_BILLING,
-        icon: <CreditCardOutlined />,
-        label: 'Billing',
-        onClick: () => goTo(ROUTES.STUDIO_BILLING),
-      },
-      {
-        key: ROUTES.STUDIO_PLAN,
-        icon: <CrownOutlined />,
-        label: 'Plan & Usage',
-        onClick: () => goTo(ROUTES.STUDIO_PLAN),
-      },
-      {
-        key: ROUTES.ALBUMS,
-        icon: <PictureOutlined />,
-        label: 'Albums',
-        onClick: () => goTo(ROUTES.ALBUMS),
-      },
-      {
-        key: ROUTES.STUDIO_ANALYTICS,
-        icon: <BarChartOutlined />,
-        label: 'Analytics',
-        onClick: () => goTo(ROUTES.STUDIO_ANALYTICS),
-      },
-      {
-        key: ROUTES.NOTIFICATIONS,
-        icon: <BellOutlined />,
-        label: 'Notifications',
-        onClick: () => goTo(ROUTES.NOTIFICATIONS),
-      },
-      {
-        key: ROUTES.CHANGE_PASSWORD,
-        icon: <LockOutlined />,
-        label: 'Change Password',
-        onClick: () => goTo(ROUTES.CHANGE_PASSWORD),
-      },
-    ];
-  }, [isSuperAdmin, navigate]);
+  const allNav = [...primaryTabs, ...moreItems];
+  const selectedPath =
+    allNav
+      .filter(
+        (item) => location.pathname === item.path || location.pathname.startsWith(`${item.path}/`),
+      )
+      .sort((a, b) => b.path.length - a.path.length)[0]?.path ??
+    (location.pathname.startsWith('/studio/albums') ? ROUTES.ALBUMS : undefined);
 
-  const selectedKey = menuItems?.find(
-    (item) => item && 'key' in item && location.pathname.startsWith(String(item.key)),
-  )?.key as string | undefined;
+  const activeTab =
+    primaryTabs.find(
+      (tab) => location.pathname === tab.path || location.pathname.startsWith(`${tab.path}/`),
+    )?.key ?? (location.pathname.startsWith('/studio/albums') ? 'albums' : undefined);
+
+  const headerTitle = isSuperAdmin ? 'Admin' : 'Studio';
+  const headerName = user ? user.firstName : 'Story-pix';
 
   const handleLogout = async () => {
     try {
       await logoutMutation.mutateAsync();
     } finally {
-      closeMobileNav();
+      setMoreOpen(false);
       navigate(ROUTES.LOGIN);
     }
   };
 
-  const navMenu = (
-    <Menu mode="inline" selectedKeys={selectedKey ? [selectedKey] : []} items={menuItems} />
-  );
-
-  const brandHeader = (showClose: boolean) => (
-    <div className="flex h-16 items-center justify-between px-3">
-      <BrandLogo variant="full" height={32} />
-      {showClose ? (
-        <Button
-          type="text"
-          aria-label="Close menu"
-          icon={<CloseOutlined />}
-          onClick={closeMobileNav}
-        />
-      ) : null}
-    </div>
-  );
+  const go = (path: string) => {
+    setMoreOpen(false);
+    navigate(path);
+  };
 
   return (
-    <Layout className="min-h-screen">
+    <Layout className="app-shell min-h-screen">
       {!isMobile ? (
         <Sider
           trigger={null}
           collapsible
           collapsed={desktopCollapsed}
           collapsedWidth={64}
-          width={200}
+          width={220}
           className="!fixed bottom-0 left-0 top-0 z-20 h-screen overflow-auto"
           style={{ background: token.colorBgContainer }}
         >
@@ -217,70 +216,56 @@ export const DashboardLayout = () => {
               <BrandLogo variant="full" height={32} />
             )}
           </div>
-          {navMenu}
+          <Menu
+            mode="inline"
+            selectedKeys={selectedPath ? [selectedPath] : []}
+            items={desktopMenuItems}
+          />
         </Sider>
-      ) : (
-        <Drawer
-          title={null}
-          placement="left"
-          closable={false}
-          onClose={closeMobileNav}
-          open={mobileNavOpen}
-          width={260}
-          styles={{ body: { padding: 0 } }}
-        >
-          {brandHeader(true)}
-          {navMenu}
-        </Drawer>
-      )}
+      ) : null}
 
       <Layout
-        className={`transition-all ${!isMobile && !desktopCollapsed ? 'lg:ml-[200px]' : !isMobile ? 'lg:ml-[64px]' : ''}`}
+        className={`bg-transparent transition-all ${
+          !isMobile && !desktopCollapsed ? 'lg:ml-[220px]' : !isMobile ? 'lg:ml-[64px]' : ''
+        }`}
       >
         <Header
-          className="sticky top-0 z-30 flex items-center justify-between gap-2 px-4 sm:px-6"
-          style={{ background: token.colorBgContainer }}
+          className="app-shell__header !h-auto !leading-none"
+          style={{ background: 'transparent', paddingInline: 0 }}
         >
-          <Button
-            type="text"
-            aria-label={isMobile ? 'Open menu' : desktopCollapsed ? 'Expand menu' : 'Collapse menu'}
-            icon={
-              isMobile ? (
-                mobileNavOpen ? (
-                  <CloseOutlined />
-                ) : (
-                  <MenuUnfoldOutlined />
-                )
-              ) : desktopCollapsed ? (
-                <MenuUnfoldOutlined />
-              ) : (
-                <MenuFoldOutlined />
-              )
-            }
-            onClick={() => {
-              if (isMobile) {
-                setMobileNavOpen((open) => !open);
-              } else {
-                setDesktopCollapsed((collapsed) => !collapsed);
-              }
-            }}
-          />
+          <div className="flex items-center gap-3">
+            {!isMobile ? (
+              <Button
+                type="text"
+                aria-label={desktopCollapsed ? 'Expand menu' : 'Collapse menu'}
+                icon={desktopCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                onClick={() => setDesktopCollapsed((value) => !value)}
+              />
+            ) : (
+              <BrandLogo variant="mark" height={28} />
+            )}
+            <div>
+              <p className="app-shell__title">{headerName}</p>
+              <p className="app-shell__subtitle">{headerTitle}</p>
+            </div>
+          </div>
 
-          <div className="ml-auto flex items-center gap-3">
-            {!isSuperAdmin ? (
-              <NotificationBell onClick={() => setDrawerOpen(true)} />
-            ) : null}
-            <Text className="hidden sm:inline">
-              {user ? `${user.firstName} ${user.lastName}` : 'User'}
-            </Text>
+          <div className="flex items-center gap-2">
+            {!isSuperAdmin ? <NotificationBell onClick={() => setDrawerOpen(true)} /> : null}
             <Dropdown
               menu={{
                 items: [
                   {
+                    key: 'password',
+                    icon: <LockOutlined />,
+                    label: 'Change password',
+                    onClick: () => navigate(ROUTES.CHANGE_PASSWORD),
+                  },
+                  {
                     key: 'logout',
                     icon: <LogoutOutlined />,
-                    label: 'Logout',
-                    onClick: handleLogout,
+                    label: 'Log out',
+                    onClick: () => void handleLogout(),
                   },
                 ],
               }}
@@ -291,10 +276,73 @@ export const DashboardLayout = () => {
           </div>
         </Header>
 
-        <Content className="m-4 min-h-[280px] rounded-lg bg-white p-4 sm:m-6 sm:p-6">
+        <Content className={isMobile ? 'app-shell__content' : 'app-shell__content--desktop'}>
           <Outlet />
         </Content>
       </Layout>
+
+      {isMobile ? (
+        <nav className="app-tabbar" aria-label="Main">
+          {primaryTabs.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              className={`app-tabbar__item${activeTab === tab.key ? ' app-tabbar__item--active' : ''}`}
+              onClick={() => go(tab.path)}
+            >
+              <span className="app-tabbar__icon">{tab.icon}</span>
+              {tab.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            className={`app-tabbar__item${
+              moreOpen ||
+              moreItems.some(
+                (item) =>
+                  location.pathname === item.path || location.pathname.startsWith(`${item.path}/`),
+              )
+                ? ' app-tabbar__item--active'
+                : ''
+            }`}
+            onClick={() => setMoreOpen(true)}
+          >
+            <span className="app-tabbar__icon">
+              {isSuperAdmin ? <AppstoreOutlined /> : <MoreOutlined />}
+            </span>
+            More
+          </button>
+        </nav>
+      ) : null}
+
+      <Drawer
+        title="More"
+        placement="bottom"
+        height="auto"
+        open={moreOpen}
+        onClose={() => setMoreOpen(false)}
+        styles={{ body: { paddingTop: 8, paddingBottom: 24 } }}
+      >
+        {moreItems.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            className="app-more-item"
+            onClick={() => go(item.path)}
+          >
+            {item.icon}
+            {item.label}
+          </button>
+        ))}
+        <button
+          type="button"
+          className="app-more-item app-more-item--danger"
+          onClick={() => void handleLogout()}
+        >
+          <LogoutOutlined />
+          Log out
+        </button>
+      </Drawer>
 
       <NotificationDrawer
         open={drawerOpen}

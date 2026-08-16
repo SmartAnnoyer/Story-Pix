@@ -441,46 +441,91 @@ export const TargetFrameVideo = ({
         <div className="ar-video-controls" onClick={(event) => event.stopPropagation()}>
           <button
             type="button"
-            className="ar-video-controls__primary"
+            className="ar-video-ctrl ar-video-ctrl--play"
             aria-label={isPlaying ? 'Pause' : 'Play'}
             onClick={handleTogglePlay}
           >
-            <span className="ar-video-controls__icon">{isPlaying ? '❚❚' : '▶'}</span>
-          </button>
-          <button type="button" aria-label={soundOn ? 'Mute' : 'Unmute'} onClick={handleToggleMute}>
-            <span className="ar-video-controls__icon">{soundOn ? '🔊' : '🔇'}</span>
+            <span className="ar-video-ctrl__icon" aria-hidden>
+              {isPlaying ? (
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                  <rect x="5" y="4" width="5" height="16" rx="1.5" />
+                  <rect x="14" y="4" width="5" height="16" rx="1.5" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                  <path d="M8 5.2v13.6c0 .9 1 1.4 1.7.9l10-6.8c.7-.5.7-1.4 0-1.8l-10-6.8C9 3.8 8 4.3 8 5.2z" />
+                </svg>
+              )}
+            </span>
+            <span className="ar-video-ctrl__label">{isPlaying ? 'Pause' : 'Play'}</span>
           </button>
           <button
             type="button"
+            className="ar-video-ctrl"
+            aria-label={soundOn ? 'Mute' : 'Unmute'}
+            onClick={handleToggleMute}
+          >
+            <span className="ar-video-ctrl__icon" aria-hidden>
+              {soundOn ? (
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                  <path d="M4 9v6h3.2L12 19.2V4.8L7.2 9H4zm13.5 3c0-1.8-1-3.3-2.5-4.1v8.2c1.5-.8 2.5-2.3 2.5-4.1zm-2.5-7v1.6c2.9.9 5 3.6 5 6.9s-2.1 6-5 6.9V20c3.8-1 6.5-4.5 6.5-8.5S18.8 6 15 5z" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                  <path d="M4 9v6h3.2L12 19.2V4.8L7.2 9H4zm16.3-3.1-1.4-1.4L15 8.4l-3.9 3.9v.1L15 15.6l3.9 3.9 1.4-1.4L16.4 14l3.9-3.9-1.4-1.4L15 12.2z" />
+                </svg>
+              )}
+            </span>
+            <span className="ar-video-ctrl__label">{soundOn ? 'Mute' : 'Sound'}</span>
+          </button>
+          <button
+            type="button"
+            className="ar-video-ctrl"
             aria-label={showFullscreen ? 'Exit full screen' : 'Full screen'}
             onClick={handleToggleFullscreen}
           >
-            {showFullscreen ? 'Exit' : 'Full'}
+            <span className="ar-video-ctrl__icon" aria-hidden>
+              {showFullscreen ? (
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                  <path d="M7 14H5v5h5v-2H7v-3zm0-4h2V7h3V5H5v5h2zm10 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                  <path d="M7 14H5v5h5v-2H7v-3zm12 5h-5v-2h3v-3h2v5zM5 5h5v2H7v3H5V5zm14 5h-2V7h-3V5h5v5z" />
+                </svg>
+              )}
+            </span>
+            <span className="ar-video-ctrl__label">{showFullscreen ? 'Exit' : 'Full'}</span>
           </button>
           {playbackUrl ? (
             <a
+              className="ar-video-ctrl"
               href={playbackUrl}
               target="_blank"
               rel="noreferrer"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                height: '2.5rem',
-                padding: '0 0.85rem',
-                borderRadius: 999,
-                background: 'rgba(255,255,255,0.12)',
-                color: '#fff',
-                fontSize: 12,
-                fontWeight: 600,
-                textDecoration: 'none',
-              }}
+              aria-label="Open video"
             >
-              Open
+              <span className="ar-video-ctrl__icon" aria-hidden>
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                  <path d="M14 3h7v7h-2V6.4l-9.3 9.3-1.4-1.4L17.6 5H14V3zM5 5h6v2H7v10h10v-4h2v6H5V5z" />
+                </svg>
+              </span>
+              <span className="ar-video-ctrl__label">Open</span>
             </a>
           ) : null}
           {onClose ? (
-            <button type="button" aria-label="Close video" onClick={onClose}>
-              Done
+            <button
+              type="button"
+              className="ar-video-ctrl ar-video-ctrl--done"
+              aria-label="Close video"
+              onClick={onClose}
+            >
+              <span className="ar-video-ctrl__icon" aria-hidden>
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                  <path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6 6.4 5z" />
+                </svg>
+              </span>
+              <span className="ar-video-ctrl__label">Done</span>
             </button>
           ) : null}
         </div>

@@ -58,8 +58,14 @@ export const StudiosListPage = () => {
             Manage all studios on the platform.
           </Paragraph>
         </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate(ROUTES.STUDIO_CREATE)}>
-          Create Studio
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          block
+          className="md:!w-auto"
+          onClick={() => navigate(ROUTES.STUDIO_CREATE)}
+        >
+          New studio
         </Button>
       </div>
 
