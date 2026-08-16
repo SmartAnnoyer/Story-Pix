@@ -1,6 +1,12 @@
 /* MindAR attaches the camera <video> as a sibling of <a-scene> (default z-index: -2).
-   The WebGL canvas clears to black and sits on top — hide the canvas visually and show the
-   camera feed above it. Tracking still reads the video element; display order does not matter. */
+   The WebGL canvas is tracking-only — hide it and let the camera feed fill the screen. */
+html.viewer-route,
+html.viewer-route body,
+html.viewer-route #root {
+  background: #000 !important;
+  color: #fff;
+}
+
 .ar-scene-host {
   position: absolute;
   inset: 0;
@@ -8,11 +14,30 @@
   background: #000;
 }
 
-/* Keep MindAR's overflow cover crop (top/left/width/height) so the 3D FOV matches the feed. */
 .ar-scene-host > video {
   position: absolute !important;
-  z-index: 1 !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  z-index: 2 !important;
   opacity: 1 !important;
+  object-fit: cover !important;
+  pointer-events: none;
+}
+
+.ar-scene-host > a-scene {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  z-index: 0 !important;
+  background: transparent !important;
+  pointer-events: none !important;
+}
+
+.ar-scene-host .a-canvas {
+  opacity: 0 !important;
+  background: transparent !important;
   pointer-events: none;
 }
 

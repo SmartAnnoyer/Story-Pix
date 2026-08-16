@@ -167,15 +167,18 @@ export const installPoseCapture = (entity: HTMLElement): void => {
 
     const original = component.updateWorldMatrix.bind(component);
     const wrapped = ((worldMatrix: ArrayLike<number> | null) => {
-      // Compose before MindAR mutates the controller array in place.
+      original(worldMatrix);
       if (worldMatrix == null) {
         capturedPose.delete(entity);
-        original(worldMatrix);
         return;
       }
-      const pose = composeTrackerMatrix(worldMatrix, component.postMatrix);
+      const object3D = component.el.object3D;
+      const assigned = object3D?.matrix?.elements;
+      const pose =
+        assigned && !isIdentityMatrix(assigned)
+          ? copy16(assigned)
+          : composeTrackerMatrix(worldMatrix, component.postMatrix);
       capturedPose.set(entity, pose);
-      original(worldMatrix);
       applyPoseToObject(component.el, pose);
     }) as MindArTargetComponent['updateWorldMatrix'];
     wrapped.__spWrapped = true;
@@ -239,27 +242,8 @@ const projectLocalPoint = (
   viewRect: DOMRect,
   localX: number,
   localY: number,
-  entity?: ProjectableEntity,
 ): ScreenPoint | null => {
-  const THREE = getThree();
-  if (THREE && entity?.object3D) {
-    applyPoseToObject(entity, pose);
-    camera.updateMatrixWorld?.(true);
-    const vector = new THREE.Vector3();
-    vector.set(localX, localY, 0);
-    const object3D = entity.object3D as Object3D & {
-      localToWorld?: (v: ThreeVector3) => ThreeVector3;
-    };
-    if (object3D.localToWorld) {
-      object3D.localToWorld(vector);
-    } else {
-      vector.applyMatrix4({ elements: pose });
-    }
-    vector.project(camera);
-    if (!Number.isFinite(vector.x) || !Number.isFinite(vector.y)) return null;
-    return ndcToViewport(vector.x, vector.y, viewRect);
-  }
-
+  camera.updateMatrixWorld?.(true);
   const world = applyMat4(pose, localX, localY, 0);
   const view = applyMat4(camera.matrixWorldInverse.elements, world.x, world.y, world.z);
   const clip = applyMat4(camera.projectionMatrix.elements, view.x, view.y, view.z);
@@ -297,7 +281,7 @@ const projectCorners = (
 
   const points: ScreenPoint[] = [];
   for (const [x, y] of locals) {
-    const projected = projectLocalPoint(pose, camera, viewRect, x, y, entity);
+    const projected = projectLocalPoint(pose, camera, viewRect, x, y);
     if (!projected) return null;
     points.push(projected);
   }

@@ -39,7 +39,6 @@ const buildInitialWarmup = (albumSlug: string): WarmupProgress => {
 };
 
 const dismissViewerBootSplash = () => {
-  document.documentElement.classList.remove('viewer-route');
   document.getElementById('viewer-boot')?.remove();
 };
 

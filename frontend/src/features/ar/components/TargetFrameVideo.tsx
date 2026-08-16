@@ -7,6 +7,7 @@ import {
 } from '../utils/overlay-frame';
 import {
   getOverlayQuadScreenCorners,
+  installPoseCapture,
   quadToCssMatrix3d,
   type OverlayQuad,
 } from '../utils/target-projection';
@@ -149,7 +150,7 @@ export const TargetFrameVideo = ({
     video.style.height = '100%';
     video.style.display = 'block';
     video.style.objectFit = mode === 'fullscreen' ? 'contain' : 'fill';
-    video.style.background = 'transparent';
+    video.style.background = '#000';
     video.style.opacity = '1';
     video.style.visibility = 'visible';
     video.style.zIndex = '2';
@@ -211,10 +212,16 @@ export const TargetFrameVideo = ({
     const SMOOTH = 0.42;
     const SNAP_PX = 140;
 
-    const hideStage = () => {
+    const parkStage = () => {
       const el = stageRef.current;
       if (!el) return;
-      el.style.visibility = 'hidden';
+      el.style.position = 'fixed';
+      el.style.left = '-2px';
+      el.style.top = '-2px';
+      el.style.width = '2px';
+      el.style.height = '2px';
+      el.style.transform = 'none';
+      el.style.visibility = 'visible';
       el.style.opacity = '0';
     };
 
@@ -280,7 +287,7 @@ export const TargetFrameVideo = ({
       el.style.visibility = 'visible';
       el.style.opacity = '1';
       el.style.zIndex = '10080';
-      el.style.background = 'transparent';
+      el.style.background = '#000';
     };
 
     const applyQuad = (quad: OverlayQuad) => {
@@ -291,7 +298,7 @@ export const TargetFrameVideo = ({
       el.style.visibility = 'visible';
       el.style.opacity = '1';
       el.style.zIndex = '10080';
-      el.style.background = 'transparent';
+      el.style.background = '#000';
       el.style.transformOrigin = '0 0';
       if (matrix) {
         el.style.left = '0px';
@@ -311,12 +318,13 @@ export const TargetFrameVideo = ({
       });
     };
 
-    hideStage();
+    parkStage();
 
     let raf = 0;
     let locked = false;
     const tick = () => {
       if (host && targetEntity) {
+        installPoseCapture(targetEntity);
         const pose = getOverlayQuadScreenCorners(host, targetEntity, aspectRatio, frame);
         if (pose && isUsableQuad(pose)) {
           const smoothed = smoothQuad(pose);
@@ -326,16 +334,17 @@ export const TargetFrameVideo = ({
               x: Math.round(smoothed.corners[0].x),
               y: Math.round(smoothed.corners[0].y),
             });
+            void videoRef.current?.play().catch(() => undefined);
           }
           lastQuadRef.current = smoothed;
           applyQuad(smoothed);
         } else if (lastQuadRef.current && isUsableQuad(lastQuadRef.current)) {
           applyQuad(lastQuadRef.current);
         } else {
-          hideStage();
+          parkStage();
         }
       } else {
-        hideStage();
+        parkStage();
       }
       raf = window.requestAnimationFrame(tick);
     };
@@ -637,13 +646,14 @@ export const TargetFrameVideo = ({
                 }
               : {
                   position: 'fixed',
-                  left: 0,
-                  top: 0,
-                  width: 400,
-                  height: 400,
-                  visibility: 'hidden',
+                  left: -2,
+                  top: -2,
+                  width: 2,
+                  height: 2,
+                  visibility: 'visible',
+                  opacity: 0,
                   overflow: 'hidden',
-                  background: 'transparent',
+                  background: '#000',
                   pointerEvents: needsTap ? 'auto' : 'none',
                   zIndex: 10080,
                   transformOrigin: '0 0',

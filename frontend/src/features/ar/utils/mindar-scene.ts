@@ -120,9 +120,13 @@ export const ensureCameraPreviewVisible = (host: HTMLElement): HTMLVideoElement 
   video.muted = true;
   video.playsInline = true;
   video.autoplay = true;
+  video.style.objectFit = 'cover';
+  video.style.width = '100%';
+  video.style.height = '100%';
   video.style.position = 'absolute';
+  video.style.inset = '0';
   video.style.opacity = '1';
-  video.style.zIndex = '1';
+  video.style.zIndex = '2';
   video.style.pointerEvents = 'none';
 
   if (video.paused) {

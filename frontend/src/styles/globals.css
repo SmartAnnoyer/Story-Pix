@@ -33,6 +33,13 @@ body,
   min-height: 100dvh;
 }
 
+html.viewer-route,
+html.viewer-route body,
+html.viewer-route #root {
+  background: #000 !important;
+  color: #fff;
+}
+
 body {
   margin: 0;
   font-family:
