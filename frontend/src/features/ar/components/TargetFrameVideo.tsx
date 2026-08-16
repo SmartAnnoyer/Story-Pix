@@ -6,8 +6,8 @@ import {
   type OverlayFrame,
 } from '../utils/overlay-frame';
 import {
-  getFallbackFrameBox,
   getOverlayQuadScreenCorners,
+  installPoseCapture,
   quadToCssMatrix3d,
   type OverlayQuad,
 } from '../utils/target-projection';
@@ -228,6 +228,12 @@ export const TargetFrameVideo = ({
       );
     };
 
+    const hideUntilPose = () => {
+      const el = stageRef.current;
+      if (!el) return;
+      el.style.opacity = '0';
+    };
+
     const applyBox = (box: { left: number; top: number; width: number; height: number }) => {
       const el = stageRef.current;
       if (!el) return;
@@ -270,27 +276,34 @@ export const TargetFrameVideo = ({
       });
     };
 
-    applyBox(getFallbackFrameBox());
+    hideUntilPose();
 
     let raf = 0;
     let locked = false;
     const tick = () => {
       if (host && targetEntity) {
+        installPoseCapture(targetEntity);
         const pose = getOverlayQuadScreenCorners(host, targetEntity, aspectRatio, frame);
         if (pose && isUsableQuad(pose)) {
           if (!locked) {
             locked = true;
-            viewerLog('info', 'overlay pose locked to selected frame');
+            viewerLog('info', 'overlay pose locked to selected frame', {
+              frame,
+              corners: pose.corners.map((point) => ({
+                x: Math.round(point.x),
+                y: Math.round(point.y),
+              })),
+            });
           }
           lastQuadRef.current = pose;
           applyQuad(pose);
         } else if (lastQuadRef.current && isUsableQuad(lastQuadRef.current)) {
           applyQuad(lastQuadRef.current);
         } else {
-          applyBox(getFallbackFrameBox());
+          hideUntilPose();
         }
       } else {
-        applyBox(getFallbackFrameBox());
+        hideUntilPose();
       }
       raf = window.requestAnimationFrame(tick);
     };
@@ -592,11 +605,6 @@ export const TargetFrameVideo = ({
                 }
               : {
                   position: 'fixed',
-                  left: 0,
-                  top: 0,
-                  width: 200,
-                  height: 200,
-                  visibility: 'visible',
                   overflow: 'hidden',
                   background: '#000',
                   pointerEvents: needsTap ? 'auto' : 'none',

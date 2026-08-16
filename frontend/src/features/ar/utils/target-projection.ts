@@ -79,10 +79,7 @@ const applyMat4 = (m: ArrayLike<number>, x: number, y: number, z: number) => {
 };
 
 const getProjectionRect = (host: HTMLElement): DOMRect | null => {
-  const scene = host.querySelector('a-scene') as HTMLElement | null;
-  const rect =
-    (scene && scene.clientWidth > 0 ? scene.getBoundingClientRect() : null) ??
-    host.getBoundingClientRect();
+  const rect = host.getBoundingClientRect();
   if (rect.width <= 0 || rect.height <= 0) return null;
   return rect;
 };
@@ -94,33 +91,95 @@ const getSceneCamera = (host: HTMLElement): SceneCamera | null => {
   return cameraEl?.getObject3D?.('camera') ?? null;
 };
 
+type ThreeMatrix4 = {
+  elements: ArrayLike<number>;
+  fromArray: (array: ArrayLike<number>) => ThreeMatrix4;
+  multiply: (m: ThreeMatrix4) => ThreeMatrix4;
+};
+
+type ThreeVector3 = {
+  x: number;
+  y: number;
+  z: number;
+  set: (x: number, y: number, z: number) => ThreeVector3;
+  applyMatrix4: (m: ThreeMatrix4) => ThreeVector3;
+  project: (camera: SceneCamera) => ThreeVector3;
+};
+
+type ThreeRuntime = {
+  Matrix4: new () => ThreeMatrix4;
+  Vector3: new () => ThreeVector3;
+};
+
 type MindArTargetComponent = {
   updateWorldMatrix: ((worldMatrix: ArrayLike<number> | null) => void) & {
     __spWrapped?: boolean;
   };
+  postMatrix?: ThreeMatrix4 | null;
   el: ProjectableEntity;
+};
+
+type EntityWithPose = HTMLElement & {
+  __spPose?: number[] | null;
+  components?: Record<string, MindArTargetComponent>;
 };
 
 const capturedPose = new WeakMap<HTMLElement, number[]>();
 
+const getThree = (): ThreeRuntime | null => {
+  const frame = window as Window & { AFRAME?: { THREE?: ThreeRuntime } };
+  return frame.AFRAME?.THREE ?? null;
+};
+
+const composeTrackedMatrix = (
+  worldMatrix: ArrayLike<number>,
+  postMatrix?: ThreeMatrix4 | null,
+): number[] => {
+  const THREE = getThree();
+  if (THREE && postMatrix) {
+    const composed = new THREE.Matrix4();
+    if (typeof composed.fromArray === 'function') {
+      composed.fromArray(Array.from(worldMatrix));
+    } else {
+      const elements = composed.elements as number[] | Float32Array;
+      for (let i = 0; i < 16; i += 1) elements[i] = Number(worldMatrix[i] ?? 0);
+    }
+    composed.multiply(postMatrix);
+    return copy16(composed.elements);
+  }
+  if (postMatrix?.elements && !isIdentityMatrix(postMatrix.elements)) {
+    return multiplyMat4(worldMatrix, postMatrix.elements);
+  }
+  return copy16(worldMatrix);
+};
+
+const storePose = (entity: HTMLElement, pose: number[] | null) => {
+  const tagged = entity as EntityWithPose;
+  if (!pose) {
+    capturedPose.delete(entity);
+    tagged.__spPose = null;
+    return;
+  }
+  capturedPose.set(entity, pose);
+  tagged.__spPose = pose;
+};
+
 export const installPoseCapture = (entity: HTMLElement): void => {
   const wrap = () => {
-    const component = (
-      entity as HTMLElement & { components?: Record<string, MindArTargetComponent> }
-    ).components?.['mindar-image-target'];
+    const component = (entity as EntityWithPose).components?.['mindar-image-target'];
     if (!component || component.updateWorldMatrix.__spWrapped) return;
 
     const original = component.updateWorldMatrix.bind(component);
     const wrapped = ((worldMatrix: ArrayLike<number> | null) => {
+      const raw = worldMatrix == null ? null : copy16(worldMatrix);
       original(worldMatrix);
       const object3D = component.el.object3D;
-      if (worldMatrix == null) {
-        capturedPose.delete(entity);
+      if (raw == null) {
+        storePose(entity, null);
         if (object3D) object3D.visible = false;
         return;
       }
-      const matrix = object3D?.matrix?.elements ?? worldMatrix;
-      capturedPose.set(entity, copy16(matrix));
+      storePose(entity, composeTrackedMatrix(raw, component.postMatrix));
       if (object3D) {
         object3D.matrixWorldNeedsUpdate = true;
         object3D.updateMatrixWorld?.(true);
@@ -142,11 +201,12 @@ export const installPoseCapture = (entity: HTMLElement): void => {
 const getPoseMatrix = (entity: ProjectableEntity, camera: SceneCamera): number[] | null => {
   camera.updateMatrixWorld?.(true);
 
-  const captured = capturedPose.get(entity);
-  if (captured) return captured;
+  const tagged = entity as EntityWithPose;
+  const captured = capturedPose.get(entity) ?? tagged.__spPose ?? null;
+  if (captured && !isIdentityMatrix(captured)) return captured;
 
   const object3D = entity.object3D;
-  if (!object3D?.matrix) return null;
+  if (!object3D?.matrix) return captured;
 
   const sceneEl = entity.closest('a-scene') as ASceneEl | null;
   sceneEl?.object3D?.updateMatrixWorld?.(true);
@@ -167,7 +227,7 @@ const getPoseMatrix = (entity: ProjectableEntity, camera: SceneCamera): number[]
     return copy16(world);
   }
 
-  return null;
+  return captured;
 };
 
 const projectLocalPoint = (
@@ -177,6 +237,21 @@ const projectLocalPoint = (
   localX: number,
   localY: number,
 ): ScreenPoint | null => {
+  const THREE = getThree();
+  if (THREE) {
+    const matrix = new THREE.Matrix4();
+    matrix.fromArray(pose as number[]);
+    const vec = new THREE.Vector3();
+    vec.set(localX, localY, 0);
+    vec.applyMatrix4(matrix);
+    vec.project(camera);
+    if (!Number.isFinite(vec.x) || !Number.isFinite(vec.y)) return null;
+    return {
+      x: (vec.x * 0.5 + 0.5) * viewRect.width + viewRect.left,
+      y: (-vec.y * 0.5 + 0.5) * viewRect.height + viewRect.top,
+    };
+  }
+
   const world = applyMat4(pose, localX, localY, 0);
   const view = applyMat4(camera.matrixWorldInverse.elements, world.x, world.y, world.z);
   const clip = applyMat4(camera.projectionMatrix.elements, view.x, view.y, view.z);
@@ -211,7 +286,7 @@ const projectCorners = (
   const entity = targetEntity as ProjectableEntity;
   const camera = getSceneCamera(host);
   const viewRect = getProjectionRect(host);
-  if (!entity.object3D || !camera || !viewRect) return null;
+  if (!camera || !viewRect) return null;
 
   const pose = getPoseMatrix(entity, camera);
   if (!pose) return null;

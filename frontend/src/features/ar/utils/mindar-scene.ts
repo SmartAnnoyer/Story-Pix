@@ -119,17 +119,23 @@ export const ensureCameraPreviewVisible = (host: HTMLElement): HTMLVideoElement 
   video.muted = true;
   video.playsInline = true;
   video.autoplay = true;
-  video.style.objectFit = 'cover';
-  video.style.width = '100%';
-  video.style.height = '100%';
   video.style.position = 'absolute';
-  video.style.inset = '0';
   video.style.opacity = '1';
   video.style.zIndex = '1';
   video.style.pointerEvents = 'none';
 
   if (video.paused) {
     void video.play().catch(() => undefined);
+  }
+
+  if (video.dataset.spCameraLayout !== 'mindar') {
+    video.style.removeProperty('width');
+    video.style.removeProperty('height');
+    video.style.removeProperty('inset');
+    video.style.removeProperty('object-fit');
+    video.dataset.spCameraLayout = 'mindar';
+    const arSystem = getMindArSystem(host);
+    arSystem?._resize?.call(arSystem);
   }
 
   return video;
