@@ -4,9 +4,11 @@ import { Button, Space, Upload, message } from 'antd';
 import { mediaService } from '@/services/media.service';
 import { useUploadStore } from '@/store/upload.store';
 import { MediaType } from '@/types/media.types';
+import type { OverlayFrame } from '@/types/media.types';
 import { getErrorMessage } from '@/api/client';
 import { PhotoCaptureModal } from './PhotoCaptureModal';
 import { PhotoCropModal } from './PhotoCropModal';
+import { PhotoFrameSelectModal } from './PhotoFrameSelectModal';
 
 const { Dragger } = Upload;
 
@@ -26,9 +28,11 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
   const [captureOpen, setCaptureOpen] = useState(false);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [cropFileName, setCropFileName] = useState('photo.jpg');
+  const [pendingPhoto, setPendingPhoto] = useState<File | null>(null);
+  const [frameSrc, setFrameSrc] = useState<string | null>(null);
 
   const processFile = useCallback(
-    async (file: File) => {
+    async (file: File, overlayFrame?: OverlayFrame) => {
       const taskId = crypto.randomUUID();
       addTask({
         id: taskId,
@@ -55,7 +59,10 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
         );
 
         updateTask(taskId, { status: 'confirming', progress: 95 });
-        await mediaService.confirmUpload(initiated.media.id);
+        await mediaService.confirmUpload(
+          initiated.media.id,
+          overlayFrame ? { overlayFrame } : undefined,
+        );
         updateTask(taskId, { status: 'done', progress: 100 });
         onComplete?.();
       } catch (error) {
@@ -80,11 +87,24 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
     setCropSrc(null);
   };
 
+  const openFrameSelect = (file: File) => {
+    if (frameSrc) URL.revokeObjectURL(frameSrc);
+    setPendingPhoto(file);
+    setFrameSrc(URL.createObjectURL(file));
+  };
+
+  const closeFrameSelect = () => {
+    if (frameSrc) URL.revokeObjectURL(frameSrc);
+    setFrameSrc(null);
+    setPendingPhoto(null);
+  };
+
   if (mediaType === MediaType.PHOTO) {
     return (
       <div>
         <p className="mb-3 text-sm text-neutral-500">
-          Use the camera frame or crop from gallery so the AR target matches what guests will scan.
+          Use the camera frame or crop from gallery, then mark the printed frame so the video plays
+          inside it while guests scan.
         </p>
         <Space wrap className="mb-3 w-full">
           <Button
@@ -137,17 +157,27 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
           onCancel={() => setCaptureOpen(false)}
           onCapture={(file) => {
             setCaptureOpen(false);
-            void processFile(file);
+            openFrameSelect(file);
           }}
         />
         <PhotoCropModal
           open={Boolean(cropSrc)}
           imageSrc={cropSrc}
           fileName={cropFileName}
-          onCancel={closeCrop}
           onConfirm={(file) => {
             closeCrop();
-            void processFile(file);
+            openFrameSelect(file);
+          }}
+          onCancel={closeCrop}
+        />
+        <PhotoFrameSelectModal
+          open={Boolean(pendingPhoto && frameSrc)}
+          imageSrc={frameSrc}
+          onCancel={closeFrameSelect}
+          onConfirm={(overlayFrame) => {
+            const file = pendingPhoto;
+            closeFrameSelect();
+            if (file) void processFile(file, overlayFrame);
           }}
         />
       </div>

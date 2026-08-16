@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import {
+  clampOverlayFrame,
+  DEFAULT_OVERLAY_FRAME,
+  type OverlayFrame,
+} from '../utils/overlay-frame';
+import { getOverlayQuadScreenCorners, quadToCssMatrix3d } from '../utils/target-projection';
 import { getPrefetchedBlobUrl, resolvePlayableVideoUrl } from '../utils/video-prefetch';
 import { viewerLog } from '../utils/viewer-debug-log';
 import './TargetFrameVideo.css';
@@ -10,6 +16,7 @@ interface TargetFrameVideoProps {
   host: HTMLElement | null;
   targetEntity: HTMLElement | null;
   aspectRatio: number;
+  overlayFrame?: OverlayFrame | null;
   primaryUrl: string | null;
   fallbackUrl?: string | null;
   active: boolean;
@@ -25,6 +32,7 @@ interface TargetFrameVideoProps {
 }
 
 const LOAD_TIMEOUT_MS = 25_000;
+const QUAD_SIZE = 1000;
 
 const isIOS = () => typeof navigator !== 'undefined' && /iP(hone|od|ad)/.test(navigator.userAgent);
 
@@ -71,18 +79,11 @@ const waitForVideoReady = (video: HTMLVideoElement): Promise<void> =>
     video.addEventListener('error', onFail);
   });
 
-const prepareVideoElement = (video: HTMLVideoElement) => {
-  video.removeAttribute('crossorigin');
-  video.setAttribute('playsinline', '');
-  video.setAttribute('webkit-playsinline', '');
-  video.playsInline = true;
-  video.preload = 'auto';
-  video.controls = true;
-  video.volume = 1;
-};
-
 export const TargetFrameVideo = ({
   host,
+  targetEntity,
+  aspectRatio,
+  overlayFrame,
   primaryUrl,
   fallbackUrl,
   active,
@@ -96,6 +97,8 @@ export const TargetFrameVideo = ({
   onClose,
 }: TargetFrameVideoProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const lastMatrixRef = useRef<string | null>(null);
   const onPlayRef = useRef(onPlay);
   const onErrorRef = useRef(onError);
   const onEndedRef = useRef(onEnded);
@@ -105,6 +108,7 @@ export const TargetFrameVideo = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [soundOn, setSoundOn] = useState(false);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
+  const [hasPose, setHasPose] = useState(false);
 
   useEffect(() => {
     onPlayRef.current = onPlay;
@@ -112,13 +116,14 @@ export const TargetFrameVideo = ({
     onEndedRef.current = onEnded;
   }, [onPlay, onError, onEnded]);
 
-  // Hide MindAR camera layer while our overlay is up (iOS often stacks camera above page UI).
+  // Hide the MindAR camera only in full-screen so in-frame AR can sit on the live photo.
   useEffect(() => {
     if (!host) return undefined;
+    const hideCamera = active && mode === 'fullscreen';
     const videos = host.querySelectorAll('video');
     videos.forEach((node) => {
       const el = node as HTMLVideoElement;
-      if (active) {
+      if (hideCamera) {
         el.dataset.spPrevVisibility = el.style.visibility || '';
         el.dataset.spPrevOpacity = el.style.opacity || '';
         el.style.visibility = 'hidden';
@@ -141,7 +146,51 @@ export const TargetFrameVideo = ({
         }
       });
     };
-  }, [active, host]);
+  }, [active, host, mode]);
+
+  useEffect(() => {
+    if (!active || mode === 'fullscreen' || !host || !targetEntity) {
+      return undefined;
+    }
+
+    let raf = 0;
+    const frame = clampOverlayFrame(overlayFrame ?? DEFAULT_OVERLAY_FRAME);
+
+    const tick = () => {
+      const quad = getOverlayQuadScreenCorners(host, targetEntity, aspectRatio, frame);
+      if (quad?.visible) {
+        const matrix = quadToCssMatrix3d(QUAD_SIZE, QUAD_SIZE, quad.corners);
+        if (matrix) {
+          lastMatrixRef.current = matrix;
+          if (stageRef.current) {
+            stageRef.current.style.transform = matrix;
+            stageRef.current.style.visibility = 'visible';
+          }
+          setHasPose((value) => value || true);
+        }
+      } else if (lastMatrixRef.current && stageRef.current) {
+        stageRef.current.style.transform = lastMatrixRef.current;
+        stageRef.current.style.visibility = 'visible';
+      }
+      raf = window.requestAnimationFrame(tick);
+    };
+
+    raf = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(raf);
+  }, [active, mode, host, targetEntity, aspectRatio, overlayFrame]);
+
+  useEffect(() => {
+    if (mode !== 'fullscreen' || !stageRef.current) return;
+    stageRef.current.style.transform = '';
+    stageRef.current.style.visibility = '';
+  }, [mode]);
+
+  useEffect(() => {
+    if (!active) {
+      lastMatrixRef.current = null;
+      setHasPose(false);
+    }
+  }, [active]);
 
   const enableSound = useCallback(() => {
     const video = videoRef.current;
@@ -156,10 +205,8 @@ export const TargetFrameVideo = ({
     if (hasNotifiedPlayRef.current) return;
     hasNotifiedPlayRef.current = true;
     setIsPlaying(true);
-    // iPhone: force fullscreen overlay so the player can't sit under the camera layer.
-    if (isIOS()) onModeChange('fullscreen');
     onPlayRef.current?.();
-  }, [onModeChange]);
+  }, []);
 
   const tryPlay = useCallback(
     async (withSound = false) => {
@@ -205,7 +252,13 @@ export const TargetFrameVideo = ({
       const video = videoRef.current;
       if (!video || !sources.length) throw new Error('No video source');
 
-      prepareVideoElement(video);
+      video.removeAttribute('crossorigin');
+      video.setAttribute('playsinline', '');
+      video.setAttribute('webkit-playsinline', '');
+      video.playsInline = true;
+      video.preload = 'auto';
+      video.controls = false;
+      video.volume = 1;
       video.muted = true;
       let lastError: unknown;
       const uniqueSources = [...new Set(sources)];
@@ -306,6 +359,7 @@ export const TargetFrameVideo = ({
     const video = videoRef.current;
     if (!video) return;
     video.loop = mode === 'frame';
+    video.controls = mode === 'fullscreen';
   }, [mode]);
 
   useEffect(() => {
@@ -356,7 +410,7 @@ export const TargetFrameVideo = ({
 
   return createPortal(
     <div
-      className={`ar-video-shell${showFullscreen ? ' ar-video-shell--fullscreen' : ''}`}
+      className={`ar-video-shell${showFullscreen ? ' ar-video-shell--fullscreen' : ' ar-video-shell--tracked'}`}
       style={{
         position: 'fixed',
         inset: 0,
@@ -364,65 +418,64 @@ export const TargetFrameVideo = ({
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: showFullscreen ? 'stretch' : 'center',
+        justifyContent: showFullscreen ? 'stretch' : 'flex-end',
         gap: showFullscreen ? 0 : 12,
-        padding: showFullscreen ? 0 : '16px 16px 88px',
-        background: showFullscreen ? '#000' : 'rgba(0,0,0,0.78)',
-        pointerEvents: 'auto',
+        padding: showFullscreen ? 0 : '0 16px max(16px, env(safe-area-inset-bottom))',
+        background: showFullscreen ? '#000' : 'transparent',
+        pointerEvents: showFullscreen ? 'auto' : 'none',
       }}
       role="dialog"
       aria-label={title ? `Playing ${title}` : 'Playing mapped video'}
     >
-      <p
-        className="ar-video-nowplaying"
-        style={{
-          margin: 0,
-          padding: '8px 14px',
-          borderRadius: 999,
-          background: 'rgba(138,43,226,0.9)',
-          color: '#fff',
-          fontSize: 13,
-          fontWeight: 700,
-        }}
-      >
-        {loading ? 'Loading video…' : `Now playing${title ? ` · ${title}` : ''}`}
-      </p>
+      {showFullscreen ? (
+        <p className="ar-video-nowplaying">
+          {loading ? 'Loading video…' : `Now playing${title ? ` · ${title}` : ''}`}
+        </p>
+      ) : null}
 
       <div
+        ref={stageRef}
         className="ar-video-stage"
-        style={{
-          position: 'relative',
-          width: showFullscreen ? '100%' : 'min(86vw, 360px)',
-          maxHeight: showFullscreen ? 'none' : 'min(62vh, 520px)',
-          aspectRatio: showFullscreen ? undefined : '3 / 4',
-          flex: showFullscreen ? 1 : undefined,
-          minHeight: showFullscreen ? 0 : undefined,
-          border: showFullscreen ? 'none' : '3px solid #FF4FA3',
-          borderRadius: showFullscreen ? 0 : 16,
-          overflow: 'hidden',
-          background: '#000',
-          boxShadow: showFullscreen
-            ? 'none'
-            : '0 0 0 9999px rgba(0,0,0,0.35), 0 0 28px rgba(255,79,163,0.45)',
-        }}
+        style={
+          showFullscreen
+            ? {
+                position: 'relative',
+                width: '100%',
+                flex: 1,
+                minHeight: 0,
+                border: 'none',
+                borderRadius: 0,
+                overflow: 'hidden',
+                background: '#000',
+                pointerEvents: 'auto',
+              }
+            : {
+                position: 'fixed',
+                left: 0,
+                top: 0,
+                width: QUAD_SIZE,
+                height: QUAD_SIZE,
+                transformOrigin: '0 0',
+                visibility: hasPose || lastMatrixRef.current ? 'visible' : 'hidden',
+                overflow: 'hidden',
+                background: '#000',
+                pointerEvents: 'auto',
+                willChange: 'transform',
+              }
+        }
       >
-        {!showFullscreen ? <div className="ar-video-glow-pulse" aria-hidden /> : null}
-        {!showFullscreen ? <div className="ar-video-glow" aria-hidden /> : null}
-        <div
-          className="ar-video-media"
-          style={{ position: 'absolute', inset: 0, zIndex: 2, background: '#000' }}
-        >
+        {showFullscreen ? null : <div className="ar-video-frame-edge" aria-hidden />}
+        <div className="ar-video-media">
           <video
             ref={videoRef}
             playsInline
-            controls
             muted={!soundOn}
             autoPlay
             style={{
               display: 'block',
               width: '100%',
               height: '100%',
-              objectFit: 'contain',
+              objectFit: showFullscreen ? 'contain' : 'cover',
               background: '#000',
             }}
             onEnded={() => {

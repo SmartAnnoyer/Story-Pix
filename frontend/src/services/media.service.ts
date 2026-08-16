@@ -11,7 +11,10 @@ import type {
 
 export const mediaService = {
   async initiateUpload(payload: InitiateUploadPayload): Promise<InitiateUploadResponse> {
-    const { data } = await apiClient.post<ApiResponse<InitiateUploadResponse>>('/media/upload', payload);
+    const { data } = await apiClient.post<ApiResponse<InitiateUploadResponse>>(
+      '/media/upload',
+      payload,
+    );
     return data.data;
   },
 
@@ -34,13 +37,21 @@ export const mediaService = {
     });
   },
 
-  async confirmUpload(id: string): Promise<MediaItem> {
-    const { data } = await apiClient.post<ApiResponse<MediaItem>>(`/media/${id}/confirm`, {});
+  async confirmUpload(
+    id: string,
+    payload?: { overlayFrame?: { x: number; y: number; width: number; height: number } },
+  ): Promise<MediaItem> {
+    const { data } = await apiClient.post<ApiResponse<MediaItem>>(
+      `/media/${id}/confirm`,
+      payload ?? {},
+    );
     return data.data;
   },
 
   async retryUpload(id: string): Promise<InitiateUploadResponse> {
-    const { data } = await apiClient.post<ApiResponse<InitiateUploadResponse>>(`/media/${id}/retry`);
+    const { data } = await apiClient.post<ApiResponse<InitiateUploadResponse>>(
+      `/media/${id}/retry`,
+    );
     return data.data;
   },
 
@@ -69,7 +80,9 @@ export const mediaService = {
   },
 
   async deleteMedia(id: string): Promise<{ id: string; deleted: boolean }> {
-    const { data } = await apiClient.delete<ApiResponse<{ id: string; deleted: boolean }>>(`/media/${id}`);
+    const { data } = await apiClient.delete<ApiResponse<{ id: string; deleted: boolean }>>(
+      `/media/${id}`,
+    );
     return data.data;
   },
 };

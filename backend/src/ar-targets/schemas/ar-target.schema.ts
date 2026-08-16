@@ -30,6 +30,18 @@ export class ArTarget {
   @Prop({ type: String, default: null })
   mindFileUrl?: string | null;
 
+  /** Video overlay on the tracking photo (normalized 0–1, top-left origin). */
+  @Prop({
+    type: {
+      x: { type: Number, default: 0.06 },
+      y: { type: Number, default: 0.06 },
+      width: { type: Number, default: 0.88 },
+      height: { type: Number, default: 0.88 },
+    },
+    default: null,
+  })
+  overlayFrame?: { x: number; y: number; width: number; height: number } | null;
+
   @Prop({ type: Date, default: null })
   deletedAt?: Date | null;
 }

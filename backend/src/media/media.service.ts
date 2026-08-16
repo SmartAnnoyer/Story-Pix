@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  Inject,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { randomUUID } from 'crypto';
 import { extname } from 'path';
@@ -14,7 +9,14 @@ import { AnalyticsIngestionService } from '../analytics/analytics-ingestion.serv
 import { EventBusService } from '../notifications/services/event-bus.service';
 import { IStorageService, STORAGE_SERVICE } from '../storage/interfaces/storage.interface';
 import { UsageService } from '../subscriptions/usage.service';
-import { ConfirmUploadDto, InitiateUploadDto, MediaSortField, MediaSortOrder, QueryMediaDto } from './dto/media.dto';
+import { clampOverlayFrame } from '../common/dto/overlay-frame.dto';
+import {
+  ConfirmUploadDto,
+  InitiateUploadDto,
+  MediaSortField,
+  MediaSortOrder,
+  QueryMediaDto,
+} from './dto/media.dto';
 import { MediaLimitService } from './media-limit.service';
 import { MediaProcessingService } from './media-processing.service';
 import { MediaValidationService } from './media-validation.service';
@@ -110,6 +112,9 @@ export class MediaService {
     }
 
     media.status = MediaStatus.PROCESSING;
+    if (media.mediaType === MediaType.PHOTO) {
+      media.overlayFrame = clampOverlayFrame(dto.overlayFrame);
+    }
     await media.save();
 
     try {
@@ -359,6 +364,7 @@ export class MediaService {
       r2ObjectKey: media.r2ObjectKey,
       publicUrl: media.publicUrl ?? null,
       thumbnailUrl: media.thumbnailUrl ?? null,
+      overlayFrame: media.overlayFrame ?? null,
       status: media.status,
       uploadedBy: media.uploadedBy.toString(),
       failureReason: media.failureReason ?? null,

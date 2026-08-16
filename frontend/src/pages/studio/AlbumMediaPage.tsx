@@ -67,8 +67,8 @@ export const AlbumMediaPage = () => {
             {album.albumName} — Media
           </Title>
           <Paragraph type="secondary" className="!mb-2">
-            Upload photos and videos for this album. For AR photos, use the camera frame or crop
-            from gallery so guests can scan the same image.
+            Upload photos and videos for this album. After each photo, mark the printed frame so the
+            mapped video plays inside it when guests scan.
           </Paragraph>
           <AlbumStatusBadge status={album.status} />
         </div>

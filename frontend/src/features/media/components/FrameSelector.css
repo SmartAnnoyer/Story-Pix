@@ -1,0 +1,63 @@
+.frame-selector {
+  position: relative;
+  width: 100%;
+  height: min(58vh, 440px);
+  overflow: hidden;
+  border-radius: 12px;
+  background: #111;
+  touch-action: none;
+  user-select: none;
+}
+
+.frame-selector__image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.frame-selector__mask {
+  position: absolute;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+  border: 2px solid #ff4fa3;
+  border-radius: 4px;
+  cursor: move;
+  box-sizing: border-box;
+}
+
+.frame-selector__handle {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: #fff;
+  border: 2px solid #8a2be2;
+  box-shadow: 0 0 0 2px rgba(255, 79, 163, 0.35);
+  z-index: 2;
+}
+
+.frame-selector__handle--nw {
+  top: -9px;
+  left: -9px;
+  cursor: nwse-resize;
+}
+
+.frame-selector__handle--ne {
+  top: -9px;
+  right: -9px;
+  cursor: nesw-resize;
+}
+
+.frame-selector__handle--se {
+  right: -9px;
+  bottom: -9px;
+  cursor: nwse-resize;
+}
+
+.frame-selector__handle--sw {
+  bottom: -9px;
+  left: -9px;
+  cursor: nesw-resize;
+}

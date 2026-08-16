@@ -42,7 +42,12 @@ export const EditMappingPage = () => {
     );
   }
 
-  const handleSubmit = async (values: { targetName: string; photoMediaId: string; videoMediaId: string }) => {
+  const handleSubmit = async (values: {
+    targetName: string;
+    photoMediaId: string;
+    videoMediaId: string;
+    overlayFrame: { x: number; y: number; width: number; height: number };
+  }) => {
     try {
       await updateMutation.mutateAsync({ id: mappingId, payload: values });
       message.success('Mapping updated');
@@ -73,6 +78,7 @@ export const EditMappingPage = () => {
             targetName: mapping.targetName,
             photoMediaId: mapping.photoMediaId,
             videoMediaId: mapping.videoMediaId,
+            overlayFrame: mapping.overlayFrame ?? undefined,
           }}
           loading={updateMutation.isPending}
           submitLabel="Save Changes"

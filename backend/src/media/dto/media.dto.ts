@@ -9,8 +9,10 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import { MediaStatus, MediaType } from '../../common/enums';
+import { OverlayFrameDto } from '../../common/dto/overlay-frame.dto';
 
 export class InitiateUploadDto {
   @IsMongoId()
@@ -51,6 +53,11 @@ export class ConfirmUploadDto {
   @Type(() => Number)
   @Min(0)
   duration?: number;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => OverlayFrameDto)
+  overlayFrame?: OverlayFrameDto;
 }
 
 export enum MediaSortField {

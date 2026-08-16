@@ -9,6 +9,7 @@ import { FilterQuery, Model, SortOrder, Types } from 'mongoose';
 import { AlbumsService } from '../albums/albums.service';
 import { ArTargetStatus, MediaStatus, MediaType } from '../common/enums';
 import { MediaService } from '../media/media.service';
+import { clampOverlayFrame } from '../common/dto/overlay-frame.dto';
 import { MindArCompilerService } from '../mind-ar/mind-ar-compiler.service';
 import {
   ArTargetSortField,
@@ -64,6 +65,12 @@ export class ArTargetsService {
     await this.ensureUniquePhoto(studioId, dto.albumId, dto.photoMediaId);
     await this.ensureUniqueVideo(studioId, dto.albumId, dto.videoMediaId);
 
+    const overlayFrame = await this.resolveOverlayFrame(
+      studioId,
+      dto.photoMediaId,
+      dto.overlayFrame,
+    );
+
     const target = await this.arTargetModel.create({
       studioId,
       albumId: dto.albumId,
@@ -72,6 +79,7 @@ export class ArTargetsService {
       targetName: dto.targetName.trim(),
       status: ArTargetStatus.DRAFT,
       targetIndex: null,
+      overlayFrame,
     });
 
     return this.serializeWithMedia(studioId, target);
@@ -89,7 +97,8 @@ export class ArTargetsService {
     }
 
     const albumId = target.albumId.toString();
-    const photoMediaId = dto.photoMediaId ?? target.photoMediaId.toString();
+    const previousPhotoId = target.photoMediaId.toString();
+    const photoMediaId = dto.photoMediaId ?? previousPhotoId;
     const videoMediaId = dto.videoMediaId ?? target.videoMediaId.toString();
 
     if (dto.photoMediaId || dto.videoMediaId) {
@@ -108,6 +117,12 @@ export class ArTargetsService {
 
     if (dto.targetName) {
       target.targetName = dto.targetName.trim();
+    }
+
+    if (dto.overlayFrame) {
+      target.overlayFrame = clampOverlayFrame(dto.overlayFrame);
+    } else if (dto.photoMediaId && dto.photoMediaId !== previousPhotoId) {
+      target.overlayFrame = await this.resolveOverlayFrame(studioId, dto.photoMediaId);
     }
 
     await target.save();
@@ -185,6 +200,19 @@ export class ArTargetsService {
       })
       .sort({ targetIndex: 1 })
       .exec();
+  }
+
+  private async resolveOverlayFrame(
+    studioId: string,
+    photoMediaId: string,
+    overlayFrame?: { x: number; y: number; width: number; height: number } | null,
+  ) {
+    if (overlayFrame) {
+      return clampOverlayFrame(overlayFrame);
+    }
+
+    const photo = await this.mediaService.findById(studioId, photoMediaId).catch(() => null);
+    return clampOverlayFrame(photo?.overlayFrame);
   }
 
   private async validateMediaPair(
@@ -344,6 +372,7 @@ export class ArTargetsService {
       targetIndex: target.targetIndex ?? null,
       status: target.status,
       mindFileUrl: target.mindFileUrl ?? null,
+      overlayFrame: clampOverlayFrame(target.overlayFrame ?? photo?.overlayFrame),
       photo: photo
         ? {
             id: photo.id,

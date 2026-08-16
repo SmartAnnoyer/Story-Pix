@@ -42,7 +42,13 @@ export const useInitiateUploadMutation = () => {
 export const useConfirmUploadMutation = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => mediaService.confirmUpload(id),
+    mutationFn: ({
+      id,
+      overlayFrame,
+    }: {
+      id: string;
+      overlayFrame?: { x: number; y: number; width: number; height: number };
+    }) => mediaService.confirmUpload(id, overlayFrame ? { overlayFrame } : undefined),
     onSuccess: () => qc.invalidateQueries({ queryKey: mediaKeys.all }),
   });
 };

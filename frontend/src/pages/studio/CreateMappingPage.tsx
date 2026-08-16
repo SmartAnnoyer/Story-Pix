@@ -43,6 +43,7 @@ export const CreateMappingPage = () => {
     targetName: string;
     photoMediaId: string;
     videoMediaId: string;
+    overlayFrame: { x: number; y: number; width: number; height: number };
   }) => {
     try {
       await createMutation.mutateAsync({ albumId: id, ...values });
@@ -80,7 +81,9 @@ export const CreateMappingPage = () => {
         description={
           <ol className="mb-0 list-decimal pl-4">
             <li>Album → Manage Media — upload photo(s) and video(s) until status is ready.</li>
-            <li>Create mapping here — pick photo + video + name (saved as draft).</li>
+            <li>
+              Create mapping here — pick photo + video, mark the printed frame, then save as draft.
+            </li>
             <li>AR Mappings list — Publish each mapping, then publish the album.</li>
             <li>Wait for the AR scan file / QR on the album page, then share or print the QR.</li>
           </ol>

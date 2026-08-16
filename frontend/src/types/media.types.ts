@@ -26,11 +26,19 @@ export interface MediaItem {
   r2ObjectKey: string;
   publicUrl: string | null;
   thumbnailUrl: string | null;
+  overlayFrame?: OverlayFrame | null;
   status: MediaStatus;
   uploadedBy: string;
   failureReason: string | null;
   createdAt: string | null;
   updatedAt: string | null;
+}
+
+export interface OverlayFrame {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export interface PresignedUploadResult {

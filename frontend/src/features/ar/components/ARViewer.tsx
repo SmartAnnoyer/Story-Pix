@@ -866,6 +866,7 @@ export const ARViewer = ({
           activeMindIndex !== null ? (targetEntitiesRef.current[activeMindIndex] ?? null) : null
         }
         aspectRatio={targetAspectRatio}
+        overlayFrame={activeTarget?.overlayFrame}
         primaryUrl={activeVideoUrl}
         fallbackUrl={activeVideoFallbackUrl}
         preferDirectUrl={false}

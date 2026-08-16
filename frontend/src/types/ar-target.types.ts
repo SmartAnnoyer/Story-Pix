@@ -1,3 +1,7 @@
+import type { OverlayFrame } from './media.types';
+
+export type { OverlayFrame };
+
 export enum ArTargetStatus {
   DRAFT = 'draft',
   ACTIVE = 'active',
@@ -29,6 +33,7 @@ export interface ArTarget {
   targetIndex: number | null;
   status: ArTargetStatus;
   mindFileUrl: string | null;
+  overlayFrame?: OverlayFrame | null;
   photo: ArTargetMediaSummary | null;
   video: ArTargetMediaSummary | null;
   createdAt: string | null;
@@ -51,12 +56,14 @@ export interface CreateArTargetPayload {
   photoMediaId: string;
   videoMediaId: string;
   targetName: string;
+  overlayFrame?: OverlayFrame | null;
 }
 
 export interface UpdateArTargetPayload {
   photoMediaId?: string;
   videoMediaId?: string;
   targetName?: string;
+  overlayFrame?: OverlayFrame | null;
 }
 
 export interface ArTargetQueryParams {
@@ -79,6 +86,7 @@ export interface ViewerManifestTarget {
   videoUrl: string | null;
   videoThumbnailUrl: string | null;
   videoAvailable: boolean;
+  overlayFrame?: OverlayFrame | null;
 }
 
 export interface ViewerManifestMindFile {

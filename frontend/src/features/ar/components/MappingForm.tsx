@@ -1,11 +1,15 @@
+import { useEffect, useRef, useState } from 'react';
 import { Form, Input, Select, Button, Space } from 'antd';
-import type { MediaItem } from '@/types/media.types';
+import type { MediaItem, OverlayFrame } from '@/types/media.types';
 import { MediaType } from '@/types/media.types';
+import { FrameSelector } from '@/features/media/components/FrameSelector';
+import { clampOverlayFrame, DEFAULT_OVERLAY_FRAME } from '@/features/ar/utils/overlay-frame';
 
 export interface MappingFormValues {
   targetName: string;
   photoMediaId: string;
   videoMediaId: string;
+  overlayFrame: OverlayFrame;
 }
 
 interface MappingFormProps {
@@ -27,17 +31,39 @@ export const MappingForm = ({
   onSubmit,
   onCancel,
 }: MappingFormProps) => {
-  const [form] = Form.useForm<MappingFormValues>();
+  const [form] = Form.useForm<Omit<MappingFormValues, 'overlayFrame'>>();
+  const photoMediaId = Form.useWatch('photoMediaId', form);
+  const [overlayFrame, setOverlayFrame] = useState<OverlayFrame>(
+    clampOverlayFrame(initialValues?.overlayFrame ?? DEFAULT_OVERLAY_FRAME),
+  );
 
   const readyPhotos = photos.filter((item) => item.mediaType === MediaType.PHOTO);
   const readyVideos = videos.filter((item) => item.mediaType === MediaType.VIDEO);
+  const selectedPhoto = readyPhotos.find((photo) => photo.id === photoMediaId);
+  const photoPreview = selectedPhoto?.publicUrl ?? selectedPhoto?.thumbnailUrl ?? null;
+
+  const photosRef = useRef(photos);
+  photosRef.current = photos;
+
+  useEffect(() => {
+    if (!photoMediaId) return;
+    const photo = photosRef.current.find((item) => item.id === photoMediaId);
+    const fromMapping =
+      photoMediaId === initialValues?.photoMediaId ? initialValues.overlayFrame : undefined;
+    setOverlayFrame(clampOverlayFrame(fromMapping ?? photo?.overlayFrame));
+  }, [photoMediaId, initialValues?.photoMediaId, initialValues?.overlayFrame]);
 
   return (
     <Form
       form={form}
       layout="vertical"
       initialValues={initialValues}
-      onFinish={onSubmit}
+      onFinish={(values) =>
+        onSubmit({
+          ...values,
+          overlayFrame: clampOverlayFrame(overlayFrame),
+        })
+      }
       requiredMark={false}
     >
       <Form.Item
@@ -65,6 +91,16 @@ export const MappingForm = ({
           notFoundContent="No ready photos — upload on the album Media page"
         />
       </Form.Item>
+
+      {photoPreview ? (
+        <Form.Item label="Video plays inside this frame">
+          <p className="mb-2 text-sm text-neutral-500">
+            Drag the rectangle onto the printed frame. Guests will see the video stay inside it as
+            they move the photo.
+          </p>
+          <FrameSelector imageSrc={photoPreview} value={overlayFrame} onChange={setOverlayFrame} />
+        </Form.Item>
+      ) : null}
 
       <Form.Item
         name="videoMediaId"

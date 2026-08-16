@@ -16,6 +16,7 @@ import { Album, AlbumDocument } from '../albums/schemas/album.schema';
 import { Studio, StudioDocument } from '../studios/schemas/studio.schema';
 import { Media, MediaDocument } from '../media/schemas/media.schema';
 import { mapLegacyScanEventType } from '../analytics/utils/analytics.util';
+import { clampOverlayFrame } from '../common/dto/overlay-frame.dto';
 
 @Injectable()
 export class ViewerService {
@@ -49,7 +50,7 @@ export class ViewerService {
               _id: { $in: mediaIds },
               deletedAt: null,
             })
-            .select('publicUrl thumbnailUrl r2ObjectKey studioId')
+            .select('publicUrl thumbnailUrl r2ObjectKey studioId overlayFrame')
             .lean()
             .exec()
         : [];
@@ -94,6 +95,7 @@ export class ViewerService {
         // Viewer loads video via API proxy using r2ObjectKey — CDN URL is optional
         videoAvailable: Boolean(video?.r2ObjectKey || videoUrl),
         hasTrackingPhoto: Boolean(photo?.r2ObjectKey || photoUrl),
+        overlayFrame: clampOverlayFrame(target.overlayFrame ?? photo?.overlayFrame),
       };
     });
 

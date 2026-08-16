@@ -8,8 +8,10 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import { ArTargetStatus } from '../../common/enums';
+import { OverlayFrameDto } from '../../common/dto/overlay-frame.dto';
 
 export enum ArTargetSortField {
   CREATED_AT = 'createdAt',
@@ -36,6 +38,11 @@ export class CreateArTargetDto {
   @IsString()
   @MaxLength(120)
   targetName!: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => OverlayFrameDto)
+  overlayFrame?: OverlayFrameDto;
 }
 
 export class UpdateArTargetDto {
@@ -51,6 +58,11 @@ export class UpdateArTargetDto {
   @IsString()
   @MaxLength(120)
   targetName?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => OverlayFrameDto)
+  overlayFrame?: OverlayFrameDto;
 }
 
 export class QueryArTargetsDto {
