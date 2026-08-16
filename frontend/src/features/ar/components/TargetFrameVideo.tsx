@@ -12,6 +12,7 @@ import {
   type OverlayQuad,
 } from '../utils/target-projection';
 import { getPlaybackVideoElement } from '../utils/camera-permission';
+import { setOverlayPlaybackActive } from '../utils/mindar-scene';
 import { getPrefetchedBlobUrl, resolvePlayableVideoUrl } from '../utils/video-prefetch';
 import { viewerLog } from '../utils/viewer-debug-log';
 import './TargetFrameVideo.css';
@@ -170,35 +171,19 @@ export const TargetFrameVideo = ({
     };
   }, [active, mode]);
 
-  // Hide the live camera feed only in full-screen so it does not cover the clip.
+  // Camera <video> cannot stay visible while the mapped clip plays — mobile browsers
+  // only paint one video. Preview the camera on a canvas instead.
   useEffect(() => {
     if (!host) return undefined;
-    const hideCamera = active && mode === 'fullscreen';
-    const videos = [...host.querySelectorAll('video')].filter((node) => node !== videoRef.current);
-    videos.forEach((node) => {
-      const el = node as HTMLVideoElement;
-      if (hideCamera) {
-        el.dataset.spPrevVisibility = el.style.visibility || '';
-        el.dataset.spPrevOpacity = el.style.opacity || '';
-        el.style.visibility = 'hidden';
-        el.style.opacity = '0';
-      } else if (el.dataset.spPrevVisibility !== undefined) {
-        el.style.visibility = el.dataset.spPrevVisibility;
-        el.style.opacity = el.dataset.spPrevOpacity || '1';
-        delete el.dataset.spPrevVisibility;
-        delete el.dataset.spPrevOpacity;
-      }
-    });
+    const overlaying = active && mode === 'frame';
+    setOverlayPlaybackActive(host, overlaying);
+    const preview = host.querySelector('#sp-camera-preview') as HTMLElement | null;
+    if (preview) {
+      preview.style.visibility = active && mode === 'fullscreen' ? 'hidden' : '';
+    }
     return () => {
-      videos.forEach((node) => {
-        const el = node as HTMLVideoElement;
-        if (el.dataset.spPrevVisibility !== undefined) {
-          el.style.visibility = el.dataset.spPrevVisibility;
-          el.style.opacity = el.dataset.spPrevOpacity || '1';
-          delete el.dataset.spPrevVisibility;
-          delete el.dataset.spPrevOpacity;
-        }
-      });
+      setOverlayPlaybackActive(host, false);
+      if (preview) preview.style.visibility = '';
     };
   }, [active, host, mode]);
 

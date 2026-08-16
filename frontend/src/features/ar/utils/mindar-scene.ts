@@ -110,6 +110,55 @@ export const getCameraVideo = (host: HTMLElement): HTMLVideoElement | null => {
   return (host.querySelector('video') as HTMLVideoElement | null) ?? null;
 };
 
+const CAMERA_PREVIEW_ID = 'sp-camera-preview';
+const PLAYING_CLASS = 'ar-scene-host--playing';
+
+const paintCameraToCanvas = (host: HTMLElement, video: HTMLVideoElement): void => {
+  let canvas = host.querySelector(`#${CAMERA_PREVIEW_ID}`) as HTMLCanvasElement | null;
+  if (!canvas) {
+    canvas = document.createElement('canvas');
+    canvas.id = CAMERA_PREVIEW_ID;
+    canvas.setAttribute('aria-hidden', 'true');
+    host.appendChild(canvas);
+  }
+
+  if (canvas.dataset.spPainting === '1') return;
+  canvas.dataset.spPainting = '1';
+
+  const paint = () => {
+    if (!canvas.isConnected) {
+      canvas.dataset.spPainting = '0';
+      return;
+    }
+    if (!host.classList.contains(PLAYING_CLASS) || !host.contains(video)) {
+      canvas.dataset.spPainting = '0';
+      return;
+    }
+    if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0) {
+      const cssW = Math.max(1, canvas.clientWidth || host.clientWidth);
+      const cssH = Math.max(1, canvas.clientHeight || host.clientHeight);
+      if (canvas.width !== cssW) canvas.width = cssW;
+      if (canvas.height !== cssH) canvas.height = cssH;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        const scale = Math.max(cssW / video.videoWidth, cssH / video.videoHeight);
+        const drawW = video.videoWidth * scale;
+        const drawH = video.videoHeight * scale;
+        ctx.drawImage(video, (cssW - drawW) / 2, (cssH - drawH) / 2, drawW, drawH);
+      }
+    }
+    window.requestAnimationFrame(paint);
+  };
+
+  window.requestAnimationFrame(paint);
+};
+
+/** While mapped video plays, camera <video> stays for tracking but preview is a canvas. */
+export const setOverlayPlaybackActive = (host: HTMLElement, active: boolean): void => {
+  host.classList.toggle(PLAYING_CLASS, active);
+  ensureCameraPreviewVisible(host);
+};
+
 /** Style and play the MindAR camera feed (must sit above the hidden tracking canvas). */
 export const ensureCameraPreviewVisible = (host: HTMLElement): HTMLVideoElement | null => {
   const video = getCameraVideo(host);
@@ -125,9 +174,16 @@ export const ensureCameraPreviewVisible = (host: HTMLElement): HTMLVideoElement 
   video.style.height = '100%';
   video.style.position = 'absolute';
   video.style.inset = '0';
-  video.style.opacity = '1';
-  video.style.zIndex = '2';
   video.style.pointerEvents = 'none';
+
+  if (host.classList.contains(PLAYING_CLASS)) {
+    video.style.opacity = '0';
+    video.style.zIndex = '-10';
+    paintCameraToCanvas(host, video);
+  } else {
+    video.style.opacity = '1';
+    video.style.zIndex = '2';
+  }
 
   if (video.paused) {
     void video.play().catch(() => undefined);

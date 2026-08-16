@@ -342,17 +342,43 @@ export const getOverlayQuadScreenCorners = (
 ): OverlayQuad | null => {
   const overlay = clampOverlayFrame(frame);
   const points = projectCorners(host, targetEntity, overlayLocalCorners(aspectRatio, overlay));
-  if (!points || points.length !== 4) return null;
+  if (points?.length === 4) {
+    const quad = points as [ScreenPoint, ScreenPoint, ScreenPoint, ScreenPoint];
+    const xs = quad.map((point) => point.x);
+    const ys = quad.map((point) => point.y);
+    const width = Math.max(...xs) - Math.min(...xs);
+    const height = Math.max(...ys) - Math.min(...ys);
+    if (width > 8 && height > 8) {
+      return { corners: quad, visible: true };
+    }
+  }
 
-  const quad = points as [ScreenPoint, ScreenPoint, ScreenPoint, ScreenPoint];
-  const xs = quad.map((point) => point.x);
-  const ys = quad.map((point) => point.y);
-  const width = Math.max(...xs) - Math.min(...xs);
-  const height = Math.max(...ys) - Math.min(...ys);
+  return getOverlayQuadFromBounds(host, targetEntity, aspectRatio, overlay);
+};
+
+const getOverlayQuadFromBounds = (
+  host: HTMLElement,
+  targetEntity: HTMLElement,
+  aspectRatio: number,
+  overlay: OverlayFrame,
+): OverlayQuad | null => {
+  const bounds = getTargetScreenBounds(host, targetEntity, aspectRatio);
+  if (!bounds?.visible) return null;
+
+  const hostRect = getProjectionRect(host) ?? host.getBoundingClientRect();
+  const left = hostRect.left + bounds.left + overlay.x * bounds.width;
+  const top = hostRect.top + bounds.top + overlay.y * bounds.height;
+  const right = left + overlay.width * bounds.width;
+  const bottom = top + overlay.height * bounds.height;
 
   return {
-    corners: quad,
-    visible: width > 8 && height > 8,
+    corners: [
+      { x: left, y: top },
+      { x: right, y: top },
+      { x: right, y: bottom },
+      { x: left, y: bottom },
+    ],
+    visible: right - left > 8 && bottom - top > 8,
   };
 };
 
