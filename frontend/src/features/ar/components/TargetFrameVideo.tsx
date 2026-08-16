@@ -6,18 +6,12 @@ import {
   type OverlayFrame,
 } from '../utils/overlay-frame';
 import { getPlaybackVideoElement } from '../utils/camera-permission';
-import { ensureTransparentRenderer, setOverlayPlaybackActive } from '../utils/mindar-scene';
+import { ensureTransparentRenderer } from '../utils/mindar-scene';
 import {
   attachOverlayVideoPlane,
   detachOverlayVideoPlane,
   setOverlayVideoPlaneVisible,
 } from '../utils/overlay-plane';
-import {
-  getOverlayAabbViewport,
-  getOverlayQuadScreenCorners,
-  installPoseCapture,
-  quadToCssMatrix3d,
-} from '../utils/target-projection';
 import { getPrefetchedBlobUrl, resolvePlayableVideoUrl } from '../utils/video-prefetch';
 import { dumpArOverlayDebug } from '../utils/ar-overlay-debug';
 import { viewerLog } from '../utils/viewer-debug-log';
@@ -150,10 +144,8 @@ export const TargetFrameVideo = ({
     video.playsInline = true;
     video.controls = false;
     video.autoplay = true;
-    if (isIOS()) {
-      video.removeAttribute('crossorigin');
-      video.crossOrigin = null;
-    }
+    video.crossOrigin = 'anonymous';
+    video.setAttribute('crossorigin', 'anonymous');
     video.style.position = 'absolute';
     video.style.inset = '0';
     video.style.width = '100%';
@@ -181,13 +173,6 @@ export const TargetFrameVideo = ({
   }, [active, mode]);
 
   useEffect(() => {
-    if (!host) return undefined;
-    const hideCameraForIosOverlay = active && mode === 'frame' && isIOS();
-    setOverlayPlaybackActive(host, hideCameraForIosOverlay);
-    return () => setOverlayPlaybackActive(host, false);
-  }, [active, mode, host]);
-
-  useEffect(() => {
     if (!active || mode === 'fullscreen') {
       setOverlayVideoPlaneVisible(targetEntity, false);
       return undefined;
@@ -209,118 +194,65 @@ export const TargetFrameVideo = ({
     }
 
     const frame = clampOverlayFrame(overlayFrame ?? DEFAULT_OVERLAY_FRAME);
-    const ios = isIOS();
-    installPoseCapture(entity);
     if (host) ensureTransparentRenderer(host);
+
+    // Keep the HTML decoder off-screen at a real size so iOS still produces
+    // frames. The picture on the photo is the WebGL plane in the studio crop.
+    stage.style.position = 'fixed';
+    stage.style.left = '-400px';
+    stage.style.top = '0px';
+    stage.style.width = '360px';
+    stage.style.height = '640px';
+    stage.style.opacity = '1';
+    stage.style.visibility = 'visible';
+    stage.style.transform = 'none';
+    stage.style.background = 'transparent';
+    stage.style.zIndex = '-1';
+    stage.style.pointerEvents = 'none';
 
     let cancelled = false;
     let attached = false;
-    let loggedLayout = false;
-    const srcSize = 400;
+    let attempts = 0;
 
-    const hideStageUntilPose = () => {
-      stage.style.opacity = '0';
-      stage.style.visibility = 'hidden';
-    };
-
-    const applyIosBox = (box: { left: number; top: number; width: number; height: number }) => {
-      stage.style.position = 'fixed';
-      stage.style.left = `${box.left}px`;
-      stage.style.top = `${box.top}px`;
-      stage.style.width = `${box.width}px`;
-      stage.style.height = `${box.height}px`;
-      stage.style.transform = 'none';
-      stage.style.transformOrigin = '0 0';
-      stage.style.opacity = '1';
-      stage.style.visibility = 'visible';
-      stage.style.zIndex = '10080';
-    };
-
-    const applyQuad = (corners: Parameters<typeof quadToCssMatrix3d>[2]) => {
-      const matrix = quadToCssMatrix3d(srcSize, srcSize, corners);
-      if (!matrix) return false;
-      stage.style.position = 'fixed';
-      stage.style.left = '0px';
-      stage.style.top = '0px';
-      stage.style.width = `${srcSize}px`;
-      stage.style.height = `${srcSize}px`;
-      stage.style.transformOrigin = '0 0';
-      stage.style.transform = matrix;
-      stage.style.opacity = '1';
-      stage.style.visibility = 'visible';
-      stage.style.zIndex = '10080';
-      return true;
-    };
-
-    const layoutOverlay = () => {
-      const quad = getOverlayQuadScreenCorners(host, entity, aspectRatio, frame);
-      if (quad?.visible && applyQuad(quad.corners)) return true;
-      if (ios) {
-        const box = getOverlayAabbViewport(host, entity, aspectRatio, frame);
-        if (box) {
-          applyIosBox(box);
-          return true;
-        }
-      }
-      hideStageUntilPose();
-      return false;
-    };
-
-    const tryAttachPlane = () => {
-      if (cancelled || attached || ios) return;
-      if (video.videoWidth < 2) return;
-      video.setAttribute('crossorigin', 'anonymous');
+    const tryAttach = () => {
+      if (cancelled || attached) return;
       video.crossOrigin = 'anonymous';
+      video.setAttribute('crossorigin', 'anonymous');
       const result = attachOverlayVideoPlane(entity, video, frame, aspectRatio);
+      if (!result.ok) {
+        attempts += 1;
+        if (attempts === 1 || attempts % 15 === 0) {
+          viewerLog('warn', 'AR plane attach retry', {
+            attempts,
+            reason: result.reason,
+            size: `${video.videoWidth}x${video.videoHeight}`,
+            ready: video.readyState,
+          });
+        }
+        return;
+      }
+      attached = true;
+      setOverlayVideoPlaneVisible(entity, true);
       dumpArOverlayDebug({
         host,
         entity,
         video,
         frame,
         aspectRatio,
-        attached: result.ok,
-        reason: result.reason,
+        attached: true,
+        reason: 'crop-plane',
       });
-      if (!result.ok) return;
-      attached = true;
-      setOverlayVideoPlaneVisible(entity, true);
-      viewerLog('info', 'AR video plane attached to mapped frame', {
+      viewerLog('info', 'mapped video placed in studio crop', {
         ready: video.readyState,
         paused: video.paused,
         size: `${video.videoWidth}x${video.videoHeight}`,
+        frame,
       });
     };
 
-    hideStageUntilPose();
-
     const tick = () => {
       if (cancelled) return;
-      const placed = layoutOverlay();
-      tryAttachPlane();
-      if (placed && !loggedLayout) {
-        loggedLayout = true;
-        const rect = video.getBoundingClientRect();
-        dumpArOverlayDebug({
-          host,
-          entity,
-          video,
-          frame,
-          aspectRatio,
-          attached,
-          reason: ios ? 'ios-html-overlay' : attached ? 'webgl+html' : 'html-quad',
-        });
-        viewerLog('info', 'AR overlay laid out on mapped frame', {
-          ios,
-          ready: video.readyState,
-          size: `${video.videoWidth}x${video.videoHeight}`,
-          rect: {
-            w: Math.round(rect.width),
-            h: Math.round(rect.height),
-            top: Math.round(rect.top),
-            left: Math.round(rect.left),
-          },
-        });
-      }
+      tryAttach();
       window.requestAnimationFrame(tick);
     };
     window.requestAnimationFrame(tick);
@@ -416,13 +348,8 @@ export const TargetFrameVideo = ({
       const video = videoRef.current;
       if (!video || !sources.length) throw new Error('No video source');
 
-      if (isIOS()) {
-        video.removeAttribute('crossorigin');
-        video.crossOrigin = null;
-      } else {
-        video.crossOrigin = 'anonymous';
-        video.setAttribute('crossorigin', 'anonymous');
-      }
+      video.crossOrigin = 'anonymous';
+      video.setAttribute('crossorigin', 'anonymous');
       video.setAttribute('playsinline', '');
       video.setAttribute('webkit-playsinline', '');
       video.playsInline = true;
@@ -627,16 +554,16 @@ export const TargetFrameVideo = ({
                 }
               : {
                   position: 'fixed',
-                  left: 0,
+                  left: -400,
                   top: 0,
-                  width: 400,
-                  height: 400,
-                  visibility: 'hidden',
-                  opacity: 0,
+                  width: 360,
+                  height: 640,
+                  visibility: 'visible',
+                  opacity: 1,
                   overflow: 'hidden',
-                  background: '#000',
-                  pointerEvents: needsTap ? 'auto' : 'none',
-                  zIndex: 10080,
+                  background: 'transparent',
+                  pointerEvents: 'none',
+                  zIndex: -1,
                   transformOrigin: '0 0',
                 }
           }

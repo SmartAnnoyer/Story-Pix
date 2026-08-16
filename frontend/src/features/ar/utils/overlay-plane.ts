@@ -1,20 +1,23 @@
 import { clampOverlayFrame, type OverlayFrame } from './overlay-frame';
+import { viewerLog } from './viewer-debug-log';
 
 const MESH_NAME = 'sp-overlay-video-mesh';
 
+type ThreeTexture = {
+  minFilter: unknown;
+  magFilter: unknown;
+  generateMipmaps: boolean;
+  colorSpace?: unknown;
+  encoding?: unknown;
+  needsUpdate: boolean;
+  dispose: () => void;
+};
+
 type ThreeRuntime = {
-  VideoTexture: new (video: HTMLVideoElement) => {
-    minFilter: unknown;
-    magFilter: unknown;
-    generateMipmaps: boolean;
-    colorSpace?: unknown;
-    encoding?: unknown;
-    needsUpdate: boolean;
-    dispose: () => void;
-  };
+  CanvasTexture: new (canvas: HTMLCanvasElement) => ThreeTexture;
   PlaneGeometry: new (width: number, height: number) => { dispose: () => void };
   MeshBasicMaterial: new (params: Record<string, unknown>) => {
-    map: { dispose: () => void } | null;
+    map: ThreeTexture | null;
     dispose: () => void;
   };
   Mesh: new (
@@ -26,8 +29,9 @@ type ThreeRuntime = {
     renderOrder: number;
     visible: boolean;
     frustumCulled: boolean;
+    userData: { spStopPaint?: () => void };
     geometry: { dispose: () => void };
-    material: { map: { dispose: () => void } | null; dispose: () => void };
+    material: { map: ThreeTexture | null; dispose: () => void };
   };
   LinearFilter: unknown;
   DoubleSide: unknown;
@@ -35,16 +39,17 @@ type ThreeRuntime = {
   sRGBEncoding?: unknown;
 };
 
+type OverlayMesh = {
+  visible: boolean;
+  userData?: { spStopPaint?: () => void };
+  geometry?: { dispose: () => void };
+  material?: { map?: { dispose: () => void } | null; dispose: () => void };
+};
+
 type Object3D = {
   add: (mesh: unknown) => void;
   remove: (mesh: unknown) => void;
-  getObjectByName: (name: string) =>
-    | {
-        visible: boolean;
-        geometry?: { dispose: () => void };
-        material?: { map?: { dispose: () => void } | null; dispose: () => void };
-      }
-    | undefined;
+  getObjectByName: (name: string) => OverlayMesh | undefined;
 };
 
 type EntityWithObject3D = HTMLElement & { object3D?: Object3D };
@@ -72,6 +77,7 @@ export const detachOverlayVideoPlane = (entity: HTMLElement | null): void => {
   const object3D = (entity as EntityWithObject3D).object3D;
   const mesh = object3D?.getObjectByName(MESH_NAME);
   if (!object3D || !mesh) return;
+  mesh.userData?.spStopPaint?.();
   object3D.remove(mesh);
   mesh.geometry?.dispose();
   mesh.material?.map?.dispose();
@@ -85,7 +91,9 @@ export const setOverlayVideoPlaneVisible = (entity: HTMLElement | null, visible:
 };
 
 /**
- * Parent a video plane to the MindAR target so it inherits photo pose, tilt, and scale.
+ * Parent a video plane to the MindAR target so it sits in the studio crop and
+ * inherits the photo’s pose. CanvasTexture is used because iOS VideoTexture
+ * often stays blank if it was created before the clip had frames.
  */
 export const attachOverlayVideoPlane = (
   entity: HTMLElement,
@@ -105,7 +113,21 @@ export const attachOverlayVideoPlane = (
     detachOverlayVideoPlane(entity);
 
     const pose = overlayFrameToLocalPose(frame, aspectRatio);
-    const texture = new THREE.VideoTexture(video);
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d', { alpha: false });
+    if (!ctx) return { ok: false, reason: '2d context missing' };
+    try {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    } catch (error) {
+      return {
+        ok: false,
+        reason: error instanceof Error ? error.message : 'drawImage blocked',
+      };
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
     texture.minFilter = THREE.LinearFilter;
     texture.magFilter = THREE.LinearFilter;
     texture.generateMipmaps = false;
@@ -130,6 +152,33 @@ export const attachOverlayVideoPlane = (
     mesh.renderOrder = 999;
     mesh.frustumCulled = false;
     mesh.visible = true;
+
+    let painting = true;
+    let loggedDrawError = false;
+    const paint = () => {
+      if (!painting) return;
+      if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0) {
+        if (canvas.width !== video.videoWidth) canvas.width = video.videoWidth;
+        if (canvas.height !== video.videoHeight) canvas.height = video.videoHeight;
+        try {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          texture.needsUpdate = true;
+        } catch {
+          if (!loggedDrawError) {
+            loggedDrawError = true;
+            viewerLog('warn', 'crop plane could not copy video frame', {
+              size: `${video.videoWidth}x${video.videoHeight}`,
+            });
+          }
+        }
+      }
+      window.requestAnimationFrame(paint);
+    };
+    mesh.userData.spStopPaint = () => {
+      painting = false;
+    };
+    window.requestAnimationFrame(paint);
+
     object3D.add(mesh);
     return { ok: true, reason: 'attached' };
   } catch (error) {

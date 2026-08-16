@@ -1,5 +1,4 @@
-/* Camera feed fills the screen. The A-Frame canvas is transparent and only draws
-   the mapped video plane on the tracked photo. */
+/* Full-screen live camera. Transparent WebGL draws the mapped clip only in the crop. */
 html.viewer-route,
 html.viewer-route body,
 html.viewer-route #root {
@@ -19,30 +18,12 @@ html.viewer-route #root {
   inset: 0 !important;
   width: 100% !important;
   height: 100% !important;
+  min-width: 100% !important;
+  min-height: 100% !important;
   z-index: 1 !important;
   opacity: 1 !important;
   object-fit: cover !important;
   pointer-events: none;
-}
-
-.ar-scene-host--playing > video {
-  opacity: 0 !important;
-  z-index: -10 !important;
-}
-
-.ar-scene-host > #sp-camera-preview {
-  display: none;
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 1;
-  pointer-events: none;
-  background: #000;
-}
-
-.ar-scene-host--playing > #sp-camera-preview {
-  display: block;
 }
 
 .ar-scene-host > a-scene {
@@ -59,10 +40,6 @@ html.viewer-route #root {
   background: transparent !important;
   opacity: 1 !important;
   pointer-events: none !important;
-}
-
-.ar-scene-host--playing .a-canvas {
-  opacity: 0 !important;
 }
 
 .ar-video-overlay,
