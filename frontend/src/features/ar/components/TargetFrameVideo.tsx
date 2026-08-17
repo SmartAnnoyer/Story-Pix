@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  clampOverlayFrame,
-  DEFAULT_OVERLAY_FRAME,
-  type OverlayFrame,
-} from '../utils/overlay-frame';
+import { FULL_OVERLAY_FRAME, type OverlayFrame } from '../utils/overlay-frame';
 import { getPlaybackVideoElement } from '../utils/camera-permission';
 import {
   ensureTransparentRenderer,
   keepMindArCameraPlaying,
+  restartMindArTracking,
   setOverlayPlaybackActive,
 } from '../utils/mindar-scene';
 import {
@@ -118,7 +115,7 @@ export const TargetFrameVideo = ({
   host,
   targetEntity,
   aspectRatio,
-  overlayFrame,
+  overlayFrame: _overlayFrame,
   primaryUrl,
   fallbackUrl,
   active,
@@ -195,9 +192,10 @@ export const TargetFrameVideo = ({
     return () => {
       video.removeEventListener('ended', onEndedEvt);
       video.pause();
-      if (video.parentNode === parent) parent.removeChild(video);
+      video.parentNode?.removeChild(video);
+      if (host) keepMindArCameraPlaying(host);
     };
-  }, [active, mode]);
+  }, [active, mode, host]);
 
   useEffect(() => {
     if (!host) return undefined;
@@ -226,7 +224,7 @@ export const TargetFrameVideo = ({
       return undefined;
     }
 
-    const frame = clampOverlayFrame(overlayFrame ?? DEFAULT_OVERLAY_FRAME);
+    const frame = FULL_OVERLAY_FRAME;
     const ios = isIOS();
     installPoseCapture(entity);
     ensureTransparentRenderer(host);
@@ -376,7 +374,7 @@ export const TargetFrameVideo = ({
       if (ios && planeAttached && !placed) {
         if (missFrames >= 0) {
           missFrames = -1;
-          viewerLog('info', 'mapped video on studio crop plane', {
+          viewerLog('info', 'mapped video on tracked photo', {
             ios,
             size: `${videoRef.current?.videoWidth ?? 0}x${videoRef.current?.videoHeight ?? 0}`,
             ready: videoRef.current?.readyState,
@@ -423,8 +421,9 @@ export const TargetFrameVideo = ({
     return () => {
       cancelled = true;
       detachOverlayVideoPlane(entity);
+      keepMindArCameraPlaying(host);
     };
-  }, [active, mode, host, targetEntity, overlayFrame, aspectRatio]);
+  }, [active, mode, host, targetEntity, aspectRatio]);
 
   useEffect(() => {
     if (mode !== 'fullscreen' || !stageRef.current) return;
@@ -603,6 +602,12 @@ export const TargetFrameVideo = ({
       video.pause();
       video.removeAttribute('src');
       video.load();
+      video.removeAttribute('id');
+      video.parentNode?.removeChild(video);
+      if (host) {
+        keepMindArCameraPlaying(host);
+        restartMindArTracking(host);
+      }
       return;
     }
 
@@ -632,7 +637,7 @@ export const TargetFrameVideo = ({
     return () => {
       cancelled = true;
     };
-  }, [active, primaryUrl, fallbackUrl, preferDirectUrl, loadAndPlay]);
+  }, [active, primaryUrl, fallbackUrl, preferDirectUrl, loadAndPlay, host]);
 
   useEffect(() => {
     const video = videoRef.current;

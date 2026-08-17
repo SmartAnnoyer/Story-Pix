@@ -199,6 +199,24 @@ export const keepMindArCameraPlaying = (host: HTMLElement): void => {
   if (video.paused) void video.play().catch(() => undefined);
 };
 
+/** After overlay playback ends, keep the live camera feeding MindAR so the photo can be found again. */
+export const restartMindArTracking = (host: HTMLElement): void => {
+  keepMindArCameraPlaying(host);
+  const system = getMindArSystem(host);
+  const video = getCameraVideo(host);
+  if (!system || !video) return;
+  try {
+    system.unpause();
+  } catch {
+    // already running
+  }
+  try {
+    system.controller?.processVideo(video);
+  } catch {
+    // already processing
+  }
+};
+
 export const isCameraPreviewLive = (host: HTMLElement): boolean => {
   ensureCameraPreviewVisible(host);
   const video = getCameraVideo(host);

@@ -150,9 +150,9 @@ export const getOverlayMeshViewport = (
 };
 
 /**
- * Parent a video plane to the MindAR target so it sits in the studio crop and
- * inherits the photo’s pose. CanvasTexture is used because iOS VideoTexture
- * often stays blank if it was created before the clip had frames.
+ * Parent a video plane to the MindAR target so it covers the tracked photo
+ * (origin center, width 1, height = aspect). CanvasTexture is used because iOS
+ * VideoTexture often stays blank if it was created before the clip had frames.
  */
 export const attachOverlayVideoPlane = (
   entity: HTMLElement,

@@ -27,6 +27,8 @@ import {
   flipMindArCamera,
   getMindArSystem,
   isCameraPreviewLive,
+  keepMindArCameraPlaying,
+  restartMindArTracking,
   type CameraFacing,
 } from '../utils/mindar-scene';
 import { takeHeldCameraStream, releaseHeldCameraStream } from '../utils/camera-permission';
@@ -526,6 +528,8 @@ export const ARViewer = ({
               }
 
               viewerLog('info', 'targetLost — stopping video and resuming scan');
+              keepMindArCameraPlaying(host);
+              restartMindArTracking(host);
               setActiveTarget((current) => (current?.targetIndex === mindIndex ? null : current));
               if (activeMindIndexRef.current === mindIndex) {
                 activeMindIndexRef.current = null;
