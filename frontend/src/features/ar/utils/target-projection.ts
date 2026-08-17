@@ -345,7 +345,7 @@ const projectWithMvp = (
 ): ScreenPoint | null => {
   const clip = applyMat4(mvp, localX, localY, 0);
   if (!Number.isFinite(clip.x) || !Number.isFinite(clip.y)) return null;
-  if (Math.abs(clip.x) > 8 || Math.abs(clip.y) > 8) return null;
+  if (Math.abs(clip.x) > 24 || Math.abs(clip.y) > 24) return null;
   return ndcToViewport(clip.x, clip.y, destRect, flipY);
 };
 
@@ -384,10 +384,10 @@ const projectCorners = (
     const points: ScreenPoint[] = [];
     for (const [x, y] of locals) {
       const projected = projectOne(x, y);
-      if (!projected) return null;
+      if (!projected) continue;
       points.push(projected);
     }
-    return points;
+    return points.length >= 3 ? points : null;
   };
 
   if (isUsableSceneCamera(host, camera)) {
@@ -403,7 +403,7 @@ const projectCorners = (
         entity.object3D?.localToWorld?.(vector);
         vector.project(camera);
         if (!Number.isFinite(vector.x) || !Number.isFinite(vector.y)) return null;
-        if (Math.abs(vector.x) > 8 || Math.abs(vector.y) > 8) return null;
+        if (Math.abs(vector.x) > 24 || Math.abs(vector.y) > 24) return null;
         return ndcToViewport(vector.x, vector.y, viewRect);
       });
       if (fromThree) return fromThree;
@@ -435,7 +435,7 @@ const projectLocalPoint = (
   const view = applyMat4(camera.matrixWorldInverse.elements, world.x, world.y, world.z);
   const clip = applyMat4(camera.projectionMatrix.elements, view.x, view.y, view.z);
   if (!Number.isFinite(clip.x) || !Number.isFinite(clip.y)) return null;
-  if (Math.abs(clip.x) > 8 || Math.abs(clip.y) > 8) return null;
+  if (Math.abs(clip.x) > 24 || Math.abs(clip.y) > 24) return null;
   return ndcToViewport(clip.x, clip.y, viewRect);
 };
 

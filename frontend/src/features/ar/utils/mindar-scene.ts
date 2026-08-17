@@ -135,17 +135,6 @@ export const ensureTransparentRenderer = (host: HTMLElement): void => {
     scene.canvas.style.backgroundColor = 'transparent';
   }
 
-  const cameraEl = host.querySelector('a-camera') as
-    | (HTMLElement & {
-        getObject3D?: (type: string) => { near: number; updateProjectionMatrix: () => void };
-      })
-    | null;
-  const camera = cameraEl?.getObject3D?.('camera');
-  if (camera && camera.near > 0.05) {
-    camera.near = 0.01;
-    camera.updateProjectionMatrix();
-  }
-
   if (host.dataset.spClearLoop === '1') return;
   host.dataset.spClearLoop = '1';
   const keepTransparent = () => {
@@ -173,16 +162,16 @@ export const ensureCameraPreviewVisible = (host: HTMLElement): HTMLVideoElement 
   video.autoplay = true;
   video.style.position = 'absolute';
   video.style.pointerEvents = 'none';
+  video.style.opacity = '1';
+  video.style.zIndex = '1';
+  host.classList.remove('ar-scene-host--crop-playing');
 
-  if (host.classList.contains('ar-scene-host--crop-playing')) {
-    if (video.id !== 'sp-mapped-video') {
-      video.style.opacity = '0';
-      video.style.zIndex = '-10';
+  if (!video.style.width && video.videoWidth > 0) {
+    try {
+      getMindArSystem(host)?._resize?.();
+    } catch {
+      // cover CSS fills the host until MindAR writes inline sizes
     }
-    paintCameraToCanvas(host, video);
-  } else {
-    video.style.opacity = '1';
-    video.style.zIndex = '1';
   }
 
   if (video.paused) {
@@ -193,73 +182,21 @@ export const ensureCameraPreviewVisible = (host: HTMLElement): HTMLVideoElement 
   return video;
 };
 
-const CAMERA_PREVIEW_ID = 'sp-camera-preview';
-
-const sizeCameraCanvas = (host: HTMLElement, canvas: HTMLCanvasElement) => {
-  const rect = host.getBoundingClientRect();
-  const cssW = Math.max(1, Math.round(rect.width) || host.clientWidth || window.innerWidth);
-  const cssH = Math.max(1, Math.round(rect.height) || host.clientHeight || window.innerHeight);
-  canvas.style.position = 'absolute';
-  canvas.style.left = '0px';
-  canvas.style.top = '0px';
-  canvas.style.width = `${cssW}px`;
-  canvas.style.height = `${cssH}px`;
-  canvas.style.zIndex = '1';
-  canvas.style.display = 'block';
-  canvas.style.pointerEvents = 'none';
-  canvas.style.background = '#000';
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
-  const bw = Math.max(1, Math.round(cssW * dpr));
-  const bh = Math.max(1, Math.round(cssH * dpr));
-  if (canvas.width !== bw) canvas.width = bw;
-  if (canvas.height !== bh) canvas.height = bh;
-  return { bw, bh };
-};
-
-const paintCameraToCanvas = (host: HTMLElement, video: HTMLVideoElement): void => {
-  let canvas = host.querySelector(`#${CAMERA_PREVIEW_ID}`) as HTMLCanvasElement | null;
-  if (!canvas) {
-    canvas = document.createElement('canvas');
-    canvas.id = CAMERA_PREVIEW_ID;
-    canvas.setAttribute('aria-hidden', 'true');
-    host.insertBefore(canvas, host.firstChild);
-  }
-  sizeCameraCanvas(host, canvas);
-  if (canvas.dataset.spPainting === '1') return;
-  canvas.dataset.spPainting = '1';
-
-  const paint = () => {
-    if (!canvas.isConnected) {
-      canvas.dataset.spPainting = '0';
-      return;
-    }
-    if (!host.classList.contains('ar-scene-host--crop-playing') || !host.contains(video)) {
-      canvas.dataset.spPainting = '0';
-      return;
-    }
-    const { bw, bh } = sizeCameraCanvas(host, canvas);
-    if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0) {
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        const scale = Math.max(bw / video.videoWidth, bh / video.videoHeight);
-        const drawW = video.videoWidth * scale;
-        const drawH = video.videoHeight * scale;
-        ctx.drawImage(video, (bw - drawW) / 2, (bh - drawH) / 2, drawW, drawH);
-      }
-    }
-    window.requestAnimationFrame(paint);
-  };
-  window.requestAnimationFrame(paint);
-};
-
-/** On iPhone, hide the camera <video> and draw it to a full-size canvas so the mapped clip can paint. */
-export const setOverlayPlaybackActive = (host: HTMLElement, active: boolean): void => {
-  host.classList.toggle('ar-scene-host--crop-playing', active);
-  const video = getCameraVideo(host);
-  if (active && video) {
-    paintCameraToCanvas(host, video);
-  }
+/** Keep the live MindAR camera on screen. A second HTML overlay must not hide it. */
+export const setOverlayPlaybackActive = (host: HTMLElement, _active: boolean): void => {
+  host.classList.remove('ar-scene-host--crop-playing');
+  const preview = host.querySelector('#sp-camera-preview');
+  if (preview instanceof HTMLElement) preview.style.display = 'none';
   ensureCameraPreviewVisible(host);
+};
+
+/** iOS pauses the camera when another <video> starts — resume it so tracking does not die. */
+export const keepMindArCameraPlaying = (host: HTMLElement): void => {
+  const video = getCameraVideo(host);
+  if (!video) return;
+  video.muted = true;
+  video.playsInline = true;
+  if (video.paused) void video.play().catch(() => undefined);
 };
 
 export const isCameraPreviewLive = (host: HTMLElement): boolean => {

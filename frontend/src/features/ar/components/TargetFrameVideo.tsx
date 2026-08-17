@@ -6,7 +6,11 @@ import {
   type OverlayFrame,
 } from '../utils/overlay-frame';
 import { getPlaybackVideoElement } from '../utils/camera-permission';
-import { ensureTransparentRenderer, setOverlayPlaybackActive } from '../utils/mindar-scene';
+import {
+  ensureTransparentRenderer,
+  keepMindArCameraPlaying,
+  setOverlayPlaybackActive,
+} from '../utils/mindar-scene';
 import {
   attachOverlayVideoPlane,
   detachOverlayVideoPlane,
@@ -77,7 +81,7 @@ const waitForVideoReady = (video: HTMLVideoElement): Promise<void> =>
     }, LOAD_TIMEOUT_MS);
 
     const checkReady = () => {
-      if (video.videoWidth > 0 && video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+      if (video.videoWidth > 0 && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
         cleanup();
         resolve();
       }
@@ -231,15 +235,16 @@ export const TargetFrameVideo = ({
       const video = videoRef.current;
       if (!video) return;
       video.id = 'sp-mapped-video';
-      video.style.position = 'absolute';
-      video.style.left = '0px';
+      video.style.position = 'fixed';
+      video.style.left = '-480px';
       video.style.top = '0px';
       video.style.width = '360px';
       video.style.height = '640px';
-      video.style.opacity = '1';
+      video.style.opacity = '0.04';
       video.style.visibility = 'visible';
       video.style.zIndex = '0';
       video.style.objectFit = 'fill';
+      video.style.pointerEvents = 'none';
       if (video.parentElement !== host) {
         host.insertBefore(video, host.firstChild);
       }
@@ -304,6 +309,7 @@ export const TargetFrameVideo = ({
     };
 
     const layoutOverlay = () => {
+      if (ios) return null;
       const box = getOverlayAabbViewport(host, entity, aspectRatio, frame);
       if (box && isUsableOverlayBox(box, host)) {
         applyBox(box);
@@ -334,11 +340,13 @@ export const TargetFrameVideo = ({
     const tryAttachPlane = () => {
       if (cancelled || planeAttached) return false;
       const video = videoRef.current;
-      if (!video || video.videoWidth < 2) return false;
+      if (!video || video.videoWidth < 2 || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+        return false;
+      }
       const result = attachOverlayVideoPlane(entity, video, frame, aspectRatio);
       if (!result.ok) return false;
       planeAttached = true;
-      setOverlayVideoPlaneVisible(entity, !lastBox);
+      setOverlayVideoPlaneVisible(entity, true);
       dumpArOverlayDebug({
         host,
         entity,
@@ -361,11 +369,22 @@ export const TargetFrameVideo = ({
 
     const tick = () => {
       if (cancelled) return;
-      if (!lastBox) parkDecoder();
+      keepMindArCameraPlaying(host);
+      if (!lastBox && videoRef.current?.parentElement !== host) parkDecoder();
       const placed = layoutOverlay();
       tryAttachPlane();
-      if (placed) {
-        setOverlayVideoPlaneVisible(entity, false);
+      if (ios && planeAttached && !placed) {
+        if (missFrames >= 0) {
+          missFrames = -1;
+          viewerLog('info', 'mapped video on studio crop plane', {
+            ios,
+            size: `${videoRef.current?.videoWidth ?? 0}x${videoRef.current?.videoHeight ?? 0}`,
+            ready: videoRef.current?.readyState,
+            frame,
+          });
+        }
+        window.requestAnimationFrame(tick);
+        return;
       }
       if (placed && missFrames >= 0) {
         missFrames = -1;
@@ -390,6 +409,9 @@ export const TargetFrameVideo = ({
             misses: missFrames,
             size: `${video?.videoWidth ?? 0}x${video?.videoHeight ?? 0}`,
             ready: video?.readyState,
+            plane: planeAttached,
+            target: getTargetScreenBounds(host, entity, aspectRatio),
+            box: getOverlayAabbViewport(host, entity, aspectRatio, frame),
             ...describeOverlayLayout(host, entity),
           });
         }
@@ -437,36 +459,38 @@ export const TargetFrameVideo = ({
       const video = videoRef.current;
       if (!video) return false;
 
-      video.muted = !withSound;
-      if (withSound) video.volume = 1;
+      video.setAttribute('playsinline', '');
+      video.setAttribute('webkit-playsinline', '');
+      video.playsInline = true;
+      video.autoplay = true;
 
+      // iOS blocks unmuted autoplay. Start muted so the picture runs, then unmute.
+      video.muted = true;
       try {
         await video.play();
       } catch {
-        if (withSound) {
-          video.muted = true;
+        setNeedsTap(true);
+        return video.videoWidth > 0 && !video.paused;
+      }
+
+      if (host) keepMindArCameraPlaying(host);
+
+      if (withSound) {
+        video.muted = false;
+        video.volume = 1;
+        if (video.paused) {
           try {
             await video.play();
-            video.muted = false;
-            video.volume = 1;
           } catch {
-            setNeedsTap(true);
-            return false;
+            video.muted = true;
+            await video.play().catch(() => undefined);
           }
-        } else {
-          setNeedsTap(true);
-          return false;
         }
       }
 
       if (video.paused) {
         setNeedsTap(true);
         return false;
-      }
-
-      if (withSound && video.muted) {
-        video.muted = false;
-        video.volume = 1;
       }
 
       if (video.muted) {
@@ -481,7 +505,7 @@ export const TargetFrameVideo = ({
       notifyPlay();
       return true;
     },
-    [notifyPlay],
+    [notifyPlay, host],
   );
 
   const loadAndPlay = useCallback(
@@ -521,8 +545,9 @@ export const TargetFrameVideo = ({
           video.src = src;
           video.load();
           await waitForVideoReady(video);
-          const played = await tryPlay(soundOnRef.current);
-          if (played) {
+          const played = await tryPlay(true);
+          if (played || (video.videoWidth > 0 && !video.paused)) {
+            if (!played) notifyPlay();
             window.setTimeout(() => {
               const rect = video.getBoundingClientRect();
               viewerLog('info', 'video play ok', {
@@ -591,9 +616,14 @@ export const TargetFrameVideo = ({
 
     void loadAndPlay(sources)
       .catch(() => {
-        if (!cancelled) {
-          onErrorRef.current?.('Could not play the mapped video. Tap Try again or open the link.');
+        const video = videoRef.current;
+        if (cancelled) return;
+        if (video && video.videoWidth > 0) {
+          viewerLog('warn', 'video start needed a tap; clip already has frames');
+          setNeedsTap(true);
+          return;
         }
+        onErrorRef.current?.('Could not play the mapped video. Tap Try again or open the link.');
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

@@ -37,7 +37,7 @@ export const ScanFocusFrame = ({
         style={{
           position: 'absolute',
           inset: 0,
-          background: 'radial-gradient(ellipse at center, transparent 34%, rgba(0,0,0,0.42) 75%)',
+          background: 'radial-gradient(ellipse at center, transparent 42%, rgba(0,0,0,0.18) 82%)',
         }}
       />
       <div
@@ -55,7 +55,7 @@ export const ScanFocusFrame = ({
               ? '3px solid #FF4FA3'
               : '3px solid rgba(255,255,255,0.92)',
           borderRadius: 14,
-          boxShadow: '0 0 0 9999px rgba(0,0,0,0.28)',
+          boxShadow: '0 0 0 2px rgba(255,255,255,0.12)',
           background: 'transparent',
         }}
       >
