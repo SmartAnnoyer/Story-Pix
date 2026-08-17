@@ -23,6 +23,8 @@ type Object3D = {
 type SceneCamera = {
   projectionMatrix: { elements: ArrayLike<number> };
   matrixWorldInverse: { elements: ArrayLike<number> };
+  aspect?: number;
+  fov?: number;
   updateMatrixWorld?: (force?: boolean) => void;
 };
 
@@ -80,10 +82,33 @@ const applyMat4 = (m: ArrayLike<number>, x: number, y: number, z: number) => {
   };
 };
 
+/** Visible AR window. MindAR’s camera FOV is fitted to this container, not the overflowing <video>. */
 const getProjectionRect = (host: HTMLElement): DOMRect | null => {
   const rect = host.getBoundingClientRect();
-  if (rect.width <= 0 || rect.height <= 0) return null;
+  if (rect.width <= 8 || rect.height <= 8) return null;
   return rect;
+};
+
+const getCameraPreview = (host: HTMLElement): HTMLVideoElement | null =>
+  host.querySelector(':scope > video:not(#sp-mapped-video)') as HTMLVideoElement | null;
+
+const isUsableSceneCamera = (
+  host: HTMLElement,
+  camera: SceneCamera | null,
+): camera is SceneCamera => {
+  if (!camera?.projectionMatrix?.elements || !camera.matrixWorldInverse?.elements) return false;
+  const p0 = Number(camera.projectionMatrix.elements[0] ?? 0);
+  const p5 = Number(camera.projectionMatrix.elements[5] ?? 0);
+  if (!Number.isFinite(p0) || !Number.isFinite(p5) || Math.abs(p0) < 1e-4 || Math.abs(p5) < 1e-4) {
+    return false;
+  }
+  const video = getCameraPreview(host);
+  if (!video || video.videoWidth < 2) return false;
+  const cssW = video.clientWidth || Number.parseFloat(video.style.width || '0');
+  if (!Number.isFinite(cssW) || cssW < 8) return false;
+  const hostAspect = host.clientWidth / Math.max(1, host.clientHeight);
+  if (camera.aspect && Math.abs(camera.aspect - hostAspect) > 0.35) return false;
+  return true;
 };
 
 const getSceneCamera = (host: HTMLElement): SceneCamera | null => {
@@ -213,8 +238,10 @@ const getPoseMatrix = (entity: ProjectableEntity, camera: SceneCamera): number[]
   camera.updateMatrixWorld?.(true);
 
   const captured = capturedPose.get(entity);
-  if (captured) {
+  if (captured && !isIdentityMatrix(captured)) {
     applyPoseToObject(entity, captured);
+    const world = entity.object3D?.matrixWorld?.elements;
+    if (world && !isIdentityMatrix(world)) return copy16(world);
     return captured;
   }
 
@@ -266,18 +293,6 @@ const projectLocalPoint = (
   return ndcToViewport(clip.x, clip.y, viewRect);
 };
 
-const projectWithMvp = (
-  mvp: ArrayLike<number>,
-  localX: number,
-  localY: number,
-  destRect: DOMRect,
-): ScreenPoint | null => {
-  const clip = applyMat4(mvp, localX, localY, 0);
-  if (!Number.isFinite(clip.x) || !Number.isFinite(clip.y)) return null;
-  if (Math.abs(clip.x) > 8 || Math.abs(clip.y) > 8) return null;
-  return ndcToViewport(clip.x, clip.y, destRect);
-};
-
 const overlayLocalCorners = (aspectRatio: number, frame: OverlayFrame): Array<[number, number]> => {
   const overlay = clampOverlayFrame(frame);
   const halfH = aspectRatio * 0.5;
@@ -301,8 +316,10 @@ const projectCorners = (
   const entity = targetEntity as ProjectableEntity;
   const camera = getSceneCamera(host);
   const viewRect = getProjectionRect(host);
-  const pose = camera ? getPoseMatrix(entity, camera) : (capturedPose.get(targetEntity) ?? null);
-  if (!entity.object3D) return null;
+  if (!entity.object3D || !viewRect || !isUsableSceneCamera(host, camera)) return null;
+
+  const pose = getPoseMatrix(entity, camera);
+  if (!pose) return null;
 
   const collect = (
     projectOne: (x: number, y: number) => ScreenPoint | null,
@@ -316,23 +333,12 @@ const projectCorners = (
     return points;
   };
 
-  if (pose && camera && viewRect) {
-    const fromCamera = collect((x, y) => projectLocalPoint(pose, camera, viewRect, x, y));
-    if (fromCamera) return fromCamera;
-  }
-
-  if (pose) {
-    const mindProj = getMindArProjection(host);
-    if (mindProj && viewRect) {
-      const mvp = multiplyMat4(mindProj, pose);
-      const fromMind = collect((x, y) => projectWithMvp(mvp, x, y, viewRect));
-      if (fromMind) return fromMind;
-    }
-  }
+  const fromCamera = collect((x, y) => projectLocalPoint(pose, camera, viewRect, x, y));
+  if (fromCamera) return fromCamera;
 
   const THREE = getThree();
-  if (!THREE || !entity.object3D.localToWorld || !camera || !viewRect) return null;
-  if (pose) applyPoseToObject(entity, pose);
+  if (!THREE || !entity.object3D.localToWorld) return null;
+  applyPoseToObject(entity, pose);
   entity.object3D.updateMatrixWorld?.(true);
 
   return collect((x, y) => {
@@ -398,6 +404,9 @@ export const getOverlayQuadScreenCorners = (
   frame: OverlayFrame,
 ): OverlayQuad | null => {
   const overlay = clampOverlayFrame(frame);
+  const fromBounds = getOverlayQuadFromBounds(host, targetEntity, aspectRatio, overlay);
+  if (fromBounds) return fromBounds;
+
   const points = projectCorners(host, targetEntity, overlayLocalCorners(aspectRatio, overlay));
   if (points?.length === 4) {
     const quad = points as [ScreenPoint, ScreenPoint, ScreenPoint, ScreenPoint];
@@ -410,7 +419,7 @@ export const getOverlayQuadScreenCorners = (
     }
   }
 
-  return getOverlayQuadFromBounds(host, targetEntity, aspectRatio, overlay);
+  return null;
 };
 
 const getOverlayQuadFromBounds = (
@@ -441,6 +450,21 @@ const getOverlayQuadFromBounds = (
 
 export type ViewportBox = { left: number; top: number; width: number; height: number };
 
+/** True when the overlay sits on the live camera view, not in the black band above it. */
+export const isUsableOverlayBox = (box: ViewportBox, host: HTMLElement): boolean => {
+  const hostRect = host.getBoundingClientRect();
+  if (box.width < 48 || box.height < 48) return false;
+  const overlapLeft = Math.max(box.left, hostRect.left);
+  const overlapTop = Math.max(box.top, hostRect.top);
+  const overlapRight = Math.min(box.left + box.width, hostRect.right);
+  const overlapBottom = Math.min(box.top + box.height, hostRect.bottom);
+  const overlapW = overlapRight - overlapLeft;
+  const overlapH = overlapBottom - overlapTop;
+  if (overlapW < 40 || overlapH < 40) return false;
+  if (box.top + box.height * 0.5 < hostRect.top) return false;
+  return true;
+};
+
 const aabbFromQuad = (quad: OverlayQuad): ViewportBox | null => {
   if (!quad.visible) return null;
   const xs = quad.corners.map((point) => point.x);
@@ -462,7 +486,9 @@ export const getOverlayAabbViewport = (
 ): ViewportBox | null => {
   const quad = getOverlayQuadScreenCorners(host, targetEntity, aspectRatio, frame);
   if (!quad) return null;
-  return aabbFromQuad(quad);
+  const box = aabbFromQuad(quad);
+  if (!box || !isUsableOverlayBox(box, host)) return null;
+  return box;
 };
 
 export const describeOverlayLayout = (
@@ -480,8 +506,12 @@ export const describeOverlayLayout = (
     pose: Boolean(pose),
     object3D: Boolean(entity.object3D),
     matrix0: Number(Number(entity.object3D?.matrix?.elements?.[0] ?? 0).toFixed(3)),
+    matrix12: Number(Number(entity.object3D?.matrix?.elements?.[12] ?? 0).toFixed(3)),
     matrix14: Number(Number(entity.object3D?.matrix?.elements?.[14] ?? 0).toFixed(3)),
     proj0: Number(Number(camera?.projectionMatrix?.elements?.[0] ?? 0).toFixed(3)),
+    camFov: Number(Number(camera?.fov ?? 0).toFixed(1)),
+    camAspect: Number(Number(camera?.aspect ?? 0).toFixed(3)),
+    usableCam: isUsableSceneCamera(host, camera),
     mindProj: Boolean(getMindArProjection(host)),
   };
 };

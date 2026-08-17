@@ -51,20 +51,6 @@ html.viewer-route #root {
   display: block !important;
 }
 
-.ar-video-stage--tracked {
-  position: fixed !important;
-  overflow: hidden;
-  background: #000;
-  pointer-events: none;
-  transform-origin: 0 0;
-}
-
-.ar-video-stage--tracked .ar-video-media {
-  inset: 0;
-  border-radius: 0;
-  background: transparent;
-}
-
 .ar-scene-host > a-scene {
   position: absolute !important;
   inset: 0 !important;

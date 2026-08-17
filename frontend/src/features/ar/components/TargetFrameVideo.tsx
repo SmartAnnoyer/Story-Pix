@@ -10,13 +10,15 @@ import { ensureTransparentRenderer, setOverlayPlaybackActive } from '../utils/mi
 import {
   attachOverlayVideoPlane,
   detachOverlayVideoPlane,
-  getOverlayMeshViewport,
+  setOverlayVideoPlaneVisible,
 } from '../utils/overlay-plane';
 import {
   describeOverlayLayout,
   getOverlayAabbViewport,
   getOverlayQuadScreenCorners,
+  getTargetScreenBounds,
   installPoseCapture,
+  isUsableOverlayBox,
   quadToCssMatrix3d,
 } from '../utils/target-projection';
 import {
@@ -202,6 +204,7 @@ export const TargetFrameVideo = ({
 
   useEffect(() => {
     if (!active || mode === 'fullscreen') {
+      setOverlayVideoPlaneVisible(targetEntity, false);
       return undefined;
     }
 
@@ -255,12 +258,9 @@ export const TargetFrameVideo = ({
 
     const applyBox = (box: { left: number; top: number; width: number; height: number }) => {
       lastBox = box;
-      const vv = window.visualViewport;
-      const left = box.left - (vv?.offsetLeft ?? 0);
-      const top = box.top - (vv?.offsetTop ?? 0);
       stage.style.position = 'fixed';
-      stage.style.left = `${left}px`;
-      stage.style.top = `${top}px`;
+      stage.style.left = `${box.left}px`;
+      stage.style.top = `${box.top}px`;
       stage.style.width = `${box.width}px`;
       stage.style.height = `${box.height}px`;
       stage.style.transform = 'none';
@@ -304,25 +304,31 @@ export const TargetFrameVideo = ({
     };
 
     const layoutOverlay = () => {
-      const meshBox = getOverlayMeshViewport(host, entity, frame, aspectRatio);
-      if (meshBox) {
-        applyBox(meshBox);
-        return true;
+      const box = getOverlayAabbViewport(host, entity, aspectRatio, frame);
+      if (box && isUsableOverlayBox(box, host)) {
+        applyBox(box);
+        return box;
+      }
+      if (lastBox && isUsableOverlayBox(lastBox, host)) {
+        applyBox(lastBox);
+        return lastBox;
       }
       if (!ios) {
-        const box = getOverlayAabbViewport(host, entity, aspectRatio, frame);
-        if (box) {
-          applyBox(box);
-          return true;
-        }
         const quad = getOverlayQuadScreenCorners(host, entity, aspectRatio, frame);
-        if (quad?.visible && applyQuad(quad.corners)) return true;
+        if (quad?.visible && applyQuad(quad.corners)) {
+          const xs = quad.corners.map((corner) => corner.x);
+          const ys = quad.corners.map((corner) => corner.y);
+          const quadBox = {
+            left: Math.min(...xs),
+            top: Math.min(...ys),
+            width: Math.max(...xs) - Math.min(...xs),
+            height: Math.max(...ys) - Math.min(...ys),
+          };
+          lastBox = quadBox;
+          return quadBox;
+        }
       }
-      if (lastBox) {
-        applyBox(lastBox);
-        return true;
-      }
-      return false;
+      return null;
     };
 
     const tryAttachPlane = () => {
@@ -332,6 +338,7 @@ export const TargetFrameVideo = ({
       const result = attachOverlayVideoPlane(entity, video, frame, aspectRatio);
       if (!result.ok) return false;
       planeAttached = true;
+      setOverlayVideoPlaneVisible(entity, false);
       dumpArOverlayDebug({
         host,
         entity,
@@ -355,41 +362,21 @@ export const TargetFrameVideo = ({
     const tick = () => {
       if (cancelled) return;
       if (!lastBox) parkDecoder();
-      tryAttachPlane();
       const placed = layoutOverlay();
+      tryAttachPlane();
       if (placed && missFrames >= 0) {
         missFrames = -1;
-        const video = videoRef.current;
-        const rect = video?.getBoundingClientRect();
-        const hostRect = host.getBoundingClientRect();
-        const cameraVideo = host.querySelector(
-          ':scope > video:not(#sp-mapped-video)',
-        ) as HTMLVideoElement | null;
-        const cameraRect = cameraVideo?.getBoundingClientRect();
         viewerLog('info', 'mapped video on crop rectangle', {
           ios,
-          size: `${video?.videoWidth ?? 0}x${video?.videoHeight ?? 0}`,
-          host: { w: Math.round(hostRect.width), h: Math.round(hostRect.height) },
-          vv: {
-            top: Math.round(window.visualViewport?.offsetTop ?? 0),
-            left: Math.round(window.visualViewport?.offsetLeft ?? 0),
+          size: `${videoRef.current?.videoWidth ?? 0}x${videoRef.current?.videoHeight ?? 0}`,
+          rect: {
+            w: Math.round(placed.width),
+            h: Math.round(placed.height),
+            top: Math.round(placed.top),
+            left: Math.round(placed.left),
           },
-          cameraCss: cameraRect
-            ? {
-                w: Math.round(cameraRect.width),
-                h: Math.round(cameraRect.height),
-                top: Math.round(cameraRect.top - hostRect.top),
-                left: Math.round(cameraRect.left - hostRect.left),
-              }
-            : null,
-          rect: rect
-            ? {
-                w: Math.round(rect.width),
-                h: Math.round(rect.height),
-                top: Math.round(rect.top - hostRect.top),
-                left: Math.round(rect.left - hostRect.left),
-              }
-            : null,
+          target: getTargetScreenBounds(host, entity, aspectRatio),
+          frame,
         });
       }
       if (!planeAttached && missFrames >= 0) {
@@ -601,11 +588,6 @@ export const TargetFrameVideo = ({
 
     void loadAndPlay(sources)
       .catch(() => {
-        const video = videoRef.current;
-        if (video && video.videoWidth > 0) {
-          notifyPlay();
-          return;
-        }
         if (!cancelled) {
           onErrorRef.current?.('Could not play the mapped video. Tap Try again or open the link.');
         }
@@ -676,198 +658,196 @@ export const TargetFrameVideo = ({
   if (!active || typeof document === 'undefined') return null;
 
   const showFullscreen = mode === 'fullscreen';
-  const stageParent = document.body;
 
-  const stage = (
-    <div
-      ref={stageRef}
-      className={`ar-video-stage${showFullscreen ? '' : ' ar-video-stage--tracked'}`}
-      style={
-        showFullscreen
-          ? {
-              position: 'relative',
-              width: '100%',
-              flex: 1,
-              minHeight: 0,
-              border: 'none',
-              borderRadius: 0,
-              overflow: 'hidden',
-              background: '#000',
-              pointerEvents: 'auto',
-            }
-          : {
-              position: 'fixed',
-              overflow: 'hidden',
-              background: '#000',
-              pointerEvents: 'none',
-              zIndex: 10080,
-              transformOrigin: '0 0',
-            }
-      }
-    >
-      {showFullscreen ? null : <div className="ar-video-frame-edge" aria-hidden />}
-      <div className="ar-video-media" ref={mediaRef}>
-        {needsTap ? (
-          <button type="button" className="ar-video-tap-play" onClick={() => void tryPlay(true)}>
-            Tap to play
+  return createPortal(
+    <>
+      <div
+        className={`ar-video-shell${showFullscreen ? ' ar-video-shell--fullscreen' : ' ar-video-shell--tracked'}`}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 10050,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: showFullscreen ? 'stretch' : 'flex-end',
+          gap: showFullscreen ? 0 : 12,
+          padding: showFullscreen ? 0 : '0 16px max(16px, env(safe-area-inset-bottom))',
+          background: showFullscreen ? '#000' : 'transparent',
+          pointerEvents: showFullscreen ? 'auto' : 'none',
+        }}
+        role="dialog"
+        aria-label={title ? `Playing ${title}` : 'Playing mapped video'}
+      >
+        {showFullscreen ? (
+          <p className="ar-video-nowplaying">
+            {loading ? 'Loading video…' : `Now playing${title ? ` · ${title}` : ''}`}
+          </p>
+        ) : null}
+
+        <div
+          ref={stageRef}
+          className="ar-video-stage"
+          style={
+            showFullscreen
+              ? {
+                  position: 'relative',
+                  width: '100%',
+                  flex: 1,
+                  minHeight: 0,
+                  border: 'none',
+                  borderRadius: 0,
+                  overflow: 'hidden',
+                  background: '#000',
+                  pointerEvents: 'auto',
+                }
+              : {
+                  position: 'fixed',
+                  overflow: 'hidden',
+                  background: '#000',
+                  pointerEvents: 'none',
+                  zIndex: 10080,
+                  transformOrigin: '0 0',
+                }
+          }
+        >
+          {showFullscreen ? null : <div className="ar-video-frame-edge" aria-hidden />}
+          <div className="ar-video-media" ref={mediaRef}>
+            {needsTap ? (
+              <button
+                type="button"
+                className="ar-video-tap-play"
+                onClick={() => void tryPlay(true)}
+              >
+                Tap to play
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      <div
+        className="ar-video-controls"
+        style={{
+          position: 'fixed',
+          left: '50%',
+          bottom: 'max(14px, env(safe-area-inset-bottom, 0px))',
+          transform: 'translateX(-50%)',
+          zIndex: 2147483000,
+          pointerEvents: 'auto',
+          flexWrap: 'nowrap',
+          whiteSpace: 'nowrap',
+        }}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          className="ar-video-ctrl"
+          aria-label={isPlaying ? 'Pause' : 'Play'}
+          onClick={handleTogglePlay}
+        >
+          <span className="ar-video-ctrl__icon" aria-hidden>
+            {isPlaying ? (
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <rect x="5" y="4" width="5" height="16" rx="1.5" />
+                <rect x="14" y="4" width="5" height="16" rx="1.5" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M8 5.2v13.6c0 .9 1 1.4 1.7.9l10-6.8c.7-.5.7-1.4 0-1.8l-10-6.8C9 3.8 8 4.3 8 5.2z" />
+              </svg>
+            )}
+          </span>
+          <span className="ar-video-ctrl__label">{isPlaying ? 'Pause' : 'Play'}</span>
+        </button>
+        <button
+          type="button"
+          className="ar-video-ctrl"
+          aria-label={soundOn ? 'Mute' : 'Unmute'}
+          onClick={handleToggleMute}
+        >
+          <span className="ar-video-ctrl__icon" aria-hidden>
+            {soundOn ? (
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M4 9v6h3.2L12 19.2V4.8L7.2 9H4zm13.5 3c0-1.8-1-3.3-2.5-4.1v8.2c1.5-.8 2.5-2.3 2.5-4.1zm-2.5-7v1.6c2.9.9 5 3.6 5 6.9s-2.1 6-5 6.9V20c3.8-1 6.5-4.5 6.5-8.5S18.8 6 15 5z" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M4 9v6h3.2L12 19.2V4.8L7.2 9H4zm16.3-3.1-1.4-1.4L15 8.4l-3.9 3.9v.1L15 15.6l3.9 3.9 1.4-1.4L16.4 14l3.9-3.9-1.4-1.4L15 12.2z" />
+              </svg>
+            )}
+          </span>
+          <span className="ar-video-ctrl__label">{soundOn ? 'Mute' : 'Sound'}</span>
+        </button>
+        <button
+          type="button"
+          className="ar-video-ctrl"
+          aria-label={showFullscreen ? 'Exit full screen' : 'Full screen'}
+          onClick={handleToggleFullscreen}
+        >
+          <span className="ar-video-ctrl__icon" aria-hidden>
+            {showFullscreen ? (
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M7 14H5v5h5v-2H7v-3zm0-4h2V7h3V5H5v5h2zm10 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M7 14H5v5h5v-2H7v-3zm12 5h-5v-2h3v-3h2v5zM5 5h5v2H7v3H5V5zm14 5h-2V7h-3V5h5v5z" />
+              </svg>
+            )}
+          </span>
+          <span className="ar-video-ctrl__label">{showFullscreen ? 'Exit' : 'Full'}</span>
+        </button>
+        {videoCount > 1 && onCycleVideo ? (
+          <button
+            type="button"
+            className="ar-video-ctrl"
+            aria-label="Next mapped video"
+            onClick={() => onCycleVideo(1)}
+          >
+            <span className="ar-video-ctrl__icon" aria-hidden>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M8 5.2v13.6c0 .9 1 1.4 1.7.9l10-6.8c.7-.5.7-1.4 0-1.8l-10-6.8C9 3.8 8 4.3 8 5.2z" />
+              </svg>
+            </span>
+            <span className="ar-video-ctrl__label">
+              {videoIndex + 1}/{videoCount}
+            </span>
+          </button>
+        ) : null}
+        {playbackUrl ? (
+          <button
+            type="button"
+            className="ar-video-ctrl"
+            aria-label="Open video"
+            onClick={handleOpenVideo}
+          >
+            <span className="ar-video-ctrl__icon" aria-hidden>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M14 3h7v7h-2V6.4l-9.3 9.3-1.4-1.4L17.6 5H14V3zM5 5h6v2H7v10h10v-4h2v6H5V5z" />
+              </svg>
+            </span>
+            <span className="ar-video-ctrl__label">Open</span>
+          </button>
+        ) : null}
+        {onClose ? (
+          <button
+            type="button"
+            className="ar-video-ctrl"
+            aria-label="Close video"
+            onClick={onClose}
+          >
+            <span className="ar-video-ctrl__icon" aria-hidden>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6 6.4 5z" />
+              </svg>
+            </span>
+            <span className="ar-video-ctrl__label">Done</span>
           </button>
         ) : null}
       </div>
-    </div>
-  );
-
-  const controls = (
-    <div
-      className="ar-video-controls"
-      style={{
-        position: 'fixed',
-        left: '50%',
-        bottom: 'max(14px, env(safe-area-inset-bottom, 0px))',
-        transform: 'translateX(-50%)',
-        zIndex: 2147483000,
-        pointerEvents: 'auto',
-        flexWrap: 'nowrap',
-        whiteSpace: 'nowrap',
-      }}
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={(event) => event.stopPropagation()}
-    >
-      <button
-        type="button"
-        className="ar-video-ctrl"
-        aria-label={isPlaying ? 'Pause' : 'Play'}
-        onClick={handleTogglePlay}
-      >
-        <span className="ar-video-ctrl__icon" aria-hidden>
-          {isPlaying ? (
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-              <rect x="5" y="4" width="5" height="16" rx="1.5" />
-              <rect x="14" y="4" width="5" height="16" rx="1.5" />
-            </svg>
-          ) : (
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-              <path d="M8 5.2v13.6c0 .9 1 1.4 1.7.9l10-6.8c.7-.5.7-1.4 0-1.8l-10-6.8C9 3.8 8 4.3 8 5.2z" />
-            </svg>
-          )}
-        </span>
-        <span className="ar-video-ctrl__label">{isPlaying ? 'Pause' : 'Play'}</span>
-      </button>
-      <button
-        type="button"
-        className="ar-video-ctrl"
-        aria-label={soundOn ? 'Mute' : 'Unmute'}
-        onClick={handleToggleMute}
-      >
-        <span className="ar-video-ctrl__icon" aria-hidden>
-          {soundOn ? (
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-              <path d="M4 9v6h3.2L12 19.2V4.8L7.2 9H4zm13.5 3c0-1.8-1-3.3-2.5-4.1v8.2c1.5-.8 2.5-2.3 2.5-4.1zm-2.5-7v1.6c2.9.9 5 3.6 5 6.9s-2.1 6-5 6.9V20c3.8-1 6.5-4.5 6.5-8.5S18.8 6 15 5z" />
-            </svg>
-          ) : (
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-              <path d="M4 9v6h3.2L12 19.2V4.8L7.2 9H4zm16.3-3.1-1.4-1.4L15 8.4l-3.9 3.9v.1L15 15.6l3.9 3.9 1.4-1.4L16.4 14l3.9-3.9-1.4-1.4L15 12.2z" />
-            </svg>
-          )}
-        </span>
-        <span className="ar-video-ctrl__label">{soundOn ? 'Mute' : 'Sound'}</span>
-      </button>
-      <button
-        type="button"
-        className="ar-video-ctrl"
-        aria-label={showFullscreen ? 'Exit full screen' : 'Full screen'}
-        onClick={handleToggleFullscreen}
-      >
-        <span className="ar-video-ctrl__icon" aria-hidden>
-          {showFullscreen ? (
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-              <path d="M7 14H5v5h5v-2H7v-3zm0-4h2V7h3V5H5v5h2zm10 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
-            </svg>
-          ) : (
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-              <path d="M7 14H5v5h5v-2H7v-3zm12 5h-5v-2h3v-3h2v5zM5 5h5v2H7v3H5V5zm14 5h-2V7h-3V5h5v5z" />
-            </svg>
-          )}
-        </span>
-        <span className="ar-video-ctrl__label">{showFullscreen ? 'Exit' : 'Full'}</span>
-      </button>
-      {videoCount > 1 && onCycleVideo ? (
-        <button
-          type="button"
-          className="ar-video-ctrl"
-          aria-label="Next mapped video"
-          onClick={() => onCycleVideo(1)}
-        >
-          <span className="ar-video-ctrl__icon" aria-hidden>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-              <path d="M8 5.2v13.6c0 .9 1 1.4 1.7.9l10-6.8c.7-.5.7-1.4 0-1.8l-10-6.8C9 3.8 8 4.3 8 5.2z" />
-            </svg>
-          </span>
-          <span className="ar-video-ctrl__label">
-            {videoIndex + 1}/{videoCount}
-          </span>
-        </button>
-      ) : null}
-      {playbackUrl ? (
-        <button
-          type="button"
-          className="ar-video-ctrl"
-          aria-label="Open video"
-          onClick={handleOpenVideo}
-        >
-          <span className="ar-video-ctrl__icon" aria-hidden>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-              <path d="M14 3h7v7h-2V6.4l-9.3 9.3-1.4-1.4L17.6 5H14V3zM5 5h6v2H7v10h10v-4h2v6H5V5z" />
-            </svg>
-          </span>
-          <span className="ar-video-ctrl__label">Open</span>
-        </button>
-      ) : null}
-      {onClose ? (
-        <button type="button" className="ar-video-ctrl" aria-label="Close video" onClick={onClose}>
-          <span className="ar-video-ctrl__icon" aria-hidden>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-              <path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6 6.4 5z" />
-            </svg>
-          </span>
-          <span className="ar-video-ctrl__label">Done</span>
-        </button>
-      ) : null}
-    </div>
-  );
-
-  return (
-    <>
-      {createPortal(
-        showFullscreen ? (
-          <div
-            className="ar-video-shell ar-video-shell--fullscreen"
-            style={{
-              position: 'fixed',
-              inset: 0,
-              zIndex: 10050,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'stretch',
-              gap: 0,
-              padding: 0,
-              background: '#000',
-              pointerEvents: 'auto',
-            }}
-            role="dialog"
-            aria-label={title ? `Playing ${title}` : 'Playing mapped video'}
-          >
-            <p className="ar-video-nowplaying">
-              {loading ? 'Loading video…' : `Now playing${title ? ` · ${title}` : ''}`}
-            </p>
-            {stage}
-          </div>
-        ) : (
-          stage
-        ),
-        stageParent,
-      )}
-      {createPortal(controls, document.body)}
-    </>
+    </>,
+    document.body,
   );
 };
