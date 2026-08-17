@@ -241,10 +241,31 @@ const paintCameraToCanvas = (host: HTMLElement, video: HTMLVideoElement): void =
     if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0) {
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        const scale = Math.max(bw / video.videoWidth, bh / video.videoHeight);
-        const drawW = video.videoWidth * scale;
-        const drawH = video.videoHeight * scale;
-        ctx.drawImage(video, (bw - drawW) / 2, (bh - drawH) / 2, drawW, drawH);
+        const hostRect = host.getBoundingClientRect();
+        const videoRect = video.getBoundingClientRect();
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, bw, bh);
+        if (
+          hostRect.width > 0 &&
+          hostRect.height > 0 &&
+          videoRect.width > 8 &&
+          videoRect.height > 8
+        ) {
+          const sx = bw / hostRect.width;
+          const sy = bh / hostRect.height;
+          ctx.drawImage(
+            video,
+            (videoRect.left - hostRect.left) * sx,
+            (videoRect.top - hostRect.top) * sy,
+            videoRect.width * sx,
+            videoRect.height * sy,
+          );
+        } else {
+          const scale = Math.max(bw / video.videoWidth, bh / video.videoHeight);
+          const drawW = video.videoWidth * scale;
+          const drawH = video.videoHeight * scale;
+          ctx.drawImage(video, (bw - drawW) / 2, (bh - drawH) / 2, drawW, drawH);
+        }
       }
     }
     window.requestAnimationFrame(paint);

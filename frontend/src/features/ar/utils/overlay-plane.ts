@@ -56,12 +56,14 @@ type OverlayMesh = {
   userData?: { spStopPaint?: () => void };
   geometry?: { dispose: () => void; parameters?: { width: number; height: number } };
   localToWorld?: (vector: { x: number; y: number; z: number }) => unknown;
+  updateMatrixWorld?: (force?: boolean) => void;
   material?: { map?: { dispose: () => void } | null; dispose: () => void };
 };
 
 type Object3D = {
   add: (mesh: unknown) => void;
   remove: (mesh: unknown) => void;
+  updateMatrixWorld?: (force?: boolean) => void;
   getObjectByName: (name: string) => OverlayMesh | undefined;
 };
 
@@ -112,17 +114,22 @@ export const getOverlayMeshViewport = (
 ): { left: number; top: number; width: number; height: number } | null => {
   const THREE = getThree();
   const scene = host.querySelector('a-scene') as
-    | (HTMLElement & { camera?: unknown; canvas?: HTMLCanvasElement })
+    | (HTMLElement & { camera?: unknown; canvas?: HTMLCanvasElement; object3D?: Object3D })
     | null;
-  const mesh = (entity as EntityWithObject3D).object3D?.getObjectByName(MESH_NAME);
+  const object3D = (entity as EntityWithObject3D).object3D;
+  const mesh = object3D?.getObjectByName(MESH_NAME);
   const camera = scene?.camera;
-  const canvas = scene?.canvas;
   const pose = frame && aspectRatio ? overlayFrameToLocalPose(frame, aspectRatio) : null;
   const width = mesh?.geometry?.parameters?.width ?? pose?.width;
   const height = mesh?.geometry?.parameters?.height ?? pose?.height;
-  if (!THREE || !mesh?.localToWorld || !camera || !canvas || !width || !height) return null;
+  if (!THREE || !mesh?.localToWorld || !camera || !width || !height) return null;
 
-  const rect = canvas.getBoundingClientRect();
+  scene?.object3D?.updateMatrixWorld?.(true);
+  object3D?.updateMatrixWorld?.(true);
+  mesh.updateMatrixWorld?.(true);
+
+  // MindAR FOV is computed for the scene host; NDC must map onto that same box.
+  const rect = host.getBoundingClientRect();
   if (rect.width < 8 || rect.height < 8) return null;
 
   const xs: number[] = [];
@@ -211,7 +218,7 @@ export const attachOverlayVideoPlane = (
     mesh.position.set(pose.x, pose.y, pose.z);
     mesh.renderOrder = 999;
     mesh.frustumCulled = false;
-    mesh.visible = true;
+    mesh.visible = false;
 
     let painting = true;
     let loggedDrawError = false;

@@ -81,10 +81,7 @@ const applyMat4 = (m: ArrayLike<number>, x: number, y: number, z: number) => {
 };
 
 const getProjectionRect = (host: HTMLElement): DOMRect | null => {
-  const scene = host.querySelector('a-scene') as HTMLElement | null;
-  const rect =
-    (scene && scene.clientWidth > 0 ? scene.getBoundingClientRect() : null) ??
-    host.getBoundingClientRect();
+  const rect = host.getBoundingClientRect();
   if (rect.width <= 0 || rect.height <= 0) return null;
   return rect;
 };
@@ -319,22 +316,18 @@ const projectCorners = (
     return points;
   };
 
-  if (pose) {
-    const mindProj = getMindArProjection(host);
-    const video = host.querySelector(
-      ':scope > video:not(#sp-mapped-video)',
-    ) as HTMLVideoElement | null;
-    const videoRect = video?.getBoundingClientRect();
-    if (mindProj && videoRect && videoRect.width > 8 && videoRect.height > 8) {
-      const mvp = multiplyMat4(mindProj, pose);
-      const fromMind = collect((x, y) => projectWithMvp(mvp, x, y, videoRect));
-      if (fromMind) return fromMind;
-    }
-  }
-
   if (pose && camera && viewRect) {
     const fromCamera = collect((x, y) => projectLocalPoint(pose, camera, viewRect, x, y));
     if (fromCamera) return fromCamera;
+  }
+
+  if (pose) {
+    const mindProj = getMindArProjection(host);
+    if (mindProj && viewRect) {
+      const mvp = multiplyMat4(mindProj, pose);
+      const fromMind = collect((x, y) => projectWithMvp(mvp, x, y, viewRect));
+      if (fromMind) return fromMind;
+    }
   }
 
   const THREE = getThree();
