@@ -338,7 +338,7 @@ export const TargetFrameVideo = ({
       const result = attachOverlayVideoPlane(entity, video, frame, aspectRatio);
       if (!result.ok) return false;
       planeAttached = true;
-      setOverlayVideoPlaneVisible(entity, false);
+      setOverlayVideoPlaneVisible(entity, !lastBox);
       dumpArOverlayDebug({
         host,
         entity,
@@ -364,6 +364,9 @@ export const TargetFrameVideo = ({
       if (!lastBox) parkDecoder();
       const placed = layoutOverlay();
       tryAttachPlane();
+      if (placed) {
+        setOverlayVideoPlaneVisible(entity, false);
+      }
       if (placed && missFrames >= 0) {
         missFrames = -1;
         viewerLog('info', 'mapped video on crop rectangle', {
@@ -379,7 +382,7 @@ export const TargetFrameVideo = ({
           frame,
         });
       }
-      if (!planeAttached && missFrames >= 0) {
+      if (!placed && missFrames >= 0) {
         missFrames += 1;
         if (missFrames === 1 || missFrames % 45 === 0) {
           const video = videoRef.current;

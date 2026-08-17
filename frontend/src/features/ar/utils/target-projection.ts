@@ -25,6 +25,9 @@ type SceneCamera = {
   matrixWorldInverse: { elements: ArrayLike<number> };
   aspect?: number;
   fov?: number;
+  near?: number;
+  far?: number;
+  updateProjectionMatrix?: () => void;
   updateMatrixWorld?: (force?: boolean) => void;
 };
 
@@ -82,15 +85,64 @@ const applyMat4 = (m: ArrayLike<number>, x: number, y: number, z: number) => {
   };
 };
 
-/** Visible AR window. MindAR’s camera FOV is fitted to this container, not the overflowing <video>. */
+/** Visible AR window. Prefer the live host; fall back to the WebGL canvas if the host is not laid out yet. */
 const getProjectionRect = (host: HTMLElement): DOMRect | null => {
-  const rect = host.getBoundingClientRect();
-  if (rect.width <= 8 || rect.height <= 8) return null;
-  return rect;
+  const candidates: Array<DOMRect | undefined> = [
+    host.getBoundingClientRect(),
+    host.querySelector('a-scene')?.getBoundingClientRect(),
+    host.querySelector('.a-canvas')?.getBoundingClientRect(),
+    host.querySelector('canvas')?.getBoundingClientRect(),
+  ];
+  for (const rect of candidates) {
+    if (rect && rect.width > 8 && rect.height > 8) return rect;
+  }
+  return null;
 };
 
 const getCameraPreview = (host: HTMLElement): HTMLVideoElement | null =>
   host.querySelector(':scope > video:not(#sp-mapped-video)') as HTMLVideoElement | null;
+
+const isFiniteNumber = (value: number): boolean => Number.isFinite(value) && Math.abs(value) > 1e-6;
+
+/** MindAR often runs _resize before the host has height, leaving fov=0 and a NaN projection. */
+const syncMindArCameraToHost = (host: HTMLElement): void => {
+  if (isUsableSceneCamera(host, getSceneCamera(host))) return;
+
+  const scene = host.querySelector('a-scene') as
+    | (HTMLElement & { systems?: Record<string, { _resize?: () => void }> })
+    | null;
+  try {
+    scene?.systems?.['mindar-image-system']?._resize?.();
+  } catch {
+    // keep going — we can still copy the projection below
+  }
+  if (isUsableSceneCamera(host, getSceneCamera(host))) return;
+
+  const mindProj = getMindArProjection(host);
+  const camera = getSceneCamera(host);
+  const video = getCameraPreview(host);
+  if (!mindProj || !camera?.updateProjectionMatrix || !video?.videoWidth || !video.videoHeight) {
+    return;
+  }
+  const fy = Number(mindProj[5]);
+  const m10 = Number(mindProj[10]);
+  const m14 = Number(mindProj[14]);
+  if (!isFiniteNumber(fy)) return;
+
+  const view = getProjectionRect(host);
+  const containerW = Math.max(host.clientWidth, view?.width ?? 0, 1);
+  const containerH = Math.max(host.clientHeight, view?.height ?? 0, 1);
+  const videoAspect = video.videoWidth / video.videoHeight;
+  const cssHeight = videoAspect > containerW / containerH ? containerH : containerW / videoAspect;
+  const fov = (2 * Math.atan((1 / fy / cssHeight) * containerH) * 180) / Math.PI;
+  if (!Number.isFinite(fov) || fov < 10 || fov > 150) return;
+
+  camera.fov = fov;
+  camera.aspect = containerW / containerH;
+  camera.near = m14 / (m10 - 1);
+  camera.far = m14 / (m10 + 1);
+  camera.updateProjectionMatrix();
+};
 
 const isUsableSceneCamera = (
   host: HTMLElement,
@@ -102,12 +154,14 @@ const isUsableSceneCamera = (
   if (!Number.isFinite(p0) || !Number.isFinite(p5) || Math.abs(p0) < 1e-4 || Math.abs(p5) < 1e-4) {
     return false;
   }
+  if (camera.fov != null && (camera.fov < 10 || camera.fov > 150)) return false;
   const video = getCameraPreview(host);
   if (!video || video.videoWidth < 2) return false;
-  const cssW = video.clientWidth || Number.parseFloat(video.style.width || '0');
+  const cssW =
+    video.getBoundingClientRect().width ||
+    video.clientWidth ||
+    Number.parseFloat(video.style.width || '0');
   if (!Number.isFinite(cssW) || cssW < 8) return false;
-  const hostAspect = host.clientWidth / Math.max(1, host.clientHeight);
-  if (camera.aspect && Math.abs(camera.aspect - hostAspect) > 0.35) return false;
   return true;
 };
 
@@ -234,8 +288,8 @@ export const installPoseCapture = (entity: HTMLElement): void => {
  * MindAR writes pose into object3D.matrix with matrixAutoUpdate = false,
  * then A-Frame may reset matrixWorld. Prefer the copy captured in updateWorldMatrix.
  */
-const getPoseMatrix = (entity: ProjectableEntity, camera: SceneCamera): number[] | null => {
-  camera.updateMatrixWorld?.(true);
+const getPoseMatrix = (entity: ProjectableEntity, camera?: SceneCamera | null): number[] | null => {
+  camera?.updateMatrixWorld?.(true);
 
   const captured = capturedPose.get(entity);
   if (captured && !isIdentityMatrix(captured)) {
@@ -272,25 +326,27 @@ const getPoseMatrix = (entity: ProjectableEntity, camera: SceneCamera): number[]
   return null;
 };
 
-const ndcToViewport = (ndcX: number, ndcY: number, viewRect: DOMRect): ScreenPoint => ({
+const ndcToViewport = (
+  ndcX: number,
+  ndcY: number,
+  viewRect: DOMRect,
+  flipY = true,
+): ScreenPoint => ({
   x: (ndcX * 0.5 + 0.5) * viewRect.width + viewRect.left,
-  y: (-ndcY * 0.5 + 0.5) * viewRect.height + viewRect.top,
+  y: ((flipY ? -ndcY : ndcY) * 0.5 + 0.5) * viewRect.height + viewRect.top,
 });
 
-const projectLocalPoint = (
-  pose: ArrayLike<number>,
-  camera: SceneCamera,
-  viewRect: DOMRect,
+const projectWithMvp = (
+  mvp: ArrayLike<number>,
   localX: number,
   localY: number,
+  destRect: DOMRect,
+  flipY: boolean,
 ): ScreenPoint | null => {
-  camera.updateMatrixWorld?.(true);
-  const world = applyMat4(pose, localX, localY, 0);
-  const view = applyMat4(camera.matrixWorldInverse.elements, world.x, world.y, world.z);
-  const clip = applyMat4(camera.projectionMatrix.elements, view.x, view.y, view.z);
+  const clip = applyMat4(mvp, localX, localY, 0);
   if (!Number.isFinite(clip.x) || !Number.isFinite(clip.y)) return null;
   if (Math.abs(clip.x) > 8 || Math.abs(clip.y) > 8) return null;
-  return ndcToViewport(clip.x, clip.y, viewRect);
+  return ndcToViewport(clip.x, clip.y, destRect, flipY);
 };
 
 const overlayLocalCorners = (aspectRatio: number, frame: OverlayFrame): Array<[number, number]> => {
@@ -314,12 +370,13 @@ const projectCorners = (
   locals: Array<[number, number]>,
 ): ScreenPoint[] | null => {
   const entity = targetEntity as ProjectableEntity;
+  if (!entity.object3D) return null;
+  syncMindArCameraToHost(host);
+
   const camera = getSceneCamera(host);
   const viewRect = getProjectionRect(host);
-  if (!entity.object3D || !viewRect || !isUsableSceneCamera(host, camera)) return null;
-
   const pose = getPoseMatrix(entity, camera);
-  if (!pose) return null;
+  if (!pose || !viewRect) return null;
 
   const collect = (
     projectOne: (x: number, y: number) => ScreenPoint | null,
@@ -333,22 +390,53 @@ const projectCorners = (
     return points;
   };
 
-  const fromCamera = collect((x, y) => projectLocalPoint(pose, camera, viewRect, x, y));
-  if (fromCamera) return fromCamera;
+  if (isUsableSceneCamera(host, camera)) {
+    const fromCamera = collect((x, y) => projectLocalPoint(pose, camera, viewRect, x, y));
+    if (fromCamera) return fromCamera;
 
-  const THREE = getThree();
-  if (!THREE || !entity.object3D.localToWorld) return null;
-  applyPoseToObject(entity, pose);
-  entity.object3D.updateMatrixWorld?.(true);
+    const THREE = getThree();
+    if (THREE && entity.object3D.localToWorld) {
+      applyPoseToObject(entity, pose);
+      entity.object3D.updateMatrixWorld?.(true);
+      const fromThree = collect((x, y) => {
+        const vector = new THREE.Vector3(x, y, 0);
+        entity.object3D?.localToWorld?.(vector);
+        vector.project(camera);
+        if (!Number.isFinite(vector.x) || !Number.isFinite(vector.y)) return null;
+        if (Math.abs(vector.x) > 8 || Math.abs(vector.y) > 8) return null;
+        return ndcToViewport(vector.x, vector.y, viewRect);
+      });
+      if (fromThree) return fromThree;
+    }
+  }
 
-  return collect((x, y) => {
-    const vector = new THREE.Vector3(x, y, 0);
-    entity.object3D?.localToWorld?.(vector);
-    vector.project(camera);
-    if (!Number.isFinite(vector.x) || !Number.isFinite(vector.y)) return null;
-    if (Math.abs(vector.x) > 8 || Math.abs(vector.y) > 8) return null;
-    return ndcToViewport(vector.x, vector.y, viewRect);
-  });
+  const mindProj = getMindArProjection(host);
+  if (!mindProj) return null;
+  const mvp = multiplyMat4(mindProj, pose);
+  const fromHost = collect((x, y) => projectWithMvp(mvp, x, y, viewRect, true));
+  if (fromHost) return fromHost;
+  const video = getCameraPreview(host);
+  const videoRect = video?.getBoundingClientRect();
+  if (videoRect && videoRect.width > 8 && videoRect.height > 8) {
+    return collect((x, y) => projectWithMvp(mvp, x, y, videoRect, true));
+  }
+  return null;
+};
+
+const projectLocalPoint = (
+  pose: ArrayLike<number>,
+  camera: SceneCamera,
+  viewRect: DOMRect,
+  localX: number,
+  localY: number,
+): ScreenPoint | null => {
+  camera.updateMatrixWorld?.(true);
+  const world = applyMat4(pose, localX, localY, 0);
+  const view = applyMat4(camera.matrixWorldInverse.elements, world.x, world.y, world.z);
+  const clip = applyMat4(camera.projectionMatrix.elements, view.x, view.y, view.z);
+  if (!Number.isFinite(clip.x) || !Number.isFinite(clip.y)) return null;
+  if (Math.abs(clip.x) > 8 || Math.abs(clip.y) > 8) return null;
+  return ndcToViewport(clip.x, clip.y, viewRect);
 };
 
 /**
