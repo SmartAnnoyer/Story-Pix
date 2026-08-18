@@ -8,7 +8,7 @@ import { ScanEventType } from '@/types/ar-target.types';
 import { detectDeviceInfo, getViewerSessionId, viewerService } from '@/services/viewer.service';
 import { BrandLogo } from '@/components/BrandLogo';
 import { ScanStatusOverlay } from './ScanStatusOverlay';
-import { ScanFocusFrame } from './ScanFocusFrame';
+import { ScanFocusFrame, type ScanFocusPhase } from './ScanFocusFrame';
 import { TargetFrameVideo, type VideoDisplayMode } from './TargetFrameVideo';
 import { ViewerControlBar } from './ViewerControlBar';
 import type { ViewerPhase } from './ViewerProgressBar';
@@ -53,9 +53,10 @@ type MindBundle = {
 };
 
 const AR_INIT_TIMEOUT_MS = 35_000;
-const SCAN_HINT_DELAY_MS = 12_000;
-const SCAN_NO_MATCH_DELAY_MS = 25_000;
-const TARGET_FOUND_CONFIRM_MS = 280;
+const SCAN_HINT_DELAY_MS = 18_000;
+const SCAN_NO_MATCH_DELAY_MS = 30_000;
+const TARGET_FOUND_CONFIRM_MS = 420;
+const TARGET_LOST_GRACE_MS = 1_200;
 
 const buildServerMindBundle = (albumSlug: string, manifest: ViewerManifest): MindBundle | null => {
   if (!manifest.mindFile) return null;
@@ -105,6 +106,8 @@ export const ARViewer = ({
   const videoModeRef = useRef<VideoDisplayMode>('frame');
   const listenersAttachedRef = useRef(false);
   const targetFoundTimersRef = useRef<Map<number, number>>(new Map());
+  const targetLostGraceRef = useRef<Map<number, number>>(new Map());
+  const prefetchedOnWarmRef = useRef(false);
   const [status, setStatus] = useState<ScanOverlayMessage>(
     hasPreparedMind ? 'loading' : 'preparing',
   );
@@ -119,6 +122,7 @@ export const ARViewer = ({
   const [progress, setProgress] = useState(hasPreparedMind ? 0.72 : 0.05);
   const [scanSeconds, setScanSeconds] = useState(0);
   const [matchPercent, setMatchPercent] = useState(0);
+  const [videoReveal, setVideoReveal] = useState(false);
   const matchPercentRef = useRef(0);
   const [facingMode, setFacingMode] = useState<CameraFacing>(initialFacingMode);
   const [flipping, setFlipping] = useState(false);
@@ -202,6 +206,16 @@ export const ARViewer = ({
     }
     return 'loading';
   }, [status]);
+
+  const scanFocusPhase: ScanFocusPhase = useMemo(() => {
+    if (status === 'match_found') return 'found';
+    if (status === 'scanning' || status === 'move_closer') {
+      if (matchPercent >= 82) return 'locking';
+      if (matchPercent >= 42) return 'warming';
+      return 'scanning';
+    }
+    return 'scanning';
+  }, [status, matchPercent]);
 
   const clearScanTimers = useCallback(() => {
     if (scanHintTimeoutRef.current) window.clearTimeout(scanHintTimeoutRef.current);
@@ -454,7 +468,6 @@ export const ARViewer = ({
           }
 
           activeMindIndexRef.current = mindIndex;
-          setActiveTarget(nextTarget);
           setActiveMindIndex(mindIndex);
           setTrackedEntity(targetEntities[mindIndex] ?? null);
           setTargetAspectRatio(
@@ -467,6 +480,14 @@ export const ARViewer = ({
           targetTrackedRef.current = true;
           setStatus('match_found');
           void recordEventRef.current(ScanEventType.SCAN_SUCCESS, nextTarget);
+          prefetchVideo(
+            viewerService.getMappingVideoUrl(albumSlug, nextTarget.id, nextTarget.videoMediaId),
+          );
+
+          window.setTimeout(() => {
+            if (!mounted) return;
+            setActiveTarget(nextTarget);
+          }, 520);
         };
 
         const attachTargetListeners = () => {
@@ -480,6 +501,11 @@ export const ARViewer = ({
 
             entity.addEventListener('targetFound', () => {
               installPoseCapture(entity);
+              const grace = targetLostGraceRef.current.get(mindIndex);
+              if (grace) {
+                window.clearTimeout(grace);
+                targetLostGraceRef.current.delete(mindIndex);
+              }
               viewerLog('info', 'targetFound event', {
                 target: photoTarget.targetName,
                 mindIndex,
@@ -519,28 +545,41 @@ export const ARViewer = ({
               if (pending) {
                 window.clearTimeout(pending);
                 targetFoundTimersRef.current.delete(mindIndex);
+                targetTrackedRef.current = false;
                 return;
               }
 
               if (!mounted) return;
-              if (activeMindIndexRef.current === mindIndex) {
-                targetTrackedRef.current = false;
-              }
 
-              viewerLog('info', 'targetLost — stopping video and resuming scan');
-              keepMindArCameraPlaying(host);
-              restartMindArTracking(host);
-              setActiveTarget((current) => (current?.targetIndex === mindIndex ? null : current));
-              if (activeMindIndexRef.current === mindIndex) {
-                activeMindIndexRef.current = null;
-                setActiveMindIndex(null);
-                setTrackedEntity(null);
-              }
-              setVideoMode('frame');
-              setStatus('scanning');
-              setStatusDetail('Point at any mapped photo in this album.');
-              setProgress(0.92);
-              startScanTimers();
+              const existingGrace = targetLostGraceRef.current.get(mindIndex);
+              if (existingGrace) return;
+
+              const grace = window.setTimeout(() => {
+                targetLostGraceRef.current.delete(mindIndex);
+                if (!mounted) return;
+
+                if (activeMindIndexRef.current === mindIndex) {
+                  targetTrackedRef.current = false;
+                }
+
+                viewerLog('info', 'targetLost — stopping video and resuming scan');
+                keepMindArCameraPlaying(host);
+                restartMindArTracking(host);
+                setActiveTarget((current) => (current?.targetIndex === mindIndex ? null : current));
+                if (activeMindIndexRef.current === mindIndex) {
+                  activeMindIndexRef.current = null;
+                  setActiveMindIndex(null);
+                  setTrackedEntity(null);
+                }
+                setVideoMode('frame');
+                setStatus('scanning');
+                setStatusDetail(null);
+                setProgress(0.92);
+                prefetchedOnWarmRef.current = false;
+                startScanTimers();
+              }, TARGET_LOST_GRACE_MS);
+
+              targetLostGraceRef.current.set(mindIndex, grace);
             });
           });
         };
@@ -680,6 +719,8 @@ export const ARViewer = ({
       listenersAttachedRef.current = false;
       targetFoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
       targetFoundTimersRef.current.clear();
+      targetLostGraceRef.current.forEach((timer) => window.clearTimeout(timer));
+      targetLostGraceRef.current.clear();
       clearScanTimers();
       cameraObserver?.disconnect();
       destroyMindArScene(host);
@@ -732,7 +773,7 @@ export const ARViewer = ({
         // While confirming a targetFound, nudge toward a locked read.
         const boosted =
           targetTrackedRef.current && (status === 'scanning' || status === 'move_closer')
-            ? Math.max(raw, 88)
+            ? Math.max(raw, 86)
             : raw;
         const next = Math.round(smoothMatchPercent(matchPercentRef.current, boosted));
         if (next !== matchPercentRef.current) {
@@ -746,6 +787,19 @@ export const ARViewer = ({
     frameId = window.requestAnimationFrame(tick);
     return () => window.cancelAnimationFrame(frameId);
   }, [status]);
+
+  // Prefetch mapped video while the user is close to a match so playback starts faster.
+  useEffect(() => {
+    if (
+      prefetchedOnWarmRef.current ||
+      matchPercent < 68 ||
+      (status !== 'scanning' && status !== 'move_closer')
+    ) {
+      return;
+    }
+    prefetchedOnWarmRef.current = true;
+    prefetchManifestVideos(albumSlug, targets);
+  }, [matchPercent, status, albumSlug, targets]);
 
   useEffect(() => {
     if (status !== 'scanning' && status !== 'move_closer' && status !== 'loading') {
@@ -821,7 +875,9 @@ export const ARViewer = ({
     setTrackedEntity(null);
     activeMindIndexRef.current = null;
     setVideoMode('frame');
+    setVideoReveal(false);
     targetTrackedRef.current = false;
+    prefetchedOnWarmRef.current = false;
   }, []);
 
   const cycleSiblingVideo = useCallback(
@@ -909,8 +965,9 @@ export const ARViewer = ({
         visible={
           videoMode !== 'fullscreen' &&
           !activeTarget &&
-          (status === 'scanning' || status === 'move_closer' || status === 'loading')
+          (status === 'scanning' || status === 'move_closer' || status === 'match_found')
         }
+        phase={scanFocusPhase}
         matchPercent={matchPercent}
       />
       <TargetFrameVideo
@@ -933,6 +990,7 @@ export const ARViewer = ({
             target: activeTarget?.targetName,
             mode: videoModeRef.current,
           });
+          setVideoReveal(true);
           setStatus('recognized');
           setStatusDetail(null);
           if (activeTarget) void recordEvent(ScanEventType.VIDEO_PLAY, activeTarget);
@@ -950,9 +1008,11 @@ export const ARViewer = ({
         onEnded={handleFullscreenEnded}
         onExitFullscreen={handleExitFullscreen}
         onClose={resumeScanningAfterVideo}
+        reveal={videoReveal}
       />
       <ScanStatusOverlay
         albumSlug={albumSlug}
+        albumName={manifest.album.albumName}
         status={status}
         detail={prepareError ?? statusDetail}
         targets={uniquePhotos}
@@ -965,7 +1025,6 @@ export const ARViewer = ({
         showFlip={showControls}
         showRetry={
           status === 'no_match' ||
-          status === 'match_found' ||
           status === 'move_closer' ||
           status === 'camera_required' ||
           status === 'video_unavailable'

@@ -60,6 +60,25 @@
   transform: translateX(-50%);
 }
 
+.ar-video-shell--tracked.ar-video-shell--revealed .ar-video-controls {
+  animation: ar-controls-enter 0.45s ease-out;
+}
+
+@keyframes ar-controls-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.ar-video-shell--loading .ar-video-controls {
+  opacity: 0.72;
+}
+
 .ar-video-nowplaying {
   pointer-events: none;
   margin: 0;

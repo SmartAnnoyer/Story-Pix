@@ -46,8 +46,8 @@ export const readMatchPercent = (host: HTMLElement | null): number => {
 };
 
 /** Smooth toward a target percent for a calmer on-screen readout. */
-export const smoothMatchPercent = (current: number, target: number, alpha = 0.28): number => {
-  if (target >= 95) return Math.max(current, target);
-  if (target === 0) return Math.max(0, current * 0.82);
+export const smoothMatchPercent = (current: number, target: number, alpha = 0.18): number => {
+  if (target >= 92) return Math.max(current, current + (target - current) * 0.45);
+  if (target === 0) return Math.max(0, current * 0.88);
   return current + (target - current) * alpha;
 };

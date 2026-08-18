@@ -1,80 +1,67 @@
+import type { CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import './ScanFocusFrame.css';
 
+export type ScanFocusPhase = 'scanning' | 'warming' | 'locking' | 'found';
+
 interface ScanFocusFrameProps {
   visible: boolean;
-  label?: string;
+  phase?: ScanFocusPhase;
+  /** 0–100, drives the ring progress (smoothed). */
   matchPercent?: number;
 }
 
+const phaseHint: Record<ScanFocusPhase, string> = {
+  scanning: 'Align your photo inside the frame',
+  warming: 'Hold steady — almost there',
+  locking: 'Photo found',
+  found: 'Memory unlocked',
+};
+
 export const ScanFocusFrame = ({
   visible,
-  label = 'Fill the frame with the photo',
+  phase = 'scanning',
   matchPercent = 0,
 }: ScanFocusFrameProps) => {
   if (!visible || typeof document === 'undefined') return null;
 
-  const percent = Math.min(100, Math.max(0, Math.round(matchPercent)));
-  const locked = percent >= 90;
-  const warming = percent >= 45 && percent < 90;
+  const progress = Math.min(100, Math.max(0, Math.round(matchPercent)));
 
   return createPortal(
-    <div
-      className="scan-focus-frame"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 10030,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        pointerEvents: 'none',
-      }}
-      aria-hidden
-    >
+    <div className="scan-focus-frame" aria-hidden>
+      <div className="scan-focus-frame__dim" />
       <div
-        className="scan-focus-frame__dim"
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'radial-gradient(ellipse at center, transparent 42%, rgba(0,0,0,0.18) 82%)',
-        }}
-      />
-      <div
-        className={`scan-focus-frame__box${locked ? ' scan-focus-frame__box--locked' : ''}${
-          warming ? ' scan-focus-frame__box--warming' : ''
-        }`}
-        style={{
-          position: 'relative',
-          width: 'min(78vw, 340px)',
-          aspectRatio: '3 / 4',
-          maxHeight: 'min(58vh, 460px)',
-          border: locked
-            ? '3px solid #FFC233'
-            : warming
-              ? '3px solid #FF4FA3'
-              : '3px solid rgba(255,255,255,0.92)',
-          borderRadius: 14,
-          boxShadow: '0 0 0 2px rgba(255,255,255,0.12)',
-          background: 'transparent',
-        }}
+        className={`scan-focus-frame__box scan-focus-frame__box--${phase}`}
+        style={{ '--scan-progress': `${progress}` } as CSSProperties}
       >
         <span className="scan-focus-frame__corner scan-focus-frame__corner--tl" />
         <span className="scan-focus-frame__corner scan-focus-frame__corner--tr" />
         <span className="scan-focus-frame__corner scan-focus-frame__corner--bl" />
         <span className="scan-focus-frame__corner scan-focus-frame__corner--br" />
 
-        <div className="scan-focus-frame__match">
-          <span className="scan-focus-frame__match-value">{percent}%</span>
-          <span className="scan-focus-frame__match-label">
-            {locked ? 'Match locked' : warming ? 'Almost there' : 'Matching'}
-          </span>
-          <div className="scan-focus-frame__match-bar">
-            <div className="scan-focus-frame__match-fill" style={{ width: `${percent}%` }} />
-          </div>
+        <div className="scan-focus-frame__ring" aria-hidden>
+          <svg className="scan-focus-frame__ring-svg" viewBox="0 0 100 100">
+            <circle className="scan-focus-frame__ring-track" cx="50" cy="50" r="46" />
+            <circle
+              className="scan-focus-frame__ring-fill"
+              cx="50"
+              cy="50"
+              r="46"
+              pathLength={100}
+              strokeDasharray={`${progress} 100`}
+            />
+          </svg>
         </div>
 
-        <p className="scan-focus-frame__label">{label}</p>
+        {phase === 'found' ? (
+          <div className="scan-focus-frame__success" aria-hidden>
+            <span className="scan-focus-frame__check">✓</span>
+          </div>
+        ) : (
+          <div className="scan-focus-frame__pulse" aria-hidden />
+        )}
+
+        <p className="scan-focus-frame__hint">{phaseHint[phase]}</p>
       </div>
     </div>,
     document.body,

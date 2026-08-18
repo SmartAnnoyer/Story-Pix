@@ -53,6 +53,8 @@ interface TargetFrameVideoProps {
   onEnded?: () => void;
   onExitFullscreen?: () => void;
   onClose?: () => void;
+  /** Fade in chrome once the clip is playing on the photo. */
+  reveal?: boolean;
 }
 
 const LOAD_TIMEOUT_MS = 25_000;
@@ -130,6 +132,7 @@ export const TargetFrameVideo = ({
   onError,
   onEnded,
   onClose,
+  reveal = false,
 }: TargetFrameVideoProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -700,7 +703,7 @@ export const TargetFrameVideo = ({
   return createPortal(
     <>
       <div
-        className={`ar-video-shell${showFullscreen ? ' ar-video-shell--fullscreen' : ' ar-video-shell--tracked'}`}
+        className={`ar-video-shell${showFullscreen ? ' ar-video-shell--fullscreen' : ' ar-video-shell--tracked'}${reveal ? ' ar-video-shell--revealed' : ''}${loading && active ? ' ar-video-shell--loading' : ''}`}
         style={{
           position: 'fixed',
           inset: 0,

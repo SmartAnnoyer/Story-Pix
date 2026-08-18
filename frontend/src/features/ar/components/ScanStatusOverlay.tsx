@@ -1,6 +1,7 @@
 import type { ScanOverlayMessage, ViewerManifestTarget } from '@/types/ar-target.types';
 import { MappingPreviewImage } from './MappingPreviewImage';
 import { ViewerProgressBar, type ViewerPhase } from './ViewerProgressBar';
+import './ScanStatusOverlay.css';
 
 interface ScanStatusOverlayProps {
   albumSlug?: string;
@@ -11,13 +12,13 @@ interface ScanStatusOverlayProps {
   phase?: ViewerPhase;
   scanSeconds?: number;
   matchPercent?: number;
+  albumName?: string;
 }
 
-const SCAN_FAILURE_REASONS = [
-  'Use the exact mapped photo (printed or on another screen) — not the video.',
-  'Fill the frame with the photo and hold steady for a few seconds.',
-  'Improve lighting; avoid glare on glossy passport/laminated prints.',
-  'Tap “Try again” or flip camera if the preview looks wrong.',
+const SCAN_TIPS = [
+  'Use the printed photo — not a video or screen glare.',
+  'Move closer and hold the phone steady for a second.',
+  'Bright, even light works best.',
 ];
 
 const statusToPhase = (status: ScanOverlayMessage): ViewerPhase => {
@@ -38,8 +39,9 @@ export const ScanStatusOverlay = ({
   targets = [],
   progress = 0,
   phase,
-  scanSeconds = 0,
-  matchPercent = 0,
+  scanSeconds: _scanSeconds = 0,
+  matchPercent: _matchPercent = 0,
+  albumName,
 }: ScanStatusOverlayProps) => {
   if (status === 'idle' || status === 'recognized') {
     return null;
@@ -47,76 +49,75 @@ export const ScanStatusOverlay = ({
 
   const viewerPhase = phase ?? statusToPhase(status);
 
-  const targetLabel =
-    targets.length === 1
-      ? targets[0].targetName
-      : targets.length > 1
-        ? `${targets.length} photos in this album`
-        : null;
+  // Active scan: one compact chip — focus frame carries the main guidance.
+  if (status === 'scanning' || status === 'move_closer') {
+    const chipText =
+      status === 'move_closer'
+        ? 'Move a little closer'
+        : targets.length === 1
+          ? `Scanning · ${targets[0].targetName}`
+          : albumName
+            ? `Scanning · ${albumName}`
+            : 'Scanning your photo';
+
+    return (
+      <div className="scan-status-overlay scan-status-overlay--compact">
+        <div className="scan-status-chip">
+          <span className="scan-status-chip__dot" aria-hidden />
+          <span>{chipText}</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === 'match_found') {
+    return (
+      <div className="scan-status-overlay scan-status-overlay--compact">
+        <div className="scan-status-chip">
+          <span className="scan-status-chip__dot scan-status-chip__dot--found" aria-hidden />
+          <span>Bringing your memory to life…</span>
+        </div>
+      </div>
+    );
+  }
 
   const message =
-    status === 'scanning'
-      ? targets.length > 1
-        ? `Aim at any mapped photo · ${targets.length} in this album`
-        : targetLabel
-          ? `Aim at: ${targetLabel}`
-          : 'Aim at your mapped photo'
-      : status === 'preparing'
-        ? 'Setting up your AR experience'
-        : status === 'loading'
-          ? 'Activating camera…'
-          : status === 'compile_failed'
-            ? 'Could not prepare AR'
-            : status === 'no_targets'
-              ? 'No published mappings'
-              : status === 'match_found'
-                ? 'Match found — starting video…'
-                : status === 'move_closer'
-                  ? 'Almost there — move a little closer'
-                  : status === 'no_match'
-                    ? "We couldn't recognize the photo"
-                    : status === 'video_unavailable'
-                      ? 'Video unavailable for this mapping'
-                      : status === 'camera_required'
-                        ? 'Camera access needed'
-                        : 'Working…';
+    status === 'preparing'
+      ? 'Setting up your experience'
+      : status === 'loading'
+        ? 'Starting camera…'
+        : status === 'compile_failed'
+          ? 'Could not prepare AR'
+          : status === 'no_targets'
+            ? 'No published mappings'
+            : status === 'no_match'
+              ? "We couldn't find your photo"
+              : status === 'video_unavailable'
+                ? 'Video unavailable'
+                : status === 'camera_required'
+                  ? 'Camera access needed'
+                  : 'Working…';
 
-  const showReasons = status === 'move_closer' || status === 'no_match';
-  const showTargetHints =
-    status === 'scanning' ||
-    status === 'move_closer' ||
-    status === 'loading' ||
-    status === 'no_match';
-  const showProgress =
-    status === 'preparing' ||
-    status === 'loading' ||
-    status === 'scanning' ||
-    status === 'move_closer' ||
-    status === 'match_found';
+  const showTips = status === 'no_match';
+  const showSetupProgress = status === 'preparing' || status === 'loading';
+  const showTargetHints = status === 'loading' && targets.length > 0 && albumSlug;
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center px-3 pt-3 sm:px-4 sm:pt-4">
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-black/80 px-4 py-4 text-white shadow-2xl backdrop-blur-md">
-        <p className="mb-0 text-center text-base font-semibold">{message}</p>
-
-        {phase === 'done' && status === 'match_found' ? (
-          <p className="mb-0 mt-1 text-center text-xs text-white/65">Playing in the frame…</p>
+    <div className="scan-status-overlay">
+      <div className="scan-status-card">
+        <p className="scan-status-card__title">{message}</p>
+        {detail &&
+        (status === 'compile_failed' || status === 'camera_required' || status === 'no_match') ? (
+          <p className="scan-status-card__sub">{detail}</p>
         ) : null}
 
-        {status === 'scanning' || status === 'move_closer' ? (
-          <p className="mb-0 mt-1 text-center text-xs text-white/65">
-            Fill the frame and hold steady — match {Math.round(matchPercent)}%. Video plays when
-            locked.
-          </p>
-        ) : null}
-
-        {showProgress ? (
+        {showSetupProgress ? (
           <div className="mt-4">
-            <ViewerProgressBar phase={viewerPhase} progress={progress} scanSeconds={scanSeconds} />
+            <ViewerProgressBar phase={viewerPhase} progress={progress} />
           </div>
         ) : null}
 
-        {showTargetHints && targets.length > 0 && albumSlug ? (
+        {showTargetHints ? (
           <div className="mt-4 flex flex-wrap justify-center gap-3">
             {targets.slice(0, 4).map((target) => (
               <div key={target.id} className="flex flex-col items-center gap-1">
@@ -129,28 +130,16 @@ export const ScanStatusOverlay = ({
           </div>
         ) : null}
 
-        {showReasons ? (
-          <ul className="mb-0 mt-4 space-y-1.5 text-left text-xs leading-relaxed text-white/75">
-            {SCAN_FAILURE_REASONS.map((reason) => (
-              <li key={reason} className="flex gap-2">
-                <span className="text-[#FF4FA3]">•</span>
-                <span>{reason}</span>
-              </li>
+        {showTips ? (
+          <ul className="scan-status-tips">
+            {SCAN_TIPS.map((tip) => (
+              <li key={tip}>{tip}</li>
             ))}
           </ul>
         ) : null}
 
-        {(status === 'compile_failed' || status === 'camera_required' || status === 'no_match') &&
-        detail ? (
-          <p className="mb-0 mt-3 rounded-lg bg-white/5 px-3 py-2 text-center text-xs text-amber-100/90">
-            {detail}
-          </p>
-        ) : null}
-
         {status === 'no_match' ? (
-          <p className="mb-0 mt-3 text-center text-xs text-white/60">
-            Tap <strong className="text-white/90">Try again</strong> below or flip the camera.
-          </p>
+          <p className="scan-status-card__sub">Tap Try again below or flip the camera.</p>
         ) : null}
       </div>
     </div>

@@ -16,10 +16,11 @@ interface ViewerProgressBarProps {
 export const ViewerProgressBar = ({
   phase,
   progress,
-  scanSeconds = 0,
+  scanSeconds: _scanSeconds = 0,
   statusLabel,
 }: ViewerProgressBarProps) => {
-  const activeIndex = phase === 'done' ? 3 : phase === 'error' ? -1 : PHASE_STEPS.findIndex((s) => s.key === phase);
+  const activeIndex =
+    phase === 'done' ? 3 : phase === 'error' ? -1 : PHASE_STEPS.findIndex((s) => s.key === phase);
   const percent = Math.min(100, Math.max(0, Math.round(progress * 100)));
 
   return (
@@ -28,9 +29,7 @@ export const ViewerProgressBar = ({
         {PHASE_STEPS.map((step, index) => (
           <span
             key={step.key}
-            className={
-              index <= activeIndex ? 'font-semibold text-[#FF4FA3]' : 'text-white/40'
-            }
+            className={index <= activeIndex ? 'font-semibold text-[#FF4FA3]' : 'text-white/40'}
           >
             {index + 1}. {step.label}
           </span>
@@ -45,10 +44,9 @@ export const ViewerProgressBar = ({
       </div>
 
       <p className="mb-0 mt-2 text-center text-xs text-white/75">
-        {phase === 'preparing' && `Building AR targets… ${percent}%`}
-        {phase === 'loading' && `Starting camera… ${percent}%`}
-        {phase === 'scanning' && `Looking for your photo… ${scanSeconds}s`}
-        {phase === 'done' && (statusLabel ?? 'Match found — loading video')}
+        {phase === 'preparing' && `Preparing… ${percent}%`}
+        {phase === 'loading' && `Opening camera… ${percent}%`}
+        {phase === 'done' && (statusLabel ?? 'Ready')}
         {phase === 'error' && 'Needs your attention'}
       </p>
     </div>
