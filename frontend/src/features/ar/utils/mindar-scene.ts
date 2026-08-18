@@ -166,12 +166,10 @@ export const ensureCameraPreviewVisible = (host: HTMLElement): HTMLVideoElement 
   video.style.zIndex = '1';
   host.classList.remove('ar-scene-host--crop-playing');
 
-  if (!video.style.width && video.videoWidth > 0) {
-    try {
-      getMindArSystem(host)?._resize?.();
-    } catch {
-      // cover CSS fills the host until MindAR writes inline sizes
-    }
+  try {
+    getMindArSystem(host)?._resize?.();
+  } catch {
+    // MindAR sizes the camera feed to cover the host
   }
 
   if (video.paused) {
@@ -199,22 +197,55 @@ export const keepMindArCameraPlaying = (host: HTMLElement): void => {
   if (video.paused) void video.play().catch(() => undefined);
 };
 
-/** After overlay playback ends, keep the live camera feeding MindAR so the photo can be found again. */
+/** Remove the hidden mapped-video decoder so iOS can resume the camera + tracker. */
+export const releaseMappedVideoDecoder = (host: HTMLElement): void => {
+  const mapped = host.querySelector('#sp-mapped-video') as HTMLVideoElement | null;
+  if (!mapped) return;
+  mapped.pause();
+  mapped.removeAttribute('src');
+  mapped.load();
+  mapped.removeAttribute('id');
+  if (mapped.parentElement === host) {
+    mapped.parentElement.removeChild(mapped);
+  }
+};
+
+/** After overlay playback ends, restart MindAR's video pipeline for the next scan. */
 export const restartMindArTracking = (host: HTMLElement): void => {
-  keepMindArCameraPlaying(host);
+  releaseMappedVideoDecoder(host);
   const system = getMindArSystem(host);
   const video = getCameraVideo(host);
   if (!system || !video) return;
+
+  try {
+    system.controller?.stopProcessVideo();
+  } catch {
+    // ignore
+  }
+
+  keepMindArCameraPlaying(host);
+
+  try {
+    system._resize?.();
+  } catch {
+    // ignore
+  }
+
   try {
     system.unpause();
   } catch {
-    // already running
+    // ignore
   }
-  try {
-    system.controller?.processVideo(video);
-  } catch {
-    // already processing
-  }
+
+  window.setTimeout(() => {
+    if (!host.isConnected || !video.isConnected) return;
+    keepMindArCameraPlaying(host);
+    try {
+      system.controller?.processVideo(video);
+    } catch {
+      // ignore
+    }
+  }, 120);
 };
 
 export const isCameraPreviewLive = (host: HTMLElement): boolean => {

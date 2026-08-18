@@ -41,7 +41,7 @@ export const ScanStatusOverlay = ({
   phase,
   scanSeconds: _scanSeconds = 0,
   matchPercent: _matchPercent = 0,
-  albumName,
+  albumName: _albumName,
 }: ScanStatusOverlayProps) => {
   if (status === 'idle' || status === 'recognized') {
     return null;
@@ -49,36 +49,9 @@ export const ScanStatusOverlay = ({
 
   const viewerPhase = phase ?? statusToPhase(status);
 
-  // Active scan: one compact chip — focus frame carries the main guidance.
-  if (status === 'scanning' || status === 'move_closer') {
-    const chipText =
-      status === 'move_closer'
-        ? 'Move a little closer'
-        : targets.length === 1
-          ? `Scanning · ${targets[0].targetName}`
-          : albumName
-            ? `Scanning · ${albumName}`
-            : 'Scanning your photo';
-
-    return (
-      <div className="scan-status-overlay scan-status-overlay--compact">
-        <div className="scan-status-chip">
-          <span className="scan-status-chip__dot" aria-hidden />
-          <span>{chipText}</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (status === 'match_found') {
-    return (
-      <div className="scan-status-overlay scan-status-overlay--compact">
-        <div className="scan-status-chip">
-          <span className="scan-status-chip__dot scan-status-chip__dot--found" aria-hidden />
-          <span>Bringing your memory to life…</span>
-        </div>
-      </div>
-    );
+  // Active scan: focus frame shows the MemoriesX-style hint pill.
+  if (status === 'scanning' || status === 'move_closer' || status === 'match_found') {
+    return null;
   }
 
   const message =

@@ -28,6 +28,7 @@ import {
   getMindArSystem,
   isCameraPreviewLive,
   keepMindArCameraPlaying,
+  releaseMappedVideoDecoder,
   restartMindArTracking,
   type CameraFacing,
 } from '../utils/mindar-scene';
@@ -36,6 +37,7 @@ import { prefetchManifestVideos, prefetchVideo } from '../utils/video-prefetch';
 import { getTargetAspectRatio, installPoseCapture } from '../utils/target-projection';
 import { mappingsForMindIndex, uniqueTrackingPhotos } from '../utils/manifest-photos';
 import { readMatchPercent, smoothMatchPercent } from '../utils/match-confidence';
+import { detachOverlayVideoPlane } from '../utils/overlay-plane';
 import { viewerLog } from '../utils/viewer-debug-log';
 import './ARViewer.css';
 
@@ -394,6 +396,8 @@ export const ARViewer = ({
     let mindBlobUrlToRevoke: string | null = null;
     listenersAttachedRef.current = false;
     scanningEnabledRef.current = false;
+    const foundTimers = targetFoundTimersRef.current;
+    const lostGraceTimers = targetLostGraceRef.current;
 
     const initScene = async () => {
       try {
@@ -563,8 +567,7 @@ export const ARViewer = ({
                 }
 
                 viewerLog('info', 'targetLost — stopping video and resuming scan');
-                keepMindArCameraPlaying(host);
-                restartMindArTracking(host);
+                detachOverlayVideoPlane(targetEntitiesRef.current[mindIndex] ?? null);
                 setActiveTarget((current) => (current?.targetIndex === mindIndex ? null : current));
                 if (activeMindIndexRef.current === mindIndex) {
                   activeMindIndexRef.current = null;
@@ -575,8 +578,16 @@ export const ARViewer = ({
                 setStatus('scanning');
                 setStatusDetail(null);
                 setProgress(0.92);
+                matchPercentRef.current = 0;
+                setMatchPercent(0);
                 prefetchedOnWarmRef.current = false;
                 startScanTimers();
+                window.setTimeout(() => {
+                  if (!mounted) return;
+                  releaseMappedVideoDecoder(host);
+                  keepMindArCameraPlaying(host);
+                  restartMindArTracking(host);
+                }, 80);
               }, TARGET_LOST_GRACE_MS);
 
               targetLostGraceRef.current.set(mindIndex, grace);
@@ -717,10 +728,10 @@ export const ARViewer = ({
       mounted = false;
       scanningEnabledRef.current = false;
       listenersAttachedRef.current = false;
-      targetFoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
-      targetFoundTimersRef.current.clear();
-      targetLostGraceRef.current.forEach((timer) => window.clearTimeout(timer));
-      targetLostGraceRef.current.clear();
+      foundTimers.forEach((timer) => window.clearTimeout(timer));
+      foundTimers.clear();
+      lostGraceTimers.forEach((timer) => window.clearTimeout(timer));
+      lostGraceTimers.clear();
       clearScanTimers();
       cameraObserver?.disconnect();
       destroyMindArScene(host);
@@ -740,6 +751,7 @@ export const ARViewer = ({
     facingMode,
     clearScanTimers,
     startScanTimers,
+    manifest.mindFile?.targetDimensions,
   ]);
 
   useEffect(() => {
@@ -968,7 +980,6 @@ export const ARViewer = ({
           (status === 'scanning' || status === 'move_closer' || status === 'match_found')
         }
         phase={scanFocusPhase}
-        matchPercent={matchPercent}
       />
       <TargetFrameVideo
         host={sceneHost}
