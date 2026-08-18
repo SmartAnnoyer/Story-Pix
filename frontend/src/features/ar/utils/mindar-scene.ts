@@ -1,5 +1,4 @@
 import { installPoseCapture } from './target-projection';
-import { attachCameraFeedPlane } from './overlay-plane';
 
 export type CameraFacing = 'environment' | 'user';
 
@@ -128,6 +127,7 @@ export const ensureTransparentRenderer = (host: HTMLElement): void => {
   if (!scene) return;
 
   scene.removeAttribute('background');
+  scene.setAttribute('background', 'transparent: true');
   if (scene.object3D) scene.object3D.background = null;
   scene.renderer?.setClearColor(0x000000, 0);
   scene.renderer?.setClearAlpha?.(0);
@@ -147,9 +147,9 @@ export const ensureTransparentRenderer = (host: HTMLElement): void => {
     if (live?.object3D) live.object3D.background = null;
     live?.renderer?.setClearColor(0x000000, 0);
     live?.renderer?.setClearAlpha?.(0);
-    window.requestAnimationFrame(keepTransparent);
+    window.setTimeout(keepTransparent, 250);
   };
-  window.requestAnimationFrame(keepTransparent);
+  window.setTimeout(keepTransparent, 250);
 };
 
 /**
@@ -168,9 +168,9 @@ export const coverMindArCameraVideo = (host: HTMLElement): void => {
   video.removeAttribute('width');
   video.removeAttribute('height');
   video.style.position = 'absolute';
-  video.style.zIndex = '1';
-  video.style.opacity = '1';
-  video.style.visibility = 'visible';
+  video.style.setProperty('z-index', '1', 'important');
+  video.style.setProperty('opacity', '1', 'important');
+  video.style.setProperty('visibility', 'visible', 'important');
   video.style.display = 'block';
   video.style.pointerEvents = 'none';
   video.style.maxWidth = 'none';
@@ -214,30 +214,29 @@ const tryMindArResize = (host: HTMLElement): void => {
     // a-camera may not exist yet — cover layout still fills the screen
   }
   coverMindArCameraVideo(host);
-  const video = getCameraVideo(host);
-  const cameraEl = host.querySelector('a-camera') as HTMLElement | null;
-  if (video && cameraEl) {
-    attachCameraFeedPlane(cameraEl, video, host.clientWidth, host.clientHeight);
-  }
 };
 
 const watchCoverLayout = (host: HTMLElement): void => {
   if (host.dataset.spCoverWatch === '1') return;
   host.dataset.spCoverWatch = '1';
 
+  let timer = 0;
   const apply = () => {
     if (!host.isConnected) return;
-    coverMindArCameraVideo(host);
     tryMindArResize(host);
+  };
+  const schedule = () => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(apply, 80);
   };
 
   const video = getCameraVideo(host);
   video?.addEventListener('loadedmetadata', apply);
-  video?.addEventListener('resize', apply);
-  window.addEventListener('resize', apply);
-  window.addEventListener('orientationchange', apply);
+  video?.addEventListener('resize', schedule);
+  window.addEventListener('resize', schedule);
+  window.addEventListener('orientationchange', schedule);
 
-  const observer = new ResizeObserver(apply);
+  const observer = new ResizeObserver(schedule);
   observer.observe(host);
 };
 
@@ -277,6 +276,8 @@ export const keepMindArCameraPlaying = (host: HTMLElement): void => {
   if (!video) return;
   video.muted = true;
   video.playsInline = true;
+  video.style.setProperty('z-index', '1', 'important');
+  video.style.setProperty('opacity', '1', 'important');
   if (video.style.width === '100%' || !video.style.width) {
     coverMindArCameraVideo(host);
   }

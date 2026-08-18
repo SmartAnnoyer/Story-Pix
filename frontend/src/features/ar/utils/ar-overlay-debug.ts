@@ -87,7 +87,9 @@ export const dumpArOverlayDebug = (input: {
       ? {
           opacity: cameraCss.opacity,
           z: cameraCss.zIndex,
-          w: cameraVideo?.videoWidth ?? 0,
+          w: Math.round(cameraVideo?.getBoundingClientRect().width ?? 0),
+          h: Math.round(cameraVideo?.getBoundingClientRect().height ?? 0),
+          vw: cameraVideo?.videoWidth ?? 0,
         }
       : null,
     glAlpha: gl?.getContextAttributes?.()?.alpha ?? null,
