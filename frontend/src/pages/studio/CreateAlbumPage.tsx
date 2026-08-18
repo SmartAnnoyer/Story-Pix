@@ -14,20 +14,16 @@ export const CreateAlbumPage = () => {
 
   const handleSubmit = async (values: CreateAlbumPayload) => {
     try {
-      const album = await createMutation.mutateAsync({
-        ...values,
-        customerPhone: values.customerPhone || undefined,
-        customerEmail: values.customerEmail || undefined,
-        coverImage: values.coverImage || undefined,
-        description: values.description || undefined,
-      });
+      const album = await createMutation.mutateAsync(values);
       if (!album?.id) {
-        message.warning('Album created, but the response was missing an id. Open it from the albums list.');
+        message.warning(
+          'Album created, but the response was missing an id. Open it from the albums list.',
+        );
         navigate(ROUTES.ALBUMS);
         return;
       }
-      message.success('Album created');
-      navigate(ROUTES.ALBUM_DETAILS.replace(':id', album.id));
+      message.success('Album created. Now add the printed photo and the video.');
+      navigate(ROUTES.ALBUM_MEDIA.replace(':id', album.id));
     } catch (error) {
       message.error(getErrorMessage(error, 'Unable to create album'));
     }
@@ -36,10 +32,10 @@ export const CreateAlbumPage = () => {
   return (
     <div>
       <Title level={3} className="!mb-1">
-        Create Album
+        New album
       </Title>
       <Paragraph type="secondary" className="!mb-6">
-        Add a new event album. Media uploads and WebAR linking will be available in a later phase.
+        Name the event and the client. Next you will add a photo and a video.
       </Paragraph>
       <Card>
         <AlbumForm mode="create" onSubmit={handleSubmit} isSubmitting={createMutation.isPending} />

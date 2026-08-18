@@ -23,22 +23,28 @@ export const PhotoGallery = ({ items, loading, onDelete }: PhotoGalleryProps) =>
   }, [items, search]);
 
   if (!loading && !filtered.length) {
-    return <Empty description="No photos uploaded yet" />;
+    return <Empty description="No photos yet" />;
   }
 
   return (
     <div>
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Input
-          prefix={<SearchOutlined />}
-          placeholder="Search photos"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          allowClear
-          className="max-w-sm"
-        />
-        <Segmented options={['Grid', 'List']} value={view === 'grid' ? 'Grid' : 'List'} onChange={(v) => setView(v === 'Grid' ? 'grid' : 'list')} />
-      </div>
+      {items.length > 8 ? (
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <Input
+            prefix={<SearchOutlined />}
+            placeholder="Search photos"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            allowClear
+            className="max-w-sm"
+          />
+          <Segmented
+            options={['Grid', 'List']}
+            value={view === 'grid' ? 'Grid' : 'List'}
+            onChange={(v) => setView(v === 'Grid' ? 'grid' : 'list')}
+          />
+        </div>
+      ) : null}
 
       {view === 'grid' ? (
         <Row gutter={[16, 16]}>

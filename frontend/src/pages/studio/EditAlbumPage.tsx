@@ -1,5 +1,6 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { Card, Typography, message } from 'antd';
+import { Button, Card, Typography, message } from 'antd';
+import { ArrowLeftOutlined } from '@ant-design/icons';
 import { AlbumForm } from '@/features/albums/components/AlbumForm';
 import { useAlbumQuery, useUpdateAlbumMutation } from '@/hooks/useAlbumQueries';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -7,7 +8,7 @@ import { getErrorMessage } from '@/api/client';
 import { ROUTES } from '@/routes/paths';
 import type { UpdateAlbumPayload } from '@/types/album.types';
 
-const { Title } = Typography;
+const { Title, Paragraph } = Typography;
 
 export const EditAlbumPage = () => {
   const { id = '' } = useParams();
@@ -29,21 +30,26 @@ export const EditAlbumPage = () => {
 
   return (
     <div>
-      <Title level={3} className="!mb-6">
-        Edit Album
+      <Button
+        type="link"
+        icon={<ArrowLeftOutlined />}
+        className="!px-0"
+        onClick={() => navigate(ROUTES.ALBUM_DETAILS.replace(':id', id))}
+      >
+        Back to album
+      </Button>
+      <Title level={3} className="!mb-2">
+        Edit album
       </Title>
+      <Paragraph type="secondary" className="!mb-6">
+        Change the album or client name. Photos and videos stay as they are.
+      </Paragraph>
       <Card>
         <AlbumForm
           mode="edit"
           initialValues={{
             albumName: album.albumName,
-            eventType: album.eventType,
             customerName: album.customerName,
-            customerPhone: album.customerPhone ?? '',
-            customerEmail: album.customerEmail ?? '',
-            eventDate: album.eventDate.split('T')[0],
-            coverImage: album.coverImage ?? '',
-            description: album.description ?? '',
           }}
           onSubmit={handleSubmit}
           isSubmitting={updateMutation.isPending}

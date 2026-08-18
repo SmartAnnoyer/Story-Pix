@@ -1,0 +1,75 @@
+.album-guide {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+@media (min-width: 768px) {
+  .album-guide {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+}
+
+.album-guide__step {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(26, 26, 26, 0.08);
+  border-radius: 14px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.album-guide__step--current {
+  border-color: #1677ff;
+  background: #f0f7ff;
+}
+
+.album-guide__step--done {
+  border-color: #b7eb8f;
+  background: #f6ffed;
+}
+
+.album-guide__n {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: #ececf0;
+  color: #5c5c66;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.album-guide__step--current .album-guide__n {
+  background: #1677ff;
+  color: #fff;
+}
+
+.album-guide__step--done .album-guide__n {
+  background: #52c41a;
+  color: #fff;
+}
+
+.album-guide__label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 650;
+  color: #1a1a1a;
+}
+
+.album-guide__hint {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: #5c5c66;
+}

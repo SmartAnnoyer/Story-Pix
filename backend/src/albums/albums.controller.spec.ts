@@ -5,7 +5,6 @@ import { AlbumsService } from './albums.service';
 import { MediaService } from '../media/media.service';
 import { ArTargetsService } from '../ar-targets/ar-targets.service';
 import { SubscriptionLimitGuard } from '../guards/subscription-limit.guard';
-import { EventType } from '../common/enums';
 
 describe('AlbumsController', () => {
   let controller: AlbumsController;
@@ -59,9 +58,9 @@ describe('AlbumsController', () => {
   });
 
   it('should reject studio context missing', () => {
-    expect(() =>
-      controller.findAll({ ...mockUser, studioId: undefined } as never, {}),
-    ).toThrow(ForbiddenException);
+    expect(() => controller.findAll({ ...mockUser, studioId: undefined } as never, {})).toThrow(
+      ForbiddenException,
+    );
   });
 
   it('should create album', async () => {
@@ -69,9 +68,7 @@ describe('AlbumsController', () => {
 
     await controller.create(mockUser as never, {
       albumName: 'Test',
-      eventType: EventType.WEDDING,
       customerName: 'Jane',
-      eventDate: '2026-06-01',
     });
 
     expect(albumsService.create).toHaveBeenCalledWith(

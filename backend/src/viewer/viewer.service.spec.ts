@@ -85,7 +85,6 @@ describe('ViewerService', () => {
       albumName: 'Wedding',
       slug: 'wedding-slug',
       coverImage: null,
-      description: null,
     });
     albumModel.findOne.mockReturnValue({
       exec: jest.fn().mockResolvedValue({ _id: 'album1', studioId: 'studio1' }),

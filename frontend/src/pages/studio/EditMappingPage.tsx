@@ -11,6 +11,7 @@ import { ArTargetStatus } from '@/types/ar-target.types';
 import { MediaStatus } from '@/types/media.types';
 import { ROUTES } from '@/routes/paths';
 import { getErrorMessage } from '@/api/client';
+import { AlbumDeliveryGuide } from '@/features/albums/components/AlbumDeliveryGuide';
 
 const { Title } = Typography;
 
@@ -36,7 +37,7 @@ export const EditMappingPage = () => {
       <Card>
         <Title level={4}>This mapping cannot be edited</Title>
         <Button onClick={() => navigate(ROUTES.ALBUM_AR_MAPPINGS.replace(':id', id))}>
-          Back to mappings
+          Back to map to video
         </Button>
       </Card>
     );
@@ -65,11 +66,12 @@ export const EditMappingPage = () => {
         className="!mb-4 !px-0"
         onClick={() => navigate(ROUTES.ALBUM_AR_MAPPINGS.replace(':id', id))}
       >
-        Back to mappings
+        Back to map to video
       </Button>
-      <Title level={3} className="!mb-4">
-        Edit AR Mapping
+      <Title level={3} className="!mb-1">
+        Edit mapping
       </Title>
+      <AlbumDeliveryGuide albumId={id} current="map" />
       <Card className="max-w-xl">
         <MappingForm
           photos={readyMedia}
@@ -81,7 +83,7 @@ export const EditMappingPage = () => {
             overlayFrame: mapping.overlayFrame ?? undefined,
           }}
           loading={updateMutation.isPending}
-          submitLabel="Save Changes"
+          submitLabel="Save"
           onSubmit={handleSubmit}
           onCancel={() => navigate(ROUTES.ALBUM_AR_MAPPINGS.replace(':id', id))}
         />

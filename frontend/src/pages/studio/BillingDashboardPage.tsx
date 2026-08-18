@@ -18,8 +18,6 @@ import type { Plan } from '@/types/subscription.types';
 import { loadRazorpayScript } from '@/utils/razorpay';
 import { billingService } from '@/services/billing.service';
 import { getErrorMessage } from '@/api/client';
-import { Link } from 'react-router-dom';
-import { ROUTES } from '@/routes/paths';
 
 const { Title, Paragraph } = Typography;
 
@@ -29,7 +27,10 @@ export const BillingDashboardPage = () => {
 
   const { data: summary, isLoading } = useBillingSubscriptionQuery();
   const { data: upgrades } = useUpgradeOptionsQuery();
-  const { data: payments, isLoading: paymentsLoading } = usePaymentHistoryQuery({ page: 1, limit: 10 });
+  const { data: payments, isLoading: paymentsLoading } = usePaymentHistoryQuery({
+    page: 1,
+    limit: 10,
+  });
   const { data: invoices, isLoading: invoicesLoading } = useInvoicesQuery({ page: 1, limit: 10 });
 
   const createOrderMutation = useCreateOrderMutation();
@@ -109,10 +110,10 @@ export const BillingDashboardPage = () => {
   return (
     <div>
       <Title level={3} className="!mb-1">
-        Billing Dashboard
+        Your plan
       </Title>
       <Paragraph type="secondary" className="!mb-6">
-        Manage your subscription, payments, and invoices.
+        See what you are using, pay, or change plan.
       </Paragraph>
 
       <Tabs
@@ -126,17 +127,14 @@ export const BillingDashboardPage = () => {
               <>
                 <Card className="mb-6">
                   <SubscriptionSummary summary={summary} />
-                  <div className="mt-6 flex flex-wrap gap-3">
+                  <div className="mt-6">
                     <Button danger onClick={handleCancel} loading={cancelMutation.isPending}>
-                      Cancel Subscription
+                      Cancel plan
                     </Button>
-                    <Link to={ROUTES.STUDIO_PLAN}>
-                      <Button>View Usage Details</Button>
-                    </Link>
                   </div>
                 </Card>
 
-                <Title level={4}>Upgrade Plan</Title>
+                <Title level={4}>Change plan</Title>
                 <div className="mb-4">
                   <Radio.Group
                     value={billingCycle}
@@ -169,13 +167,8 @@ export const BillingDashboardPage = () => {
           },
           {
             key: 'payments',
-            label: 'Payment History',
-            children: (
-              <BillingTable
-                payments={payments?.items ?? []}
-                loading={paymentsLoading}
-              />
-            ),
+            label: 'Payments',
+            children: <BillingTable payments={payments?.items ?? []} loading={paymentsLoading} />,
           },
           {
             key: 'invoices',

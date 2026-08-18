@@ -5,7 +5,6 @@ import {
   AppstoreOutlined,
   BarChartOutlined,
   BellOutlined,
-  CreditCardOutlined,
   CrownOutlined,
   DashboardOutlined,
   DollarOutlined,
@@ -74,12 +73,6 @@ export const DashboardLayout = () => {
         : [
             { key: 'home', label: 'Home', icon: <DashboardOutlined />, path: ROUTES.DASHBOARD },
             { key: 'albums', label: 'Albums', icon: <PictureOutlined />, path: ROUTES.ALBUMS },
-            {
-              key: 'analytics',
-              label: 'Analytics',
-              icon: <BarChartOutlined />,
-              path: ROUTES.STUDIO_ANALYTICS,
-            },
           ],
     [isSuperAdmin],
   );
@@ -123,27 +116,15 @@ export const DashboardLayout = () => {
         : [
             {
               key: 'profile',
-              label: 'Studio profile',
+              label: 'Studio',
               icon: <ShopOutlined />,
               path: ROUTES.STUDIO_PROFILE,
             },
             {
-              key: 'billing',
-              label: 'Billing',
-              icon: <CreditCardOutlined />,
-              path: ROUTES.STUDIO_BILLING,
-            },
-            {
               key: 'plan',
-              label: 'Plan & usage',
+              label: 'Plan',
               icon: <CrownOutlined />,
-              path: ROUTES.STUDIO_PLAN,
-            },
-            {
-              key: 'notifications',
-              label: 'Notifications',
-              icon: <BellOutlined />,
-              path: ROUTES.NOTIFICATIONS,
+              path: ROUTES.STUDIO_BILLING,
             },
             {
               key: 'password',

@@ -49,6 +49,21 @@
   animation: scan-hint-pulse 1.6s ease-in-out infinite;
 }
 
+.scan-focus-frame__coach {
+  position: absolute;
+  top: auto;
+  bottom: max(24px, calc(env(safe-area-inset-bottom) + 12px));
+  left: 50%;
+  z-index: 2;
+  transform: translateX(-50%);
+  padding: 0.45rem 0.55rem 0.35rem;
+  border-radius: 16px;
+  background: rgba(12, 12, 18, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
 .scan-focus-frame__box--found + .scan-focus-frame__hint-pill,
 .scan-focus-frame__box--found ~ .scan-focus-frame__hint-pill {
   border-color: rgba(255, 194, 51, 0.35);
@@ -179,4 +194,11 @@
   font-weight: 700;
   color: #ffc233;
   line-height: 1;
+}
+
+@media (max-height: 640px) {
+  .scan-focus-frame__coach {
+    transform: translateX(-50%) scale(0.86);
+    transform-origin: bottom center;
+  }
 }

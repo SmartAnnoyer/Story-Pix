@@ -1,7 +1,5 @@
 import { Type } from 'class-transformer';
 import {
-  IsDateString,
-  IsEmail,
   IsEnum,
   IsInt,
   IsNotEmpty,
@@ -11,16 +9,13 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { AlbumStatus, EventType } from '../../common/enums';
+import { AlbumStatus } from '../../common/enums';
 
 export class CreateAlbumDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(200)
   albumName!: string;
-
-  @IsEnum(EventType)
-  eventType!: EventType;
 
   @IsString()
   @IsNotEmpty()
@@ -29,24 +24,7 @@ export class CreateAlbumDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(20)
-  customerPhone?: string;
-
-  @IsOptional()
-  @IsEmail()
-  customerEmail?: string;
-
-  @IsDateString()
-  eventDate!: string;
-
-  @IsOptional()
-  @IsString()
   coverImage?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(2000)
-  description?: string;
 }
 
 export class UpdateAlbumDto {
@@ -57,10 +35,6 @@ export class UpdateAlbumDto {
   albumName?: string;
 
   @IsOptional()
-  @IsEnum(EventType)
-  eventType?: EventType;
-
-  @IsOptional()
   @IsString()
   @IsNotEmpty()
   @MaxLength(200)
@@ -68,30 +42,11 @@ export class UpdateAlbumDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(20)
-  customerPhone?: string;
-
-  @IsOptional()
-  @IsEmail()
-  customerEmail?: string;
-
-  @IsOptional()
-  @IsDateString()
-  eventDate?: string;
-
-  @IsOptional()
-  @IsString()
   coverImage?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(2000)
-  description?: string;
 }
 
 export enum AlbumSortField {
   CREATED_AT = 'createdAt',
-  EVENT_DATE = 'eventDate',
   ALBUM_NAME = 'albumName',
 }
 
@@ -121,18 +76,6 @@ export class QueryAlbumsDto {
   @IsOptional()
   @IsEnum(AlbumStatus)
   status?: AlbumStatus;
-
-  @IsOptional()
-  @IsEnum(EventType)
-  eventType?: EventType;
-
-  @IsOptional()
-  @IsDateString()
-  dateFrom?: string;
-
-  @IsOptional()
-  @IsDateString()
-  dateTo?: string;
 
   @IsOptional()
   @IsEnum(AlbumSortField)

@@ -9,7 +9,7 @@ import { UsageService } from '../subscriptions/usage.service';
 import { AnalyticsIngestionService } from '../analytics/analytics-ingestion.service';
 import { EventBusService } from '../notifications/services/event-bus.service';
 import { MindArCompilerService } from '../mind-ar/mind-ar-compiler.service';
-import { AlbumStatus, EventType } from '../common/enums';
+import { AlbumStatus } from '../common/enums';
 
 const STUDIO_ID = '507f1f77bcf86cd799439011';
 const USER_ID = '507f1f77bcf86cd799439012';
@@ -24,13 +24,7 @@ describe('AlbumsService', () => {
     albumCode: 'ALB-ABC123',
     albumName: 'Wedding Album',
     slug: 'wedding-album-abc123',
-    eventType: EventType.WEDDING,
     customerName: 'John Doe',
-    customerPhone: null,
-    customerEmail: null,
-    eventDate: new Date('2026-06-01'),
-    coverImage: null,
-    description: null,
     status: AlbumStatus.DRAFT,
     isPublished: false,
     publishedAt: null,
@@ -97,9 +91,7 @@ describe('AlbumsService', () => {
 
     const result = await service.create(STUDIO_ID, USER_ID, {
       albumName: 'Wedding Album',
-      eventType: EventType.WEDDING,
       customerName: 'John Doe',
-      eventDate: '2026-06-01',
     });
 
     expect(albumModel.create).toHaveBeenCalled();

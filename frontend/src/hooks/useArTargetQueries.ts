@@ -1,6 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { arTargetService } from '@/services/ar-target.service';
-import type { ArTargetQueryParams, CreateArTargetPayload, UpdateArTargetPayload } from '@/types/ar-target.types';
+import { albumKeys } from '@/hooks/useAlbumQueries';
+import type {
+  ArTargetQueryParams,
+  CreateArTargetPayload,
+  UpdateArTargetPayload,
+} from '@/types/ar-target.types';
 
 export const arTargetKeys = {
   all: ['ar-targets'] as const,
@@ -53,7 +58,10 @@ export const usePublishArTargetMutation = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => arTargetService.publishArTarget(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: arTargetKeys.all }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: arTargetKeys.all });
+      void qc.invalidateQueries({ queryKey: albumKeys.all });
+    },
   });
 };
 

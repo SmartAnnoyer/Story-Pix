@@ -9,7 +9,13 @@ import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
 import { FilterQuery, Model, Types, SortOrder as MongoSortOrder } from 'mongoose';
 import { PaginatedResult } from '../common/dto/pagination.dto';
-import { AlbumStatus, AnalyticsEventType, ArTargetStatus, DomainEventType } from '../common/enums';
+import {
+  AlbumStatus,
+  AnalyticsEventType,
+  ArTargetStatus,
+  DomainEventType,
+  EventType,
+} from '../common/enums';
 import { AnalyticsIngestionService } from '../analytics/analytics-ingestion.service';
 import { EventBusService } from '../notifications/services/event-bus.service';
 import { MindArCompilerService } from '../mind-ar/mind-ar-compiler.service';
@@ -87,13 +93,13 @@ export class AlbumsService {
       albumCode,
       albumName: dto.albumName.trim(),
       slug,
-      eventType: dto.eventType,
+      eventType: EventType.CUSTOM,
       customerName: dto.customerName.trim(),
-      customerPhone: dto.customerPhone ?? null,
-      customerEmail: dto.customerEmail?.toLowerCase() ?? null,
-      eventDate: new Date(dto.eventDate),
+      customerPhone: null,
+      customerEmail: null,
+      eventDate: new Date(),
       coverImage: dto.coverImage ?? null,
-      description: dto.description ?? null,
+      description: null,
       status: AlbumStatus.DRAFT,
       isPublished: false,
       publishedAt: null,
@@ -123,14 +129,8 @@ export class AlbumsService {
       album.albumName = dto.albumName.trim();
     }
 
-    if (dto.eventType !== undefined) album.eventType = dto.eventType;
     if (dto.customerName !== undefined) album.customerName = dto.customerName.trim();
-    if (dto.customerPhone !== undefined) album.customerPhone = dto.customerPhone ?? null;
-    if (dto.customerEmail !== undefined)
-      album.customerEmail = dto.customerEmail?.toLowerCase() ?? null;
-    if (dto.eventDate !== undefined) album.eventDate = new Date(dto.eventDate);
     if (dto.coverImage !== undefined) album.coverImage = dto.coverImage ?? null;
-    if (dto.description !== undefined) album.description = dto.description ?? null;
 
     await album.save();
     return this.serialize(album);
@@ -270,22 +270,11 @@ export class AlbumsService {
       filter.status = query.status;
     }
 
-    if (query.eventType) {
-      filter.eventType = query.eventType;
-    }
-
-    if (query.dateFrom || query.dateTo) {
-      filter.eventDate = {};
-      if (query.dateFrom) filter.eventDate.$gte = new Date(query.dateFrom);
-      if (query.dateTo) filter.eventDate.$lte = new Date(query.dateTo);
-    }
-
     if (query.search?.trim()) {
       const search = query.search.trim();
       filter.$or = [
         { albumName: { $regex: search, $options: 'i' } },
         { customerName: { $regex: search, $options: 'i' } },
-        { eventType: { $regex: search, $options: 'i' } },
       ];
     }
 
@@ -369,13 +358,8 @@ export class AlbumsService {
       albumName: album.albumName,
       slug: album.slug,
       publicViewerUrl: this.getPublicViewerUrl(album.slug),
-      eventType: album.eventType,
       customerName: album.customerName,
-      customerPhone: album.customerPhone ?? null,
-      customerEmail: album.customerEmail ?? null,
-      eventDate: album.eventDate,
       coverImage: album.coverImage ?? null,
-      description: album.description ?? null,
       status: album.status,
       isPublished: album.isPublished,
       publishedAt: album.publishedAt ?? null,
@@ -406,10 +390,7 @@ export class AlbumsService {
       albumName: album.albumName,
       slug: album.slug,
       publicViewerUrl: this.getPublicViewerUrl(album.slug),
-      eventType: album.eventType,
-      eventDate: album.eventDate,
       coverImage: album.coverImage ?? null,
-      description: album.description ?? null,
       publishedAt: album.publishedAt ?? null,
     };
   }

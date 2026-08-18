@@ -1,15 +1,14 @@
 import { useMemo, useState } from 'react';
-import { Button, DatePicker, Input, Select, Tabs, Typography, message } from 'antd';
+import { Button, Input, Select, Tabs, Typography, message } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { AlbumTable } from '@/features/albums/components/AlbumTable';
 import { useAlbumActionMutation, useAlbumsQuery } from '@/hooks/useAlbumQueries';
-import { AlbumStatus, EVENT_TYPE_LABELS, EventType } from '@/types/album.types';
+import { AlbumStatus } from '@/types/album.types';
 import { ROUTES } from '@/routes/paths';
 import { getErrorMessage } from '@/api/client';
 
 const { Title, Paragraph } = Typography;
-const { RangePicker } = DatePicker;
 
 export const AlbumsListPage = () => {
   const navigate = useNavigate();
@@ -17,8 +16,6 @@ export const AlbumsListPage = () => {
   const [limit, setLimit] = useState(20);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<AlbumStatus | undefined>();
-  const [eventType, setEventType] = useState<EventType | undefined>();
-  const [dateRange, setDateRange] = useState<[string, string] | null>(null);
   const [activeTab, setActiveTab] = useState<'all' | 'archived'>('all');
 
   const queryParams = useMemo(
@@ -27,11 +24,8 @@ export const AlbumsListPage = () => {
       limit,
       search: search || undefined,
       status: activeTab === 'archived' ? AlbumStatus.ARCHIVED : status,
-      eventType,
-      dateFrom: dateRange?.[0],
-      dateTo: dateRange?.[1],
     }),
-    [page, limit, search, status, eventType, dateRange, activeTab],
+    [page, limit, search, status, activeTab],
   );
 
   const { data, isLoading } = useAlbumsQuery(queryParams);
@@ -63,7 +57,7 @@ export const AlbumsListPage = () => {
             Albums
           </Title>
           <Paragraph type="secondary" className="!mb-0">
-            Manage event albums for your studio.
+            Each album is one client delivery: photos, mapping, then QR.
           </Paragraph>
         </div>
         <Button
@@ -84,16 +78,16 @@ export const AlbumsListPage = () => {
           setPage(1);
         }}
         items={[
-          { key: 'all', label: 'All Albums' },
-          { key: 'archived', label: 'Archive' },
+          { key: 'all', label: 'Albums' },
+          { key: 'archived', label: 'Archived' },
         ]}
         className="mb-4"
       />
 
-      <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-4 grid gap-3 md:grid-cols-2">
         <Input
           prefix={<SearchOutlined />}
-          placeholder="Search albums or customers"
+          placeholder="Search by name"
           value={search}
           onChange={(e) => {
             setSearch(e.target.value);
@@ -103,7 +97,7 @@ export const AlbumsListPage = () => {
         />
         {activeTab === 'all' ? (
           <Select
-            placeholder="Status"
+            placeholder="Draft or published"
             allowClear
             value={status}
             onChange={(value) => {
@@ -116,30 +110,6 @@ export const AlbumsListPage = () => {
             ]}
           />
         ) : null}
-        <Select
-          placeholder="Event Type"
-          allowClear
-          value={eventType}
-          onChange={(value) => {
-            setEventType(value);
-            setPage(1);
-          }}
-          options={Object.values(EventType).map((value) => ({
-            label: EVENT_TYPE_LABELS[value],
-            value,
-          }))}
-        />
-        <RangePicker
-          className="w-full"
-          onChange={(dates) => {
-            setDateRange(
-              dates?.[0] && dates?.[1]
-                ? [dates[0].format('YYYY-MM-DD'), dates[1].format('YYYY-MM-DD')]
-                : null,
-            );
-            setPage(1);
-          }}
-        />
       </div>
 
       <AlbumTable

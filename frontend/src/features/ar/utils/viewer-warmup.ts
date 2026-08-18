@@ -145,9 +145,7 @@ const runWarmup = async (
   let state: WarmupProgress = {
     progress: cachedManifest ? 0.22 : 0.08,
     stage: 'manifest',
-    message: cachedManifest
-      ? `Welcome to ${cachedManifest.album.albumName}`
-      : 'Opening your album…',
+    message: cachedManifest ? 'Opening your album…' : 'Opening your album…',
     detail: null,
     ready: false,
     error: null,
@@ -188,7 +186,6 @@ const runWarmup = async (
       throw new Error('No published AR mappings for this album yet.');
     }
 
-    const albumName = manifest.album.albumName;
     const {
       mindCacheKey,
       sortedTargets,
@@ -202,8 +199,8 @@ const runWarmup = async (
       state = {
         progress: 1,
         stage: 'ready',
-        message: 'Your album is ready',
-        detail: 'Tap Open camera — point at your printed photo',
+        message: 'Ready',
+        detail: 'Point at the printed photo',
         ready: true,
         error: null,
         manifest,
@@ -218,8 +215,8 @@ const runWarmup = async (
       progress: 0.4,
       manifest,
       stage: 'scripts',
-      message: `Welcome to ${albumName}`,
-      detail: 'Preparing scan file…',
+      message: 'Preparing…',
+      detail: 'Getting the scan ready',
       ready: false,
       mindBundle: null,
     };

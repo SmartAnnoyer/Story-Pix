@@ -71,14 +71,15 @@ export const AlbumViewerQrCard = ({
   };
 
   return (
-    <Card title="Customer QR code" className="mb-4">
+    <Card title="Give this to your client" className="mb-4">
       {!published ? (
         <>
           <Paragraph type="secondary" className="text-sm">
-            Publish the album and wait for the AR scan file before the QR appears.
+            After you share the album, a QR appears here. Print it in the album or send the link.
+            Guests open it on their phone and scan the photo.
           </Paragraph>
-          <Text type="warning" className="block text-xs">
-            Album is not published yet.
+          <Text type="secondary" className="block text-xs">
+            Finish photos, mapping, then tap Share with client.
           </Text>
         </>
       ) : failed ? (
@@ -126,8 +127,7 @@ export const AlbumViewerQrCard = ({
       ) : (
         <>
           <Paragraph type="secondary" className="text-sm">
-            Print this QR once in the album. Guests open every mapped photo from this single code —
-            point the camera at each print to play its video(s).
+            Print this QR once. Guests open it on their phone and point the camera at each print.
           </Paragraph>
 
           <div ref={qrWrapRef} className="mb-4 flex justify-center rounded-xl bg-white p-4">
@@ -139,7 +139,7 @@ export const AlbumViewerQrCard = ({
           </Paragraph>
 
           <Button block type="primary" onClick={downloadQr} disabled={!showQr}>
-            Download QR for print
+            Download QR
           </Button>
         </>
       )}

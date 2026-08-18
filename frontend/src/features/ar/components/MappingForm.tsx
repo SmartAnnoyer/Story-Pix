@@ -51,7 +51,17 @@ export const MappingForm = ({
     const fromMapping =
       photoMediaId === initialValues?.photoMediaId ? initialValues.overlayFrame : undefined;
     setOverlayFrame(clampOverlayFrame(fromMapping ?? photo?.overlayFrame));
-  }, [photoMediaId, initialValues?.photoMediaId, initialValues?.overlayFrame]);
+
+    if (!initialValues?.targetName && photo && !form.getFieldValue('targetName')) {
+      form.setFieldValue('targetName', photo.originalFileName.replace(/\.[^.]+$/, '') || 'Photo');
+    }
+  }, [
+    photoMediaId,
+    form,
+    initialValues?.photoMediaId,
+    initialValues?.overlayFrame,
+    initialValues?.targetName,
+  ]);
 
   return (
     <Form
@@ -68,23 +78,21 @@ export const MappingForm = ({
     >
       <Form.Item
         name="targetName"
-        label="Mapping Name"
-        rules={[{ required: true, message: 'Enter a mapping name' }]}
+        label="Name"
+        extra="Only you see this — to find it later."
+        rules={[{ required: true, message: 'Enter a name' }]}
       >
-        <Input placeholder="e.g. First Dance" maxLength={120} />
+        <Input placeholder="e.g. First dance" maxLength={120} />
       </Form.Item>
-
-      <p className="-mt-2 mb-4 text-xs text-neutral-500">
-        Reuse a photo or video in another mapping anytime. Guests still open this album from one QR.
-      </p>
 
       <Form.Item
         name="photoMediaId"
-        label="Photo"
+        label="Printed photo"
+        extra="Guests point their phone at this photo."
         rules={[{ required: true, message: 'Select a photo' }]}
       >
         <Select
-          placeholder={readyPhotos.length ? 'Select photo' : 'Upload photos in Manage Media first'}
+          placeholder={readyPhotos.length ? 'Select photo' : 'Upload a photo first'}
           disabled={readyPhotos.length === 0}
           options={readyPhotos.map((photo) => ({
             value: photo.id,
@@ -92,7 +100,7 @@ export const MappingForm = ({
           }))}
           showSearch
           optionFilterProp="label"
-          notFoundContent="No ready photos — upload on the album Media page"
+          notFoundContent="No photos yet — upload them on Photos & videos"
         />
       </Form.Item>
 
@@ -108,11 +116,12 @@ export const MappingForm = ({
 
       <Form.Item
         name="videoMediaId"
-        label="Video"
+        label="Video that plays"
+        extra="This is what they see on the print."
         rules={[{ required: true, message: 'Select a video' }]}
       >
         <Select
-          placeholder={readyVideos.length ? 'Select video' : 'Upload videos in Manage Media first'}
+          placeholder={readyVideos.length ? 'Select video' : 'Upload a video first'}
           disabled={readyVideos.length === 0}
           options={readyVideos.map((video) => ({
             value: video.id,
@@ -120,7 +129,7 @@ export const MappingForm = ({
           }))}
           showSearch
           optionFilterProp="label"
-          notFoundContent="No ready videos — upload on the album Media page"
+          notFoundContent="No videos yet — upload them on Photos & videos"
         />
       </Form.Item>
 

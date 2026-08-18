@@ -6,8 +6,8 @@ import type {
 } from '@/types/ar-target.types';
 import { ScanEventType } from '@/types/ar-target.types';
 import { detectDeviceInfo, getViewerSessionId, viewerService } from '@/services/viewer.service';
-import { BrandLogo } from '@/components/BrandLogo';
 import { ScanStatusOverlay } from './ScanStatusOverlay';
+import { MappingPreviewImage } from './MappingPreviewImage';
 import { ScanFocusFrame, type ScanFocusPhase } from './ScanFocusFrame';
 import { TargetFrameVideo, type VideoDisplayMode } from './TargetFrameVideo';
 import { ViewerControlBar } from './ViewerControlBar';
@@ -980,6 +980,15 @@ export const ARViewer = ({
           (status === 'scanning' || status === 'move_closer' || status === 'match_found')
         }
         phase={scanFocusPhase}
+        photo={
+          uniquePhotos[0] ? (
+            <MappingPreviewImage
+              albumSlug={albumSlug}
+              target={uniquePhotos[0]}
+              className="!h-full !w-full !rounded-none !border-0"
+            />
+          ) : undefined
+        }
       />
       <TargetFrameVideo
         host={sceneHost}
@@ -1022,15 +1031,10 @@ export const ARViewer = ({
         reveal={videoReveal}
       />
       <ScanStatusOverlay
-        albumSlug={albumSlug}
-        albumName={manifest.album.albumName}
         status={status}
         detail={prepareError ?? statusDetail}
-        targets={uniquePhotos}
         progress={progress}
         phase={viewerPhase}
-        scanSeconds={scanSeconds}
-        matchPercent={matchPercent}
       />
       <ViewerControlBar
         showFlip={showControls}
@@ -1045,20 +1049,6 @@ export const ARViewer = ({
         onFlip={() => void handleFlipCamera()}
         onRetry={handleRetryScan}
       />
-
-      <div
-        className={`pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/85 via-black/40 to-transparent p-4 text-white transition-opacity ${
-          videoMode === 'fullscreen' || activeTarget ? 'opacity-0' : 'opacity-100'
-        }`}
-      >
-        <p className="text-lg font-semibold">{manifest.album.albumName}</p>
-        {manifest.branding.studioName ? (
-          <p className="text-sm text-white/80">{manifest.branding.studioName}</p>
-        ) : null}
-        <div className="mt-2 opacity-60">
-          <BrandLogo variant="full" height={18} />
-        </div>
-      </div>
     </div>
   );
 };

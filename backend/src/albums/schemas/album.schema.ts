@@ -18,8 +18,8 @@ export class Album {
   @Prop({ required: true, unique: true, index: true })
   slug!: string;
 
-  @Prop({ type: String, enum: EventType, required: true, index: true })
-  eventType!: EventType;
+  @Prop({ type: String, enum: EventType, default: EventType.CUSTOM })
+  eventType?: EventType;
 
   @Prop({ required: true, index: true })
   customerName!: string;
@@ -30,8 +30,8 @@ export class Album {
   @Prop({ type: String, default: null })
   customerEmail?: string | null;
 
-  @Prop({ type: Date, required: true, index: true })
-  eventDate!: Date;
+  @Prop({ type: Date, default: Date.now })
+  eventDate?: Date;
 
   @Prop({ type: String, default: null })
   coverImage?: string | null;
@@ -92,7 +92,5 @@ export const AlbumSchema = SchemaFactory.createForClass(Album);
 
 AlbumSchema.index({ studioId: 1, deletedAt: 1 });
 AlbumSchema.index({ studioId: 1, status: 1 });
-AlbumSchema.index({ studioId: 1, eventType: 1 });
-AlbumSchema.index({ studioId: 1, eventDate: -1 });
 AlbumSchema.index({ studioId: 1, createdAt: -1 });
 AlbumSchema.index({ albumName: 'text', customerName: 'text' });

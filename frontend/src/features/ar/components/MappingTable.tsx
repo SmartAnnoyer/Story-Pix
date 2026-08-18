@@ -7,6 +7,12 @@ import { ArTargetStatus } from '@/types/ar-target.types';
 
 const { useBreakpoint } = Grid;
 
+const statusLabels: Record<ArTargetStatus, string> = {
+  [ArTargetStatus.DRAFT]: 'Saved',
+  [ArTargetStatus.ACTIVE]: 'Live',
+  [ArTargetStatus.ARCHIVED]: 'Off',
+};
+
 const statusColors: Record<ArTargetStatus, string> = {
   [ArTargetStatus.DRAFT]: 'default',
   [ArTargetStatus.ACTIVE]: 'success',
@@ -47,20 +53,20 @@ const MappingActions = ({
           icon={<CheckCircleOutlined />}
           onClick={() => onPublish(record.id)}
         >
-          Publish
+          Turn on
         </Button>
       </>
     ) : null}
     {record.status === ArTargetStatus.ACTIVE ? (
       <Button size="small" icon={<StopOutlined />} onClick={() => onArchive(record.id)}>
-        Archive
+        Turn off
       </Button>
     ) : null}
     <Popconfirm
-      title="Delete this mapping?"
+      title="Remove this photo → video?"
       description={
         record.status === ArTargetStatus.ACTIVE
-          ? 'This removes it from the live AR scan file.'
+          ? 'Guests will no longer unlock this video from that print.'
           : 'This cannot be undone.'
       }
       okText="Delete"
@@ -104,7 +110,7 @@ export const MappingTable = ({
               {record.video?.originalFileName ?? 'Video'}
             </div>
             <div className="mt-2">
-              <Tag color={statusColors[record.status]}>{record.status.toUpperCase()}</Tag>
+              <Tag color={statusColors[record.status]}>{statusLabels[record.status]}</Tag>
             </div>
             <div className="mt-3 border-t border-gray-100 pt-2">
               <MappingActions
@@ -138,17 +144,11 @@ export const MappingTable = ({
       render: (_, record) => record.video?.originalFileName ?? '—',
     },
     {
-      title: 'Index',
-      dataIndex: 'targetIndex',
-      key: 'targetIndex',
-      render: (value: number | null) => (value != null ? value : '—'),
-    },
-    {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
       render: (status: ArTargetStatus) => (
-        <Tag color={statusColors[status]}>{status.toUpperCase()}</Tag>
+        <Tag color={statusColors[status]}>{statusLabels[status]}</Tag>
       ),
     },
     {

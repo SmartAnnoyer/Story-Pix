@@ -11,7 +11,6 @@ import { useNavigate } from 'react-router-dom';
 import type { Album } from '@/types/album.types';
 import { AlbumStatus } from '@/types/album.types';
 import { AlbumStatusBadge } from './AlbumStatusBadge';
-import { EventTypeBadge } from './EventTypeBadge';
 import { ROUTES } from '@/routes/paths';
 
 const { useBreakpoint } = Grid;
@@ -60,9 +59,8 @@ export const AlbumTable = ({
                 <div className="mt-0.5 truncate text-xs text-gray-500">
                   {record.customerName} · {record.albumCode}
                 </div>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
+                <div className="mt-2">
                   <AlbumStatusBadge status={record.status} />
-                  <EventTypeBadge eventType={record.eventType} />
                 </div>
               </div>
               <RightOutlined className="text-gray-300" />
@@ -125,21 +123,9 @@ export const AlbumTable = ({
       ),
     },
     {
-      title: 'Customer',
+      title: 'Client',
       dataIndex: 'customerName',
       responsive: ['md'],
-    },
-    {
-      title: 'Event',
-      dataIndex: 'eventType',
-      responsive: ['lg'],
-      render: (eventType: Album['eventType']) => <EventTypeBadge eventType={eventType} />,
-    },
-    {
-      title: 'Event Date',
-      dataIndex: 'eventDate',
-      responsive: ['lg'],
-      render: (value: string) => new Date(value).toLocaleDateString(),
     },
     {
       title: 'Status',
@@ -203,7 +189,7 @@ export const AlbumTable = ({
       dataSource={albums}
       loading={loading}
       pagination={tablePagination}
-      scroll={{ x: 900 }}
+      scroll={{ x: 640 }}
     />
   );
 };

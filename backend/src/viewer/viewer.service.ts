@@ -113,7 +113,6 @@ export class ViewerService {
         albumName: album.albumName,
         slug: album.slug,
         coverImage: album.coverImage,
-        description: album.description,
       },
       targets: filteredTargets,
       branding: {

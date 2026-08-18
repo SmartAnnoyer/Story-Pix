@@ -1,63 +1,76 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import {
-  Alert,
-  Button,
-  Card,
-  Col,
-  Descriptions,
-  Dropdown,
-  Row,
-  Space,
-  Typography,
-  message,
-} from 'antd';
+import { Alert, Button, Card, Dropdown, Space, Typography, message } from 'antd';
 import {
   useAlbumActionMutation,
   useAlbumQuery,
   useRebuildArScanFileMutation,
 } from '@/hooks/useAlbumQueries';
-import { useAlbumArTargetsQuery } from '@/hooks/useArTargetQueries';
+import { useAlbumArTargetsQuery, usePublishArTargetMutation } from '@/hooks/useArTargetQueries';
+import { useAlbumMediaQuery } from '@/hooks/useMediaQueries';
 import { AlbumStatusBadge } from '@/features/albums/components/AlbumStatusBadge';
-import { EventTypeBadge } from '@/features/albums/components/EventTypeBadge';
-import { PublishToggle } from '@/features/albums/components/PublishToggle';
+import { AlbumDeliveryGuide } from '@/features/albums/components/AlbumDeliveryGuide';
+import {
+  albumMapPath,
+  albumMediaPath,
+  getDeliveryProgress,
+  getMappingCounts,
+  getReadyMediaCounts,
+} from '@/features/albums/utils/album-delivery';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { AlbumViewerQrCard } from '@/features/studio/components/AlbumViewerQrCard';
-import { ArScanFileStatus } from '@/features/albums/components/ArScanFileStatus';
 import { getErrorMessage } from '@/api/client';
-import { EVENT_TYPE_LABELS, AlbumStatus } from '@/types/album.types';
-import { ArTargetStatus } from '@/types/ar-target.types';
+import { AlbumStatus } from '@/types/album.types';
 import { ROUTES } from '@/routes/paths';
 
-const { Title, Paragraph, Text, Link } = Typography;
+const { Title, Paragraph, Text } = Typography;
 
 export const AlbumDetailsPage = () => {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const { data: album, isLoading } = useAlbumQuery(id);
   const { data: mappings } = useAlbumArTargetsQuery(id, { limit: 100 });
+  const { data: media } = useAlbumMediaQuery(id, { limit: 100 });
   const actionMutation = useAlbumActionMutation();
+  const publishMappingMutation = usePublishArTargetMutation();
   const rebuildMutation = useRebuildArScanFileMutation();
 
   if (isLoading || !album) return <LoadingSpinner />;
 
-  const activeMappingCount =
-    mappings?.items.filter((item) => item.status === ArTargetStatus.ACTIVE).length ?? 0;
-  const draftMappingCount =
-    mappings?.items.filter((item) => item.status === ArTargetStatus.DRAFT).length ?? 0;
-  const canPublishAlbum = activeMappingCount > 0;
+  const { readyPhotos, readyVideos } = getReadyMediaCounts(media?.items);
+  const { live, total, drafts } = getMappingCounts(mappings?.items);
+  const { mediaDone, mapDone, published, shareDone } = getDeliveryProgress({
+    readyPhotoCount: readyPhotos.length,
+    readyVideoCount: readyVideos.length,
+    liveMappingCount: live,
+    album,
+  });
 
-  const handlePublishToggle = async (publish: boolean) => {
+  const handleShare = async () => {
     try {
-      await actionMutation.mutateAsync({ id, action: publish ? 'publish' : 'unpublish' });
-      message.success(publish ? 'Album published' : 'Album unpublished');
+      for (const draft of drafts) {
+        await publishMappingMutation.mutateAsync(draft.id);
+      }
+      if (album.status !== AlbumStatus.PUBLISHED) {
+        await actionMutation.mutateAsync({ id, action: 'publish' });
+      }
+      message.success('Album is on. The QR appears when the scan file is ready.');
     } catch (error) {
-      message.error(getErrorMessage(error, publish ? 'Publish failed' : 'Unpublish failed'));
+      message.error(getErrorMessage(error, 'Could not share yet'));
+    }
+  };
+
+  const handleUnpublish = async () => {
+    try {
+      await actionMutation.mutateAsync({ id, action: 'unpublish' });
+      message.success('Album is off. Guests cannot scan it.');
+    } catch (error) {
+      message.error(getErrorMessage(error, 'Could not turn off'));
     }
   };
 
   const handleRetryArBuild = async () => {
     await rebuildMutation.mutateAsync(id);
-    message.success('AR scan file rebuild started');
+    message.success('Scan file rebuild started');
   };
 
   const handleArchive = async () => {
@@ -76,185 +89,189 @@ export const AlbumDetailsPage = () => {
     }
   };
 
-  const mappingsPath = ROUTES.ALBUM_AR_MAPPINGS.replace(':id', id);
+  const sharing = actionMutation.isPending || publishMappingMutation.isPending;
+  const canShare = mediaDone && (mapDone || drafts.length > 0);
 
   return (
     <div>
-      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <Title level={3} className="!mb-1">
             {album.albumName}
           </Title>
           <Paragraph type="secondary" className="!mb-2">
-            {album.albumCode}
+            For {album.customerName}
           </Paragraph>
           <Space wrap>
             <AlbumStatusBadge status={album.status} />
-            <EventTypeBadge eventType={album.eventType} />
           </Space>
         </div>
-        <div className="app-quick-actions md:!flex md:flex-wrap md:gap-2">
-          <Button
-            type="primary"
-            block
-            className="md:!w-auto"
-            onClick={() => navigate(ROUTES.ALBUM_MEDIA.replace(':id', id))}
-          >
-            Media
-          </Button>
-          <Button block className="md:!w-auto" onClick={() => navigate(mappingsPath)}>
-            AR mappings
-          </Button>
-          <Button
-            block
-            className="md:!w-auto"
-            onClick={() => navigate(ROUTES.ALBUM_INSIGHTS.replace(':id', id))}
-          >
-            Insights
-          </Button>
-          <Dropdown
-            menu={{
-              items: [
-                album.status !== AlbumStatus.ARCHIVED
-                  ? {
-                      key: 'edit',
-                      label: 'Edit album',
-                      onClick: () => navigate(ROUTES.ALBUM_EDIT.replace(':id', id)),
-                    }
-                  : null,
-                album.status !== AlbumStatus.ARCHIVED
-                  ? { key: 'archive', label: 'Archive', onClick: () => void handleArchive() }
-                  : null,
-                {
-                  key: 'delete',
-                  label: 'Delete',
-                  danger: true,
-                  onClick: () => void handleDelete(),
-                },
-              ].filter(Boolean),
-            }}
-          >
-            <Button block className="md:!w-auto">
-              More
-            </Button>
-          </Dropdown>
-        </div>
+        <Dropdown
+          menu={{
+            items: [
+              album.status !== AlbumStatus.ARCHIVED
+                ? {
+                    key: 'edit',
+                    label: 'Edit album details',
+                    onClick: () => navigate(ROUTES.ALBUM_EDIT.replace(':id', id)),
+                  }
+                : null,
+              {
+                key: 'insights',
+                label: 'Scan counts',
+                onClick: () => navigate(ROUTES.ALBUM_INSIGHTS.replace(':id', id)),
+              },
+              published
+                ? {
+                    key: 'unpublish',
+                    label: 'Stop sharing',
+                    onClick: () => void handleUnpublish(),
+                  }
+                : null,
+              album.status !== AlbumStatus.ARCHIVED
+                ? { key: 'archive', label: 'Archive', onClick: () => void handleArchive() }
+                : null,
+              {
+                key: 'delete',
+                label: 'Delete',
+                danger: true,
+                onClick: () => void handleDelete(),
+              },
+            ].filter(Boolean),
+          }}
+        >
+          <Button>More</Button>
+        </Dropdown>
       </div>
 
-      <Row gutter={[16, 16]}>
-        <Col xs={24} lg={16}>
-          <Card title="Album Details">
-            <Descriptions column={{ xs: 1, sm: 2 }} bordered size="small">
-              <Descriptions.Item label="Customer">{album.customerName}</Descriptions.Item>
-              <Descriptions.Item label="Event Type">
-                {EVENT_TYPE_LABELS[album.eventType]}
-              </Descriptions.Item>
-              <Descriptions.Item label="Event Date">
-                {new Date(album.eventDate).toLocaleDateString()}
-              </Descriptions.Item>
-              <Descriptions.Item label="Customer Phone">
-                {album.customerPhone ?? '—'}
-              </Descriptions.Item>
-              <Descriptions.Item label="Customer Email">
-                {album.customerEmail ?? '—'}
-              </Descriptions.Item>
-              <Descriptions.Item label="Created">
-                {album.createdAt ? new Date(album.createdAt).toLocaleDateString() : '—'}
-              </Descriptions.Item>
-              <Descriptions.Item label="Description" span={2}>
-                {album.description ?? '—'}
-              </Descriptions.Item>
-            </Descriptions>
-          </Card>
-        </Col>
-        <Col xs={24} lg={8}>
-          <Card title="Publishing" className="mb-4">
-            {album.status !== AlbumStatus.PUBLISHED && !canPublishAlbum ? (
-              <Alert
-                className="!mb-3"
-                type="warning"
-                showIcon
-                message="Publish an AR mapping first"
-                description={
-                  draftMappingCount > 0
-                    ? `You have ${draftMappingCount} draft mapping${draftMappingCount === 1 ? '' : 's'}. Open AR Mappings and click Publish on each one, then publish the album.`
-                    : 'Create photo ↔ video mappings, publish them, then publish this album. One QR covers the whole album.'
-                }
-                action={
-                  <Button size="small" type="primary" onClick={() => navigate(mappingsPath)}>
-                    AR Mappings
-                  </Button>
-                }
-              />
-            ) : null}
-            <PublishToggle
-              status={album.status}
-              loading={actionMutation.isPending}
-              disabled={album.status !== AlbumStatus.PUBLISHED && !canPublishAlbum}
-              disabledReason={
-                canPublishAlbum
-                  ? undefined
-                  : 'Needs at least one published AR mapping (status: Active)'
-              }
-              onToggle={handlePublishToggle}
-            />
-            {album.publishedAt ? (
-              <Text type="secondary" className="mt-3 block text-xs">
-                Published on {new Date(album.publishedAt).toLocaleString()}
-              </Text>
-            ) : null}
-            <div className="mt-4">
-              <ArScanFileStatus
-                status={album.status}
-                ready={album.arScanFileReady}
-                buildStatus={album.arScanFileStatus}
-                progress={album.arScanFileProgress}
-                message={album.arScanFileMessage}
-                error={album.arScanFileError}
-                compiledAt={album.arScanFileCompiledAt}
-                buildStartedAt={album.arScanFileBuildStartedAt}
-                onRetry={handleRetryArBuild}
-                retrying={rebuildMutation.isPending}
-              />
-            </div>
-          </Card>
-          <AlbumViewerQrCard
-            albumName={album.albumName}
-            viewerUrl={album.publicViewerUrl}
-            published={album.status === AlbumStatus.PUBLISHED}
-            arScanFileReady={album.arScanFileReady}
-            progress={album.arScanFileProgress}
-            buildMessage={album.arScanFileMessage}
-            buildStartedAt={album.arScanFileBuildStartedAt}
-            failed={album.arScanFileStatus === 'failed'}
-            onRetry={handleRetryArBuild}
-            retrying={rebuildMutation.isPending}
-          />
-          <Card title="Public Viewer Link">
-            {album.status === AlbumStatus.PUBLISHED && album.arScanFileReady ? (
-              <>
-                <Paragraph type="secondary" className="text-sm">
-                  Share this link with customers — AR scan file is ready.
-                </Paragraph>
-                <Link href={album.publicViewerUrl} target="_blank" copyable>
-                  {album.publicViewerUrl}
-                </Link>
-              </>
-            ) : (
-              <Paragraph type="secondary" className="text-sm !mb-0">
-                {album.status !== AlbumStatus.PUBLISHED
-                  ? 'Publish the album first. The viewer link appears after the AR scan file is ready.'
-                  : 'Viewer link will appear when the AR scan file finishes building.'}
-              </Paragraph>
-            )}
-          </Card>
-          {album.coverImage ? (
-            <Card title="Cover" className="mt-4">
-              <img src={album.coverImage} alt={album.albumName} className="w-full rounded-md" />
-            </Card>
+      <AlbumDeliveryGuide albumId={id} current="share" />
+
+      {!mediaDone ? (
+        <Alert
+          className="!mb-4"
+          type="info"
+          showIcon
+          message="Step 1 — add a photo and a video"
+          description="Upload the printed photo the client will hold, then the video that should play on it."
+          action={
+            <Button type="primary" onClick={() => navigate(albumMediaPath(id))}>
+              Add photos & videos
+            </Button>
+          }
+        />
+      ) : !mapDone && drafts.length === 0 ? (
+        <Alert
+          className="!mb-4"
+          type="info"
+          showIcon
+          message="Step 2 — link photo to video"
+          description="Choose which video plays when a guest points their phone at that print."
+          action={
+            <Button type="primary" onClick={() => navigate(albumMapPath(id, total > 0))}>
+              Map to video
+            </Button>
+          }
+        />
+      ) : !published ? (
+        <Alert
+          className="!mb-4"
+          type="success"
+          showIcon
+          message="Step 3 — share with your client"
+          description="Turn the album on. Then print the QR in the album or send the link. Guests open it on their phone and scan the photo."
+          action={
+            <Button
+              type="primary"
+              loading={sharing}
+              disabled={!canShare}
+              onClick={() => void handleShare()}
+            >
+              Share with client
+            </Button>
+          }
+        />
+      ) : !shareDone ? (
+        <Alert
+          className="!mb-4"
+          type="info"
+          showIcon
+          message="Preparing the scan"
+          description="Wait here. The QR appears when this finishes — usually a few minutes. Guests do not wait for this."
+        />
+      ) : (
+        <Alert
+          className="!mb-4"
+          type="success"
+          showIcon
+          message="Ready to deliver"
+          description="Print the QR or send the link. Guests open it on their phone and point the camera at the photo."
+        />
+      )}
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <Card title="What to do">
+          <ol className="m-0 list-decimal space-y-2 pl-5 text-sm text-neutral-600">
+            <li>
+              <Text strong={!mediaDone}>Photos & videos</Text>
+              {' — '}
+              {mediaDone
+                ? `${readyPhotos.length} photo${readyPhotos.length === 1 ? '' : 's'}, ${readyVideos.length} video${readyVideos.length === 1 ? '' : 's'} ready.`
+                : 'Add the print and the video.'}{' '}
+              <Button type="link" className="!px-0" onClick={() => navigate(albumMediaPath(id))}>
+                Open
+              </Button>
+            </li>
+            <li>
+              <Text strong={mediaDone && !mapDone}>Map to video</Text>
+              {' — '}
+              {mapDone
+                ? `${live} live pairing${live === 1 ? '' : 's'}.`
+                : drafts.length
+                  ? 'Saved, but not live yet.'
+                  : 'Tell us which video plays on which photo.'}{' '}
+              <Button
+                type="link"
+                className="!px-0"
+                onClick={() => navigate(albumMapPath(id, total > 0))}
+              >
+                Open
+              </Button>
+            </li>
+            <li>
+              <Text strong={mapDone || drafts.length > 0}>Share</Text>
+              {' — '}
+              {shareDone
+                ? 'QR is ready to print.'
+                : published
+                  ? 'Scan file is building.'
+                  : 'Turn the album on, then print the QR.'}
+            </li>
+          </ol>
+          {canShare && !published ? (
+            <Button
+              type="primary"
+              className="mt-4"
+              loading={sharing}
+              onClick={() => void handleShare()}
+            >
+              Share with client
+            </Button>
           ) : null}
-        </Col>
-      </Row>
+        </Card>
+
+        <AlbumViewerQrCard
+          albumName={album.albumName}
+          viewerUrl={album.publicViewerUrl}
+          published={album.status === AlbumStatus.PUBLISHED}
+          arScanFileReady={album.arScanFileReady}
+          progress={album.arScanFileProgress}
+          buildMessage={album.arScanFileMessage}
+          buildStartedAt={album.arScanFileBuildStartedAt}
+          failed={album.arScanFileStatus === 'failed'}
+          onRetry={handleRetryArBuild}
+          retrying={rebuildMutation.isPending}
+        />
+      </div>
     </div>
   );
 };

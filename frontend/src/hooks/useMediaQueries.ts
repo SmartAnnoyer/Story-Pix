@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { mediaService } from '@/services/media.service';
-import type { InitiateUploadPayload, MediaQueryParams } from '@/types/media.types';
+import {
+  MediaStatus,
+  type InitiateUploadPayload,
+  type MediaQueryParams,
+} from '@/types/media.types';
 
 export const mediaKeys = {
   all: ['media'] as const,
@@ -15,6 +19,13 @@ export const useAlbumMediaQuery = (albumId: string, params?: MediaQueryParams) =
     queryKey: mediaKeys.album(albumId, params),
     queryFn: () => mediaService.getAlbumMedia(albumId, params),
     enabled: Boolean(albumId),
+    refetchInterval: (query) => {
+      const items = query.state.data?.items ?? [];
+      const waiting = items.some(
+        (item) => item.status === MediaStatus.PROCESSING || item.status === MediaStatus.UPLOADING,
+      );
+      return waiting ? 2000 : false;
+    },
   });
 
 export const useMediaQuery = (params?: MediaQueryParams) =>

@@ -17,7 +17,7 @@ export const RecentAlbumsWidget = () => {
     <div>
       <div className="mb-4 flex items-center justify-between">
         <Title level={5} className="!mb-0">
-          Recent Albums
+          Recent albums
         </Title>
         <Button type="link" onClick={() => navigate(ROUTES.ALBUMS)}>
           View all
@@ -36,7 +36,7 @@ export const RecentAlbumsWidget = () => {
         </Row>
       ) : (
         <div className="rounded-lg border border-dashed p-8 text-center text-gray-500">
-          No albums yet. Create your first album to get started.
+          No albums yet. Start with New album on Home.
         </div>
       )}
     </div>

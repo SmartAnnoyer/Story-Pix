@@ -3,15 +3,19 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Alert, Button, Card, Typography, message } from 'antd';
 import { ArrowLeftOutlined, CloudUploadOutlined } from '@ant-design/icons';
 import { MappingForm } from '@/features/ar/components/MappingForm';
+import { AlbumDeliveryGuide } from '@/features/albums/components/AlbumDeliveryGuide';
+import { albumMediaPath, albumSharePath } from '@/features/albums/utils/album-delivery';
 import { useAlbumQuery } from '@/hooks/useAlbumQueries';
 import { useAlbumMediaQuery } from '@/hooks/useMediaQueries';
-import { useCreateArTargetMutation } from '@/hooks/useArTargetQueries';
+import { useCreateArTargetMutation, usePublishArTargetMutation } from '@/hooks/useArTargetQueries';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { MediaStatus, MediaType } from '@/types/media.types';
-import { ROUTES } from '@/routes/paths';
 import { getErrorMessage } from '@/api/client';
 
 const { Title, Paragraph } = Typography;
+
+const nameFromFile = (fileName?: string) =>
+  (fileName ?? 'Photo').replace(/\.[^.]+$/, '').trim() || 'Photo';
 
 export const CreateMappingPage = () => {
   const { id = '' } = useParams();
@@ -19,6 +23,7 @@ export const CreateMappingPage = () => {
   const { data: album, isLoading: albumLoading } = useAlbumQuery(id);
   const { data: mediaData, isLoading: mediaLoading } = useAlbumMediaQuery(id, { limit: 100 });
   const createMutation = useCreateArTargetMutation();
+  const publishMutation = usePublishArTargetMutation();
 
   const readyMedia = useMemo(
     () => (mediaData?.items ?? []).filter((item) => item.status === MediaStatus.READY),
@@ -36,8 +41,9 @@ export const CreateMappingPage = () => {
 
   if (albumLoading || mediaLoading || !album) return <LoadingSpinner />;
 
-  const mediaRoute = ROUTES.ALBUM_MEDIA.replace(':id', id);
   const needsUpload = readyPhotos.length === 0 || readyVideos.length === 0;
+  const firstPhoto = readyPhotos[0];
+  const firstVideo = readyVideos[0];
 
   const handleSubmit = async (values: {
     targetName: string;
@@ -46,11 +52,12 @@ export const CreateMappingPage = () => {
     overlayFrame: { x: number; y: number; width: number; height: number };
   }) => {
     try {
-      await createMutation.mutateAsync({ albumId: id, ...values });
-      message.success('Mapping created');
-      navigate(ROUTES.ALBUM_AR_MAPPINGS.replace(':id', id));
+      const created = await createMutation.mutateAsync({ albumId: id, ...values });
+      await publishMutation.mutateAsync(created.id);
+      message.success('Photo is linked. Now share the album with your client.');
+      navigate(albumSharePath(id));
     } catch (error) {
-      message.error(getErrorMessage(error, 'Create failed'));
+      message.error(getErrorMessage(error, 'Could not save the mapping'));
     }
   };
 
@@ -59,73 +66,62 @@ export const CreateMappingPage = () => {
       <Button
         type="link"
         icon={<ArrowLeftOutlined />}
-        className="!mb-4 !px-0"
-        onClick={() => navigate(ROUTES.ALBUM_AR_MAPPINGS.replace(':id', id))}
+        className="!mb-2 !px-0"
+        onClick={() => navigate(albumSharePath(id))}
       >
-        Back to mappings
+        Back to album
       </Button>
       <Title level={3} className="!mb-1">
-        Create AR Mapping
+        {album.albumName}
       </Title>
       <Paragraph type="secondary" className="!mb-4 max-w-2xl">
-        Link any photo to any video. The same photo can unlock several videos, and the same video
-        can be reused on several photos. Guests still scan one album QR.
+        Pick the printed photo and the video that should play on it. Saving turns this on for
+        guests.
       </Paragraph>
 
-      <Alert
-        className="!mb-4 max-w-2xl"
-        type="info"
-        showIcon
-        message="Workflow"
-        description={
-          <ol className="mb-0 list-decimal pl-4">
-            <li>Album → Manage Media — upload photo(s) and video(s) until status is ready.</li>
-            <li>
-              Create as many mappings as you need — reuse photos or videos. Each mapping is a photo
-              ↔ video pair.
-            </li>
-            <li>AR Mappings list — Publish each mapping, then publish the album.</li>
-            <li>One album QR opens every mapping. Wait for the AR scan file before printing it.</li>
-          </ol>
-        }
-      />
+      <AlbumDeliveryGuide albumId={id} current="map" />
 
       {needsUpload ? (
         <Alert
           className="!mb-4 max-w-2xl"
           type="warning"
           showIcon
-          message="Upload media before mapping"
+          message="Upload a photo and a video first"
           description={
             readyPhotos.length === 0 && readyVideos.length === 0
-              ? 'No ready photos or videos in this album yet.'
+              ? 'This album has no ready photos or videos yet.'
               : readyPhotos.length === 0
-                ? 'Add at least one ready photo.'
-                : 'Add at least one ready video.'
+                ? 'Add at least one printed photo.'
+                : 'Add at least one video.'
           }
           action={
             <Button
               size="small"
               type="primary"
               icon={<CloudUploadOutlined />}
-              onClick={() => navigate(mediaRoute)}
+              onClick={() => navigate(albumMediaPath(id))}
             >
-              Manage Media
+              Add photos & videos
             </Button>
           }
         />
-      ) : null}
-
-      <Card className="max-w-xl">
-        <MappingForm
-          photos={readyMedia}
-          videos={readyMedia}
-          loading={createMutation.isPending}
-          submitLabel="Create Mapping"
-          onSubmit={handleSubmit}
-          onCancel={() => navigate(ROUTES.ALBUM_AR_MAPPINGS.replace(':id', id))}
-        />
-      </Card>
+      ) : (
+        <Card className="max-w-xl">
+          <MappingForm
+            photos={readyMedia}
+            videos={readyMedia}
+            initialValues={{
+              photoMediaId: firstPhoto?.id,
+              videoMediaId: firstVideo?.id,
+              targetName: nameFromFile(firstPhoto?.originalFileName),
+            }}
+            loading={createMutation.isPending || publishMutation.isPending}
+            submitLabel="Save and continue"
+            onSubmit={handleSubmit}
+            onCancel={() => navigate(albumSharePath(id))}
+          />
+        </Card>
+      )}
     </div>
   );
 };

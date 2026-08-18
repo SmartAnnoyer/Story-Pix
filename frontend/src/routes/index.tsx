@@ -16,7 +16,6 @@ import { CreateStudioPage } from '@/pages/admin/CreateStudioPage';
 import { EditStudioPage } from '@/pages/admin/EditStudioPage';
 import { StudioDetailsPage } from '@/pages/admin/StudioDetailsPage';
 import { StudioProfilePage } from '@/pages/studio/StudioProfilePage';
-import { CurrentPlanPage } from '@/pages/studio/CurrentPlanPage';
 import { BillingDashboardPage } from '@/pages/studio/BillingDashboardPage';
 import { AlbumsListPage } from '@/pages/studio/AlbumsListPage';
 import { CreateAlbumPage } from '@/pages/studio/CreateAlbumPage';
@@ -26,8 +25,6 @@ import { AlbumMediaPage } from '@/pages/studio/AlbumMediaPage';
 import { ArMappingsPage } from '@/pages/studio/ArMappingsPage';
 import { CreateMappingPage } from '@/pages/studio/CreateMappingPage';
 import { EditMappingPage } from '@/pages/studio/EditMappingPage';
-import { StudioAnalyticsPage } from '@/pages/studio/StudioAnalyticsPage';
-import { StudioReportsPage } from '@/pages/studio/StudioReportsPage';
 import { AlbumInsightsPage } from '@/pages/studio/AlbumInsightsPage';
 import { PlansListPage } from '@/pages/admin/PlansListPage';
 import { CreatePlanPage } from '@/pages/admin/CreatePlanPage';
@@ -64,7 +61,10 @@ export const AppRoutes = () => {
           <Route element={<DashboardLayout />}>
             <Route path={ROUTES.DASHBOARD} element={<DashboardPage />} />
             <Route path={ROUTES.STUDIO_PROFILE} element={<StudioProfilePage />} />
-            <Route path={ROUTES.STUDIO_PLAN} element={<CurrentPlanPage />} />
+            <Route
+              path={ROUTES.STUDIO_PLAN}
+              element={<Navigate to={ROUTES.STUDIO_BILLING} replace />}
+            />
             <Route path={ROUTES.STUDIO_BILLING} element={<BillingDashboardPage />} />
             <Route path={ROUTES.ALBUMS} element={<AlbumsListPage />} />
             <Route path={ROUTES.ALBUM_CREATE} element={<CreateAlbumPage />} />
@@ -74,8 +74,14 @@ export const AppRoutes = () => {
             <Route path={ROUTES.ALBUM_AR_MAPPINGS} element={<ArMappingsPage />} />
             <Route path={ROUTES.ALBUM_AR_MAPPING_CREATE} element={<CreateMappingPage />} />
             <Route path={ROUTES.ALBUM_AR_MAPPING_EDIT} element={<EditMappingPage />} />
-            <Route path={ROUTES.STUDIO_ANALYTICS} element={<StudioAnalyticsPage />} />
-            <Route path={ROUTES.STUDIO_ANALYTICS_REPORTS} element={<StudioReportsPage />} />
+            <Route
+              path={ROUTES.STUDIO_ANALYTICS}
+              element={<Navigate to={ROUTES.DASHBOARD} replace />}
+            />
+            <Route
+              path={ROUTES.STUDIO_ANALYTICS_REPORTS}
+              element={<Navigate to={ROUTES.DASHBOARD} replace />}
+            />
             <Route path={ROUTES.ALBUM_INSIGHTS} element={<AlbumInsightsPage />} />
             <Route path={ROUTES.NOTIFICATIONS} element={<NotificationCenterPage />} />
           </Route>

@@ -102,7 +102,6 @@ export interface ViewerManifest {
     albumName: string;
     slug: string;
     coverImage: string | null;
-    description: string | null;
   };
   targets: ViewerManifestTarget[];
   branding: {

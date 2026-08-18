@@ -10,8 +10,6 @@ import {
   useStudioProfileQuery,
   useUpdateStudioProfileMutation,
 } from '@/hooks/useStudioQueries';
-import { useCurrentPlanQuery } from '@/hooks/useSubscriptionQueries';
-import { SubscriptionSummaryWidget } from '@/features/subscriptions/components/SubscriptionSummaryWidget';
 import { StatusBadge } from '@/features/studios/components/StatusBadge';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { getErrorMessage } from '@/api/client';
@@ -32,7 +30,6 @@ type ProfileFormValues = z.infer<typeof profileSchema>;
 
 export const StudioProfilePage = () => {
   const { data: profile, isLoading: profileLoading } = useStudioProfileQuery();
-  const { data: summary, isLoading: summaryLoading } = useCurrentPlanQuery();
   const updateMutation = useUpdateStudioProfileMutation();
   const confirmLogoMutation = useConfirmLogoMutation();
   const [uploading, setUploading] = useState(false);
@@ -55,7 +52,7 @@ export const StudioProfilePage = () => {
       : undefined,
   });
 
-  if (profileLoading || summaryLoading || !profile || !summary) {
+  if (profileLoading || !profile) {
     return <LoadingSpinner />;
   }
 
@@ -94,17 +91,13 @@ export const StudioProfilePage = () => {
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <Title level={3} className="!mb-1">
-            Studio Profile
+            Studio
           </Title>
           <Paragraph type="secondary" className="!mb-0">
-            Manage your studio details and view usage.
+            Your studio name and contact details.
           </Paragraph>
         </div>
         <StatusBadge status={profile.status} />
-      </div>
-
-      <div className="mb-8">
-        <SubscriptionSummaryWidget summary={summary} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
@@ -121,39 +114,52 @@ export const StudioProfilePage = () => {
             accept="image/*"
           >
             <Button icon={<UploadOutlined />} loading={uploading} block>
-              Upload Logo
+              Upload logo
             </Button>
           </Upload>
-          <Paragraph type="secondary" className="!mt-3 !text-xs">
-            Logo upload uses presigned URL architecture (R2 placeholder).
-          </Paragraph>
         </Card>
 
-        <Card title="Studio Details">
+        <Card title="Details">
           <Form layout="vertical" onFinish={handleSubmit(onSubmit)}>
             <Form.Item
               label="Studio Name"
               validateStatus={errors.studioName ? 'error' : ''}
               help={errors.studioName?.message}
             >
-              <Controller name="studioName" control={control} render={({ field }) => <Input {...field} />} />
+              <Controller
+                name="studioName"
+                control={control}
+                render={({ field }) => <Input {...field} />}
+              />
             </Form.Item>
             <Form.Item
               label="Owner Name"
               validateStatus={errors.ownerName ? 'error' : ''}
               help={errors.ownerName?.message}
             >
-              <Controller name="ownerName" control={control} render={({ field }) => <Input {...field} />} />
+              <Controller
+                name="ownerName"
+                control={control}
+                render={({ field }) => <Input {...field} />}
+              />
             </Form.Item>
             <Form.Item
               label="Email"
               validateStatus={errors.email ? 'error' : ''}
               help={errors.email?.message}
             >
-              <Controller name="email" control={control} render={({ field }) => <Input {...field} />} />
+              <Controller
+                name="email"
+                control={control}
+                render={({ field }) => <Input {...field} />}
+              />
             </Form.Item>
             <Form.Item label="Phone">
-              <Controller name="phone" control={control} render={({ field }) => <Input {...field} />} />
+              <Controller
+                name="phone"
+                control={control}
+                render={({ field }) => <Input {...field} />}
+              />
             </Form.Item>
             <Form.Item label="Address">
               <Controller
@@ -162,11 +168,19 @@ export const StudioProfilePage = () => {
                 render={({ field }) => <Input.TextArea {...field} rows={2} />}
               />
             </Form.Item>
-            <Form.Item label="Website" validateStatus={errors.website ? 'error' : ''} help={errors.website?.message}>
-              <Controller name="website" control={control} render={({ field }) => <Input {...field} />} />
+            <Form.Item
+              label="Website"
+              validateStatus={errors.website ? 'error' : ''}
+              help={errors.website?.message}
+            >
+              <Controller
+                name="website"
+                control={control}
+                render={({ field }) => <Input {...field} />}
+              />
             </Form.Item>
             <Button type="primary" htmlType="submit" loading={updateMutation.isPending}>
-              Save Profile
+              Save
             </Button>
           </Form>
         </Card>

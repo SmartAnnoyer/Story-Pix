@@ -14,7 +14,7 @@ export const VideoGallery = ({ items, loading, onDelete }: VideoGalleryProps) =>
   const [preview, setPreview] = useState<MediaItem | null>(null);
 
   if (!loading && !items.length) {
-    return <Empty description="No videos uploaded yet" />;
+    return <Empty description="No videos yet" />;
   }
 
   return (
