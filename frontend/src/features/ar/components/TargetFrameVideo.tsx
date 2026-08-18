@@ -191,13 +191,7 @@ export const TargetFrameVideo = ({
         host.insertBefore(video, host.firstChild);
       }
 
-      const onEndedEvt = () => {
-        if (mode === 'fullscreen') onEndedRef.current?.();
-      };
-      video.addEventListener('ended', onEndedEvt);
-
       return () => {
-        video.removeEventListener('ended', onEndedEvt);
         video.pause();
         video.removeAttribute('src');
         video.load();
