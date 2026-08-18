@@ -215,7 +215,7 @@ const tryMindArResize = (host: HTMLElement): void => {
   }
   coverMindArCameraVideo(host);
   const video = getCameraVideo(host);
-  const cameraEl = host.querySelector('a-camera');
+  const cameraEl = host.querySelector('a-camera') as HTMLElement | null;
   if (video && cameraEl) {
     attachCameraFeedPlane(cameraEl, video, host.clientWidth, host.clientHeight);
   }
