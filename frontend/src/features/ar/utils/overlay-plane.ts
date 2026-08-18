@@ -2,6 +2,7 @@ import { clampOverlayFrame, type OverlayFrame } from './overlay-frame';
 import { viewerLog } from './viewer-debug-log';
 
 const MESH_NAME = 'sp-overlay-video-mesh';
+const CAMERA_BG_NAME = 'sp-camera-bg';
 
 type ThreeTexture = {
   minFilter: unknown;
@@ -37,10 +38,16 @@ type ThreeRuntime = {
   ) => {
     name: string;
     position: { set: (x: number, y: number, z: number) => void };
+    scale: { set: (x: number, y: number, z: number) => void };
     renderOrder: number;
     visible: boolean;
     frustumCulled: boolean;
-    userData: { spStopPaint?: () => void };
+    userData: {
+      spStopPaint?: () => void;
+      spCamCanvas?: HTMLCanvasElement;
+      spViewW?: number;
+      spViewH?: number;
+    };
     geometry: { dispose: () => void; parameters?: { width: number; height: number } };
     localToWorld?: (vector: { x: number; y: number; z: number }) => unknown;
     material: { map: ThreeTexture | null; dispose: () => void };
@@ -53,7 +60,14 @@ type ThreeRuntime = {
 
 type OverlayMesh = {
   visible: boolean;
-  userData?: { spStopPaint?: () => void };
+  position?: { set: (x: number, y: number, z: number) => void };
+  scale?: { set: (x: number, y: number, z: number) => void };
+  userData?: {
+    spStopPaint?: () => void;
+    spCamCanvas?: HTMLCanvasElement;
+    spViewW?: number;
+    spViewH?: number;
+  };
   geometry?: { dispose: () => void; parameters?: { width: number; height: number } };
   localToWorld?: (vector: { x: number; y: number; z: number }) => unknown;
   material?: { map?: { dispose: () => void } | null; dispose: () => void };
@@ -101,6 +115,114 @@ export const setOverlayVideoPlaneVisible = (entity: HTMLElement | null, visible:
   if (!entity) return;
   const mesh = (entity as EntityWithObject3D).object3D?.getObjectByName(MESH_NAME);
   if (mesh) mesh.visible = visible;
+};
+
+const drawVideoCover = (
+  ctx: CanvasRenderingContext2D,
+  video: HTMLVideoElement,
+  destW: number,
+  destH: number,
+): void => {
+  const srcW = video.videoWidth;
+  const srcH = video.videoHeight;
+  if (srcW < 2 || srcH < 2 || destW < 2 || destH < 2) return;
+  const scale = Math.max(destW / srcW, destH / srcH);
+  const cropW = destW / scale;
+  const cropH = destH / scale;
+  const sx = (srcW - cropW) / 2;
+  const sy = (srcH - cropH) / 2;
+  ctx.drawImage(video, sx, sy, cropW, cropH, 0, 0, destW, destH);
+};
+
+/**
+ * Draw the live camera inside the A-Frame scene so it stays visible on iOS
+ * even when the WebGL canvas is opaque and a second <video> is decoding.
+ */
+export const attachCameraFeedPlane = (
+  cameraEl: HTMLElement | null,
+  video: HTMLVideoElement,
+  viewWidth: number,
+  viewHeight: number,
+): void => {
+  const THREE = getThree();
+  const object3D = (cameraEl as EntityWithObject3D | null)?.object3D;
+  if (!THREE || !object3D || video.videoWidth < 2 || viewWidth < 8 || viewHeight < 8) return;
+
+  let mesh = object3D.getObjectByName(CAMERA_BG_NAME) as
+    | (OverlayMesh & { material?: { map?: ThreeTexture | null } })
+    | undefined;
+
+  if (!mesh) {
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(2, Math.round(viewWidth));
+    canvas.height = Math.max(2, Math.round(viewHeight));
+    const ctx = canvas.getContext('2d', { alpha: false });
+    if (!ctx) return;
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.generateMipmaps = false;
+    texture.needsUpdate = true;
+    if (THREE.SRGBColorSpace) texture.colorSpace = THREE.SRGBColorSpace;
+    else if (THREE.sRGBEncoding) texture.encoding = THREE.sRGBEncoding;
+
+    const created = new THREE.Mesh(
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.MeshBasicMaterial({
+        map: texture,
+        depthTest: false,
+        depthWrite: false,
+        fog: false,
+        side: THREE.DoubleSide,
+      }),
+    );
+    created.name = CAMERA_BG_NAME;
+    created.renderOrder = -1000;
+    created.frustumCulled = false;
+    created.visible = true;
+
+    let painting = true;
+    const paint = () => {
+      if (!painting) return;
+      const w = created.userData.spViewW ?? canvas.width;
+      const h = created.userData.spViewH ?? canvas.height;
+      if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 1) {
+        if (w > 8 && canvas.width !== w) canvas.width = w;
+        if (h > 8 && canvas.height !== h) canvas.height = h;
+        drawVideoCover(ctx, video, canvas.width, canvas.height);
+        texture.needsUpdate = true;
+      }
+      window.requestAnimationFrame(paint);
+    };
+    created.userData.spStopPaint = () => {
+      painting = false;
+    };
+    created.userData.spCamCanvas = canvas;
+    created.userData.spViewW = canvas.width;
+    created.userData.spViewH = canvas.height;
+    window.requestAnimationFrame(paint);
+    object3D.add(created);
+    mesh = created;
+  }
+
+  if (mesh.userData) {
+    mesh.userData.spViewW = Math.max(2, Math.round(viewWidth));
+    mesh.userData.spViewH = Math.max(2, Math.round(viewHeight));
+  }
+
+  const cam = (
+    cameraEl as HTMLElement & {
+      getObject3D?: (type: string) => { fov?: number; aspect?: number };
+    }
+  ).getObject3D?.('camera');
+  const distance = 12;
+  const fovDeg = cam?.fov && cam.fov > 10 && cam.fov < 150 ? cam.fov : 45;
+  const aspect = cam?.aspect && cam.aspect > 0.1 ? cam.aspect : viewWidth / Math.max(viewHeight, 1);
+  const height = 2 * Math.tan((fovDeg * Math.PI) / 360) * distance;
+  mesh.position?.set(0, 0, -distance);
+  mesh.scale?.set(height * aspect, height, 1);
+  mesh.visible = true;
 };
 
 /** Screen box of the crop plane, using the same camera that draws the AR scene. */

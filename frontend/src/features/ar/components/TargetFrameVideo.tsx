@@ -177,12 +177,12 @@ export const TargetFrameVideo = ({
     if (iosFrame && host) {
       video.id = 'sp-mapped-video';
       video.style.position = 'fixed';
-      video.style.left = '-9999px';
+      video.style.left = '0';
       video.style.top = '0';
-      video.style.width = '1px';
-      video.style.height = '1px';
-      video.style.opacity = '0';
-      video.style.visibility = 'hidden';
+      video.style.width = '2px';
+      video.style.height = '2px';
+      video.style.opacity = '0.02';
+      video.style.visibility = 'visible';
       video.style.pointerEvents = 'none';
       video.style.objectFit = 'fill';
       video.style.background = 'transparent';

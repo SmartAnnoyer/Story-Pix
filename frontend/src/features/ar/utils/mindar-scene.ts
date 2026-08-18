@@ -1,4 +1,5 @@
 import { installPoseCapture } from './target-projection';
+import { attachCameraFeedPlane } from './overlay-plane';
 
 export type CameraFacing = 'environment' | 'user';
 
@@ -65,7 +66,7 @@ export const buildMindArScene = (
     'renderer',
     'alpha: true; colorManagement: true; physicallyCorrectLights: true',
   );
-  scene.removeAttribute('background');
+  scene.setAttribute('background', 'transparent: true');
   scene.setAttribute('vr-mode-ui', 'enabled: false');
   scene.setAttribute('device-orientation-permission-ui', 'enabled: false');
   scene.dataset.cameraFacing = options.facingMode ?? 'environment';
@@ -143,6 +144,7 @@ export const ensureTransparentRenderer = (host: HTMLElement): void => {
       return;
     }
     const live = host.querySelector('a-scene') as typeof scene;
+    if (live?.object3D) live.object3D.background = null;
     live?.renderer?.setClearColor(0x000000, 0);
     live?.renderer?.setClearAlpha?.(0);
     window.requestAnimationFrame(keepTransparent);
@@ -212,6 +214,11 @@ const tryMindArResize = (host: HTMLElement): void => {
     // a-camera may not exist yet — cover layout still fills the screen
   }
   coverMindArCameraVideo(host);
+  const video = getCameraVideo(host);
+  const cameraEl = host.querySelector('a-camera');
+  if (video && cameraEl) {
+    attachCameraFeedPlane(cameraEl, video, host.clientWidth, host.clientHeight);
+  }
 };
 
 const watchCoverLayout = (host: HTMLElement): void => {
@@ -258,11 +265,9 @@ export const ensureCameraPreviewVisible = (host: HTMLElement): HTMLVideoElement 
   return video;
 };
 
-/** Keep the live MindAR camera on screen. A second HTML overlay must not hide it. */
+/** Keep the live MindAR camera feeding the scene. Do not hide the preview. */
 export const setOverlayPlaybackActive = (host: HTMLElement, _active: boolean): void => {
   host.classList.remove('ar-scene-host--crop-playing');
-  const preview = host.querySelector('#sp-camera-preview');
-  if (preview instanceof HTMLElement) preview.style.display = 'none';
   ensureCameraPreviewVisible(host);
 };
 
