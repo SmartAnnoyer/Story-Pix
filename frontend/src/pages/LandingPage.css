@@ -88,6 +88,9 @@
 }
 
 .sp-land__hero {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
   padding: 2.5rem 1.25rem 3rem;
   background: linear-gradient(180deg, #1a0a2e 0%, #120818 48%, #07050c 100%);
   color: #fff;
@@ -146,8 +149,8 @@
 
 .sp-land__preview {
   display: flex;
+  flex-shrink: 0;
   justify-content: center;
-  margin-top: 2.5rem;
 }
 
 .sp-land__phone {
@@ -301,6 +304,27 @@
   .sp-land__foot {
     padding-left: 8vw;
     padding-right: 8vw;
+  }
+
+  .sp-land__hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 3rem 4rem;
+    padding-top: 3.25rem;
+    padding-bottom: 3.5rem;
+  }
+
+  .sp-land__hero-copy {
+    padding-top: 0.35rem;
+  }
+
+  .sp-land__preview {
+    justify-content: flex-end;
+  }
+
+  .sp-land__phone {
+    width: 240px;
   }
 
   .sp-land__steps {

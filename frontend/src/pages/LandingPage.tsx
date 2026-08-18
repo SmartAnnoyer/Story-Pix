@@ -57,35 +57,37 @@ export const LandingPage = () => {
 
       <main id="top">
         <section className="sp-land__hero">
-          <p className="sp-land__eyebrow">{brand.tagline}</p>
-          <h1>
-            Print a photo.
-            <br />
-            Point your phone.
-            <br />
-            <span>Watch it come to life.</span>
-          </h1>
-          <p className="sp-land__lede">
-            Story-pix turns a printed portrait into living AR — video plays on the photo in your
-            phone camera, in the browser, in under a minute.
-          </p>
-          <div className="sp-land__cta">
-            <a className="sp-land__btn sp-land__btn--primary" href={demoHref}>
-              {DEMO_SLUG ? 'Try the live demo' : 'See how it works'}
-            </a>
-            {showDashboard ? (
-              <Link className="sp-land__btn sp-land__btn--light" to={studioHome}>
-                Go to dashboard
-              </Link>
-            ) : (
-              <Link className="sp-land__btn sp-land__btn--light" to={ROUTES.LOGIN}>
-                Studio log in
-              </Link>
-            )}
+          <div className="sp-land__hero-copy">
+            <p className="sp-land__eyebrow">{brand.tagline}</p>
+            <h1>
+              Print a photo.
+              <br />
+              Point your phone.
+              <br />
+              <span>Watch it come to life.</span>
+            </h1>
+            <p className="sp-land__lede">
+              Story-pix turns a printed portrait into living AR — video plays on the photo in your
+              phone camera, in the browser, in under a minute.
+            </p>
+            <div className="sp-land__cta">
+              <a className="sp-land__btn sp-land__btn--primary" href={demoHref}>
+                {DEMO_SLUG ? 'Try the live demo' : 'See how it works'}
+              </a>
+              {showDashboard ? (
+                <Link className="sp-land__btn sp-land__btn--light" to={studioHome}>
+                  Go to dashboard
+                </Link>
+              ) : (
+                <Link className="sp-land__btn sp-land__btn--light" to={ROUTES.LOGIN}>
+                  Studio log in
+                </Link>
+              )}
+            </div>
+            <p className="sp-land__hint">
+              Works in Safari and Chrome on your phone. No app download.
+            </p>
           </div>
-          <p className="sp-land__hint">
-            Works in Safari and Chrome on your phone. No app download.
-          </p>
 
           <div className="sp-land__preview" aria-hidden>
             <div className="sp-land__phone">
