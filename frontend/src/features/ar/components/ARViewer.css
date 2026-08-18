@@ -9,16 +9,24 @@ html.viewer-route #root {
 .ar-scene-host {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
   background: #000;
 }
 
-/* MindAR sets inline width/height/top/left for cover — do not override with object-fit. */
+/* Fallback cover until JS applies MindAR-identical overflow crop. */
 .ar-scene-host > video:not(#sp-mapped-video) {
   position: absolute !important;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
   z-index: 1 !important;
   opacity: 1 !important;
   pointer-events: none;
+  background: transparent;
 }
 
 .ar-scene-host > video#sp-mapped-video {
@@ -42,7 +50,8 @@ html.viewer-route #root {
   pointer-events: none !important;
 }
 
-.ar-scene-host .a-canvas {
+.ar-scene-host .a-canvas,
+.ar-scene-host canvas.a-canvas {
   background: transparent !important;
   opacity: 1 !important;
   pointer-events: none !important;

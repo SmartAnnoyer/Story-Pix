@@ -150,6 +150,90 @@ export const ensureTransparentRenderer = (host: HTMLElement): void => {
   window.requestAnimationFrame(keepTransparent);
 };
 
+/**
+ * Size the live camera like MindAR _resize (cover + crop).
+ * Applied in JS because _resize throws if a-camera is not ready, leaving a
+ * landscape strip at the top and a black void under a full-screen canvas.
+ */
+export const coverMindArCameraVideo = (host: HTMLElement): void => {
+  const video = getCameraVideo(host);
+  if (!video) return;
+
+  const containerW = host.clientWidth;
+  const containerH = host.clientHeight;
+  if (containerW < 8 || containerH < 8) return;
+
+  video.removeAttribute('width');
+  video.removeAttribute('height');
+  video.style.position = 'absolute';
+  video.style.zIndex = '1';
+  video.style.opacity = '1';
+  video.style.visibility = 'visible';
+  video.style.display = 'block';
+  video.style.pointerEvents = 'none';
+  video.style.maxWidth = 'none';
+  video.style.maxHeight = 'none';
+  video.style.margin = '0';
+  video.style.padding = '0';
+  video.style.background = 'transparent';
+
+  if (video.videoWidth < 2 || video.videoHeight < 2) {
+    video.style.top = '0';
+    video.style.left = '0';
+    video.style.width = '100%';
+    video.style.height = '100%';
+    video.style.objectFit = 'cover';
+    return;
+  }
+
+  const videoAspect = video.videoWidth / video.videoHeight;
+  const containerAspect = containerW / containerH;
+  let cssW: number;
+  let cssH: number;
+  if (videoAspect > containerAspect) {
+    cssH = containerH;
+    cssW = cssH * videoAspect;
+  } else {
+    cssW = containerW;
+    cssH = cssW / videoAspect;
+  }
+
+  video.style.objectFit = 'fill';
+  video.style.top = `${-((cssH - containerH) / 2)}px`;
+  video.style.left = `${-((cssW - containerW) / 2)}px`;
+  video.style.width = `${cssW}px`;
+  video.style.height = `${cssH}px`;
+};
+
+const tryMindArResize = (host: HTMLElement): void => {
+  try {
+    getMindArSystem(host)?._resize?.();
+  } catch {
+    // a-camera may not exist yet — cover layout still fills the screen
+  }
+  coverMindArCameraVideo(host);
+};
+
+const watchCoverLayout = (host: HTMLElement): void => {
+  if (host.dataset.spCoverWatch === '1') return;
+  host.dataset.spCoverWatch = '1';
+
+  const apply = () => {
+    if (!host.isConnected) return;
+    coverMindArCameraVideo(host);
+    tryMindArResize(host);
+  };
+
+  const video = getCameraVideo(host);
+  video?.addEventListener('loadedmetadata', apply);
+  video?.addEventListener('resize', apply);
+  window.addEventListener('resize', apply);
+  window.addEventListener('orientationchange', apply);
+
+  const observer = new ResizeObserver(apply);
+  observer.observe(host);
+};
+
 /** Style and play the MindAR camera feed under a transparent tracking canvas. */
 export const ensureCameraPreviewVisible = (host: HTMLElement): HTMLVideoElement | null => {
   const video = getCameraVideo(host);
@@ -160,17 +244,11 @@ export const ensureCameraPreviewVisible = (host: HTMLElement): HTMLVideoElement 
   video.muted = true;
   video.playsInline = true;
   video.autoplay = true;
-  video.style.position = 'absolute';
-  video.style.pointerEvents = 'none';
-  video.style.opacity = '1';
-  video.style.zIndex = '1';
   host.classList.remove('ar-scene-host--crop-playing');
 
-  try {
-    getMindArSystem(host)?._resize?.();
-  } catch {
-    // MindAR sizes the camera feed to cover the host
-  }
+  coverMindArCameraVideo(host);
+  tryMindArResize(host);
+  watchCoverLayout(host);
 
   if (video.paused) {
     void video.play().catch(() => undefined);
@@ -194,6 +272,9 @@ export const keepMindArCameraPlaying = (host: HTMLElement): void => {
   if (!video) return;
   video.muted = true;
   video.playsInline = true;
+  if (video.style.width === '100%' || !video.style.width) {
+    coverMindArCameraVideo(host);
+  }
   if (video.paused) void video.play().catch(() => undefined);
 };
 
@@ -203,7 +284,8 @@ export const releaseMappedVideoDecoder = (host: HTMLElement): void => {
   if (!mapped) return;
   mapped.pause();
   mapped.removeAttribute('src');
-  mapped.load();
+  mapped.src = '';
+  mapped.srcObject = null;
   mapped.removeAttribute('id');
   if (mapped.parentElement === host) {
     mapped.parentElement.removeChild(mapped);
@@ -224,12 +306,8 @@ export const restartMindArTracking = (host: HTMLElement): void => {
   }
 
   keepMindArCameraPlaying(host);
-
-  try {
-    system._resize?.();
-  } catch {
-    // ignore
-  }
+  coverMindArCameraVideo(host);
+  tryMindArResize(host);
 
   try {
     system.unpause();
@@ -240,6 +318,8 @@ export const restartMindArTracking = (host: HTMLElement): void => {
   window.setTimeout(() => {
     if (!host.isConnected || !video.isConnected) return;
     keepMindArCameraPlaying(host);
+    coverMindArCameraVideo(host);
+    tryMindArResize(host);
     try {
       system.controller?.processVideo(video);
     } catch {

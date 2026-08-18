@@ -194,7 +194,8 @@ export const TargetFrameVideo = ({
       return () => {
         video.pause();
         video.removeAttribute('src');
-        video.load();
+        video.src = '';
+        video.srcObject = null;
         video.removeAttribute('id');
         if (video.parentElement === host) {
           host.removeChild(video);
