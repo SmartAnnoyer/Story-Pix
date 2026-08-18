@@ -23,6 +23,7 @@ export const ROUTES = {
   ALBUM_AR_MAPPING_CREATE: '/studio/albums/:id/ar-mappings/new',
   ALBUM_AR_MAPPING_EDIT: '/studio/albums/:id/ar-mappings/:mappingId/edit',
   VIEWER: '/viewer/:albumSlug',
+  HOME: '/',
   STUDIO_ANALYTICS: '/studio/analytics',
   STUDIO_ANALYTICS_REPORTS: '/studio/analytics/reports',
   ALBUM_INSIGHTS: '/studio/albums/:id/insights',

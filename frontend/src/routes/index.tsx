@@ -46,75 +46,81 @@ import { AdminNotificationMonitoringPage } from '@/pages/admin/AdminNotification
 import { NotificationCenterPage } from '@/pages/studio/NotificationCenterPage';
 import { ROUTES } from '@/routes/paths';
 import { UserRole } from '@/types/auth.types';
-import { HomeRedirect } from '@/components/HomeRedirect';
+import { LandingPage } from '@/pages/LandingPage';
 
 export const AppRoutes = () => {
   return (
     <BrowserRouter>
       <Routes>
-      <Route element={<GuestRoute />}>
-        <Route element={<AuthLayout />}>
-          <Route path={ROUTES.LOGIN} element={<LoginPage />} />
-          <Route path={ROUTES.FORGOT_PASSWORD} element={<ForgotPasswordPage />} />
-          <Route path={ROUTES.RESET_PASSWORD} element={<ResetPasswordPage />} />
+        <Route element={<GuestRoute />}>
+          <Route element={<AuthLayout />}>
+            <Route path={ROUTES.LOGIN} element={<LoginPage />} />
+            <Route path={ROUTES.FORGOT_PASSWORD} element={<ForgotPasswordPage />} />
+            <Route path={ROUTES.RESET_PASSWORD} element={<ResetPasswordPage />} />
+          </Route>
         </Route>
-      </Route>
 
-      <Route element={<ProtectedRoute allowedRoles={[UserRole.STUDIO_ADMIN]} />}>
-        <Route element={<DashboardLayout />}>
-          <Route path={ROUTES.DASHBOARD} element={<DashboardPage />} />
-          <Route path={ROUTES.STUDIO_PROFILE} element={<StudioProfilePage />} />
-          <Route path={ROUTES.STUDIO_PLAN} element={<CurrentPlanPage />} />
-          <Route path={ROUTES.STUDIO_BILLING} element={<BillingDashboardPage />} />
-          <Route path={ROUTES.ALBUMS} element={<AlbumsListPage />} />
-          <Route path={ROUTES.ALBUM_CREATE} element={<CreateAlbumPage />} />
-          <Route path={ROUTES.ALBUM_EDIT} element={<EditAlbumPage />} />
-          <Route path={ROUTES.ALBUM_DETAILS} element={<AlbumDetailsPage />} />
-          <Route path={ROUTES.ALBUM_MEDIA} element={<AlbumMediaPage />} />
-          <Route path={ROUTES.ALBUM_AR_MAPPINGS} element={<ArMappingsPage />} />
-          <Route path={ROUTES.ALBUM_AR_MAPPING_CREATE} element={<CreateMappingPage />} />
-          <Route path={ROUTES.ALBUM_AR_MAPPING_EDIT} element={<EditMappingPage />} />
-          <Route path={ROUTES.STUDIO_ANALYTICS} element={<StudioAnalyticsPage />} />
-          <Route path={ROUTES.STUDIO_ANALYTICS_REPORTS} element={<StudioReportsPage />} />
-          <Route path={ROUTES.ALBUM_INSIGHTS} element={<AlbumInsightsPage />} />
-          <Route path={ROUTES.NOTIFICATIONS} element={<NotificationCenterPage />} />
+        <Route element={<ProtectedRoute allowedRoles={[UserRole.STUDIO_ADMIN]} />}>
+          <Route element={<DashboardLayout />}>
+            <Route path={ROUTES.DASHBOARD} element={<DashboardPage />} />
+            <Route path={ROUTES.STUDIO_PROFILE} element={<StudioProfilePage />} />
+            <Route path={ROUTES.STUDIO_PLAN} element={<CurrentPlanPage />} />
+            <Route path={ROUTES.STUDIO_BILLING} element={<BillingDashboardPage />} />
+            <Route path={ROUTES.ALBUMS} element={<AlbumsListPage />} />
+            <Route path={ROUTES.ALBUM_CREATE} element={<CreateAlbumPage />} />
+            <Route path={ROUTES.ALBUM_EDIT} element={<EditAlbumPage />} />
+            <Route path={ROUTES.ALBUM_DETAILS} element={<AlbumDetailsPage />} />
+            <Route path={ROUTES.ALBUM_MEDIA} element={<AlbumMediaPage />} />
+            <Route path={ROUTES.ALBUM_AR_MAPPINGS} element={<ArMappingsPage />} />
+            <Route path={ROUTES.ALBUM_AR_MAPPING_CREATE} element={<CreateMappingPage />} />
+            <Route path={ROUTES.ALBUM_AR_MAPPING_EDIT} element={<EditMappingPage />} />
+            <Route path={ROUTES.STUDIO_ANALYTICS} element={<StudioAnalyticsPage />} />
+            <Route path={ROUTES.STUDIO_ANALYTICS_REPORTS} element={<StudioReportsPage />} />
+            <Route path={ROUTES.ALBUM_INSIGHTS} element={<AlbumInsightsPage />} />
+            <Route path={ROUTES.NOTIFICATIONS} element={<NotificationCenterPage />} />
+          </Route>
         </Route>
-      </Route>
 
-      <Route element={<ProtectedRoute />}>
-        <Route element={<DashboardLayout />}>
-          <Route path={ROUTES.CHANGE_PASSWORD} element={<ChangePasswordPage />} />
-          <Route path={ROUTES.UNAUTHORIZED} element={<UnauthorizedPage />} />
+        <Route element={<ProtectedRoute />}>
+          <Route element={<DashboardLayout />}>
+            <Route path={ROUTES.CHANGE_PASSWORD} element={<ChangePasswordPage />} />
+            <Route path={ROUTES.UNAUTHORIZED} element={<UnauthorizedPage />} />
+          </Route>
         </Route>
-      </Route>
 
-      <Route element={<ProtectedRoute allowedRoles={[UserRole.SUPER_ADMIN]} />}>
-        <Route element={<DashboardLayout />}>
-          <Route path={ROUTES.ADMIN_DASHBOARD} element={<AdminDashboardPage />} />
-          <Route path={ROUTES.STUDIOS} element={<StudiosListPage />} />
-          <Route path={ROUTES.STUDIO_CREATE} element={<CreateStudioPage />} />
-          <Route path={ROUTES.STUDIO_EDIT} element={<EditStudioPage />} />
-          <Route path={ROUTES.STUDIO_DETAILS} element={<StudioDetailsPage />} />
-          <Route path={ROUTES.PLANS} element={<PlansListPage />} />
-          <Route path={ROUTES.PLAN_CREATE} element={<CreatePlanPage />} />
-          <Route path={ROUTES.PLAN_EDIT} element={<EditPlanPage />} />
-          <Route path={ROUTES.PLAN_DETAILS} element={<PlanDetailsPage />} />
-          <Route path={ROUTES.SUBSCRIPTIONS} element={<SubscriptionsListPage />} />
-          <Route path={ROUTES.SUBSCRIPTION_DETAILS} element={<SubscriptionDetailsPage />} />
-          <Route path={ROUTES.ADMIN_ANALYTICS} element={<PlatformAnalyticsPage />} />
-          <Route path={ROUTES.ADMIN_ANALYTICS_REPORTS} element={<PlatformReportsPage />} />
-          <Route path={ROUTES.ADMIN_BILLING} element={<RevenueDashboardPage />} />
-          <Route path={ROUTES.ADMIN_BILLING_PAYMENTS} element={<AdminPaymentsListPage />} />
-          <Route path={ROUTES.ADMIN_BILLING_INVOICES} element={<AdminInvoicesListPage />} />
-          <Route path={ROUTES.ADMIN_BILLING_SUBSCRIPTIONS} element={<SubscriptionRevenuePage />} />
-          <Route path={ROUTES.ADMIN_JOBS} element={<JobMonitoringPage />} />
-          <Route path={ROUTES.ADMIN_NOTIFICATIONS} element={<AdminNotificationMonitoringPage />} />
+        <Route element={<ProtectedRoute allowedRoles={[UserRole.SUPER_ADMIN]} />}>
+          <Route element={<DashboardLayout />}>
+            <Route path={ROUTES.ADMIN_DASHBOARD} element={<AdminDashboardPage />} />
+            <Route path={ROUTES.STUDIOS} element={<StudiosListPage />} />
+            <Route path={ROUTES.STUDIO_CREATE} element={<CreateStudioPage />} />
+            <Route path={ROUTES.STUDIO_EDIT} element={<EditStudioPage />} />
+            <Route path={ROUTES.STUDIO_DETAILS} element={<StudioDetailsPage />} />
+            <Route path={ROUTES.PLANS} element={<PlansListPage />} />
+            <Route path={ROUTES.PLAN_CREATE} element={<CreatePlanPage />} />
+            <Route path={ROUTES.PLAN_EDIT} element={<EditPlanPage />} />
+            <Route path={ROUTES.PLAN_DETAILS} element={<PlanDetailsPage />} />
+            <Route path={ROUTES.SUBSCRIPTIONS} element={<SubscriptionsListPage />} />
+            <Route path={ROUTES.SUBSCRIPTION_DETAILS} element={<SubscriptionDetailsPage />} />
+            <Route path={ROUTES.ADMIN_ANALYTICS} element={<PlatformAnalyticsPage />} />
+            <Route path={ROUTES.ADMIN_ANALYTICS_REPORTS} element={<PlatformReportsPage />} />
+            <Route path={ROUTES.ADMIN_BILLING} element={<RevenueDashboardPage />} />
+            <Route path={ROUTES.ADMIN_BILLING_PAYMENTS} element={<AdminPaymentsListPage />} />
+            <Route path={ROUTES.ADMIN_BILLING_INVOICES} element={<AdminInvoicesListPage />} />
+            <Route
+              path={ROUTES.ADMIN_BILLING_SUBSCRIPTIONS}
+              element={<SubscriptionRevenuePage />}
+            />
+            <Route path={ROUTES.ADMIN_JOBS} element={<JobMonitoringPage />} />
+            <Route
+              path={ROUTES.ADMIN_NOTIFICATIONS}
+              element={<AdminNotificationMonitoringPage />}
+            />
+          </Route>
         </Route>
-      </Route>
 
-      <Route path="/" element={<HomeRedirect />} />
-      <Route path={ROUTES.NOT_FOUND} element={<NotFoundPage />} />
-      <Route path="*" element={<Navigate to={ROUTES.NOT_FOUND} replace />} />
+        <Route path={ROUTES.HOME} element={<LandingPage />} />
+        <Route path={ROUTES.NOT_FOUND} element={<NotFoundPage />} />
+        <Route path="*" element={<Navigate to={ROUTES.NOT_FOUND} replace />} />
       </Routes>
     </BrowserRouter>
   );
