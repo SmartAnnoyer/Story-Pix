@@ -57,8 +57,8 @@ type MindBundle = {
 const AR_INIT_TIMEOUT_MS = 35_000;
 const SCAN_HINT_DELAY_MS = 18_000;
 const SCAN_NO_MATCH_DELAY_MS = 30_000;
-const TARGET_FOUND_CONFIRM_MS = 420;
-const TARGET_LOST_GRACE_MS = 1_200;
+const TARGET_FOUND_CONFIRM_MS = 180;
+const TARGET_LOST_GRACE_MS = 280;
 
 const buildServerMindBundle = (albumSlug: string, manifest: ViewerManifest): MindBundle | null => {
   if (!manifest.mindFile) return null;
