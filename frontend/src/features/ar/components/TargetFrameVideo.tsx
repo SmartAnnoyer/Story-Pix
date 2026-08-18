@@ -4,6 +4,7 @@ import { FULL_OVERLAY_FRAME, type OverlayFrame } from '../utils/overlay-frame';
 import { getPlaybackVideoElement } from '../utils/camera-permission';
 import {
   ensureTransparentRenderer,
+  hideIosTrackingCanvas,
   keepMindArCameraPlaying,
   restartMindArTracking,
   setOverlayPlaybackActive,
@@ -250,7 +251,7 @@ export const TargetFrameVideo = ({
     const entity = targetEntity;
     const stage = stageRef.current;
     const ios = isIOS();
-    if (!entity || !host) {
+    if (!entity || !host || !stage) {
       viewerLog('warn', 'AR overlay skipped', {
         hasVideo: Boolean(videoRef.current),
         hasEntity: Boolean(entity),
@@ -261,33 +262,22 @@ export const TargetFrameVideo = ({
       });
       return undefined;
     }
-    if (!ios && !stage) {
-      viewerLog('warn', 'AR overlay skipped', {
-        hasVideo: Boolean(videoRef.current),
-        hasEntity: Boolean(entity),
-        hasHost: Boolean(host),
-        hasStage: false,
-        mode,
-        active,
-      });
-      return undefined;
-    }
 
     const frame = FULL_OVERLAY_FRAME;
     installPoseCapture(entity);
     ensureTransparentRenderer(host);
+    hideIosTrackingCanvas(host);
 
     const parkDecoder = () => {
-      if (ios) return;
       const video = videoRef.current;
       if (!video) return;
       video.id = 'sp-mapped-video';
       video.style.position = 'fixed';
-      video.style.left = '-480px';
-      video.style.top = '0px';
-      video.style.width = '360px';
-      video.style.height = '640px';
-      video.style.opacity = '0.04';
+      video.style.left = '0';
+      video.style.top = '0';
+      video.style.width = '2px';
+      video.style.height = '2px';
+      video.style.opacity = '0.02';
       video.style.visibility = 'visible';
       video.style.zIndex = '0';
       video.style.objectFit = 'fill';
@@ -296,12 +286,12 @@ export const TargetFrameVideo = ({
         host.insertBefore(video, host.firstChild);
       }
     };
-    if (!ios) {
-      parkDecoder();
-      stage!.style.opacity = '0';
-      stage!.style.visibility = 'hidden';
-      stage!.style.width = '0px';
-      stage!.style.height = '0px';
+    parkDecoder();
+    if (stage) {
+      stage.style.opacity = '0';
+      stage.style.visibility = 'hidden';
+      stage.style.width = '0px';
+      stage.style.height = '0px';
     }
 
     let cancelled = false;
@@ -309,6 +299,21 @@ export const TargetFrameVideo = ({
     let planeAttached = false;
     let lastBox: { left: number; top: number; width: number; height: number } | null = null;
     const srcSize = 400;
+
+    let blitCanvas: HTMLCanvasElement | null = null;
+    let blitCtx: CanvasRenderingContext2D | null = null;
+    if (ios && stage) {
+      blitCanvas = document.createElement('canvas');
+      blitCanvas.setAttribute('aria-hidden', 'true');
+      blitCanvas.style.position = 'absolute';
+      blitCanvas.style.inset = '0';
+      blitCanvas.style.width = '100%';
+      blitCanvas.style.height = '100%';
+      blitCanvas.style.display = 'block';
+      blitCanvas.style.pointerEvents = 'none';
+      stage.appendChild(blitCanvas);
+      blitCtx = blitCanvas.getContext('2d', { alpha: false });
+    }
 
     const applyBox = (box: { left: number; top: number; width: number; height: number }) => {
       if (!stage) return;
@@ -323,8 +328,10 @@ export const TargetFrameVideo = ({
       stage.style.opacity = '1';
       stage.style.visibility = 'visible';
       stage.style.zIndex = '10080';
-      stage.style.background = '#000';
+      stage.style.background = ios ? 'transparent' : '#000';
       stage.style.pointerEvents = 'none';
+
+      if (ios) return;
 
       const video = videoRef.current;
       const media = mediaRef.current;
@@ -354,13 +361,12 @@ export const TargetFrameVideo = ({
       stage.style.opacity = '1';
       stage.style.visibility = 'visible';
       stage.style.zIndex = '10080';
-      stage.style.background = '#000';
+      stage.style.background = ios ? 'transparent' : '#000';
       stage.style.pointerEvents = 'none';
       return true;
     };
 
     const layoutOverlay = () => {
-      if (ios) return null;
       const box = getOverlayAabbViewport(host, entity, aspectRatio, frame);
       if (box && isUsableOverlayBox(box, host)) {
         applyBox(box);
@@ -370,26 +376,24 @@ export const TargetFrameVideo = ({
         applyBox(lastBox);
         return lastBox;
       }
-      if (!ios) {
-        const quad = getOverlayQuadScreenCorners(host, entity, aspectRatio, frame);
-        if (quad?.visible && applyQuad(quad.corners)) {
-          const xs = quad.corners.map((corner) => corner.x);
-          const ys = quad.corners.map((corner) => corner.y);
-          const quadBox = {
-            left: Math.min(...xs),
-            top: Math.min(...ys),
-            width: Math.max(...xs) - Math.min(...xs),
-            height: Math.max(...ys) - Math.min(...ys),
-          };
-          lastBox = quadBox;
-          return quadBox;
-        }
+      const quad = getOverlayQuadScreenCorners(host, entity, aspectRatio, frame);
+      if (quad?.visible && applyQuad(quad.corners)) {
+        const xs = quad.corners.map((corner) => corner.x);
+        const ys = quad.corners.map((corner) => corner.y);
+        const quadBox = {
+          left: Math.min(...xs),
+          top: Math.min(...ys),
+          width: Math.max(...xs) - Math.min(...xs),
+          height: Math.max(...ys) - Math.min(...ys),
+        };
+        lastBox = quadBox;
+        return quadBox;
       }
       return null;
     };
 
     const tryAttachPlane = () => {
-      if (cancelled || planeAttached) return false;
+      if (ios || cancelled || planeAttached) return false;
       const video = videoRef.current;
       if (!video || video.videoWidth < 2 || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
         return false;
@@ -418,25 +422,23 @@ export const TargetFrameVideo = ({
       return true;
     };
 
+    const paintIosBlit = () => {
+      const video = videoRef.current;
+      if (!ios || !blitCanvas || !blitCtx || !video) return;
+      if (video.videoWidth < 2 || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
+      if (blitCanvas.width !== video.videoWidth) blitCanvas.width = video.videoWidth;
+      if (blitCanvas.height !== video.videoHeight) blitCanvas.height = video.videoHeight;
+      blitCtx.drawImage(video, 0, 0, blitCanvas.width, blitCanvas.height);
+    };
+
     const tick = () => {
       if (cancelled) return;
       keepMindArCameraPlaying(host);
-      if (!lastBox && videoRef.current?.parentElement !== host) parkDecoder();
+      hideIosTrackingCanvas(host);
+      if (videoRef.current?.parentElement !== host) parkDecoder();
       const placed = layoutOverlay();
       tryAttachPlane();
-      if (ios && planeAttached && !placed) {
-        if (missFrames >= 0) {
-          missFrames = -1;
-          viewerLog('info', 'mapped video on tracked photo', {
-            ios,
-            size: `${videoRef.current?.videoWidth ?? 0}x${videoRef.current?.videoHeight ?? 0}`,
-            ready: videoRef.current?.readyState,
-            frame,
-          });
-        }
-        window.requestAnimationFrame(tick);
-        return;
-      }
+      paintIosBlit();
       if (placed && missFrames >= 0) {
         missFrames = -1;
         viewerLog('info', 'mapped video on crop rectangle', {
@@ -473,6 +475,7 @@ export const TargetFrameVideo = ({
 
     return () => {
       cancelled = true;
+      blitCanvas?.remove();
       detachOverlayVideoPlane(entity);
       keepMindArCameraPlaying(host);
     };
@@ -749,11 +752,10 @@ export const TargetFrameVideo = ({
   if (!active || typeof document === 'undefined') return null;
 
   const showFullscreen = mode === 'fullscreen';
-  const planeOnly = !showFullscreen && isIOS();
 
   const controls = (
     <div
-      className={`ar-video-controls${planeOnly && reveal ? ' ar-video-controls--revealed' : ''}`}
+      className="ar-video-controls"
       style={{
         position: 'fixed',
         left: '50%',
@@ -763,8 +765,6 @@ export const TargetFrameVideo = ({
         pointerEvents: 'auto',
         flexWrap: 'nowrap',
         whiteSpace: 'nowrap',
-        opacity: planeOnly && !reveal ? 0 : undefined,
-        transition: planeOnly ? 'opacity 0.45s ease-out' : undefined,
       }}
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
@@ -872,10 +872,6 @@ export const TargetFrameVideo = ({
     </div>
   );
 
-  if (planeOnly) {
-    return createPortal(controls, document.body);
-  }
-
   return createPortal(
     <>
       <div
@@ -921,7 +917,7 @@ export const TargetFrameVideo = ({
               : {
                   position: 'fixed',
                   overflow: 'hidden',
-                  background: '#000',
+                  background: 'transparent',
                   pointerEvents: 'none',
                   zIndex: 10080,
                   transformOrigin: '0 0',

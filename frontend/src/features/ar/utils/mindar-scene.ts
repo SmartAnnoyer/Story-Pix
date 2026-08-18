@@ -2,6 +2,8 @@ import { installPoseCapture } from './target-projection';
 
 export type CameraFacing = 'environment' | 'user';
 
+const isIOS = () => typeof navigator !== 'undefined' && /iP(hone|od|ad)/.test(navigator.userAgent);
+
 export type MindArSceneResult = {
   scene: Element;
   targetEntities: HTMLElement[];
@@ -92,6 +94,7 @@ export const buildMindArScene = (
 
   host.replaceChildren();
   host.appendChild(scene);
+  if (isIOS()) host.classList.add('ar-scene-host--ios-html-camera');
 
   return { scene, targetEntities };
 };
@@ -153,58 +156,43 @@ export const ensureTransparentRenderer = (host: HTMLElement): void => {
 };
 
 /**
- * Size the live camera like MindAR _resize (cover + crop).
- * Applied in JS because _resize throws if a-camera is not ready, leaving a
- * landscape strip at the top and a black void under a full-screen canvas.
+ * Fill the host with the live camera (object-fit cover).
+ * Do not use MindAR's oversized inline box — iOS then shows a 4:3 strip.
  */
 export const coverMindArCameraVideo = (host: HTMLElement): void => {
   const video = getCameraVideo(host);
   if (!video) return;
 
-  const containerW = host.clientWidth;
-  const containerH = host.clientHeight;
-  if (containerW < 8 || containerH < 8) return;
-
   video.removeAttribute('width');
   video.removeAttribute('height');
   video.style.position = 'absolute';
-  video.style.setProperty('z-index', '1', 'important');
-  video.style.setProperty('opacity', '1', 'important');
-  video.style.setProperty('visibility', 'visible', 'important');
   video.style.display = 'block';
   video.style.pointerEvents = 'none';
-  video.style.maxWidth = 'none';
-  video.style.maxHeight = 'none';
   video.style.margin = '0';
   video.style.padding = '0';
   video.style.background = 'transparent';
+  video.style.setProperty('inset', '0', 'important');
+  video.style.setProperty('top', '0', 'important');
+  video.style.setProperty('left', '0', 'important');
+  video.style.setProperty('width', '100%', 'important');
+  video.style.setProperty('height', '100%', 'important');
+  video.style.setProperty('max-width', 'none', 'important');
+  video.style.setProperty('max-height', 'none', 'important');
+  video.style.setProperty('object-fit', 'cover', 'important');
+  video.style.setProperty('aspect-ratio', 'auto', 'important');
+  video.style.setProperty('z-index', '1', 'important');
+  video.style.setProperty('opacity', '1', 'important');
+  video.style.setProperty('visibility', 'visible', 'important');
+};
 
-  if (video.videoWidth < 2 || video.videoHeight < 2) {
-    video.style.top = '0';
-    video.style.left = '0';
-    video.style.width = '100%';
-    video.style.height = '100%';
-    video.style.objectFit = 'cover';
-    return;
-  }
-
-  const videoAspect = video.videoWidth / video.videoHeight;
-  const containerAspect = containerW / containerH;
-  let cssW: number;
-  let cssH: number;
-  if (videoAspect > containerAspect) {
-    cssH = containerH;
-    cssW = cssH * videoAspect;
-  } else {
-    cssW = containerW;
-    cssH = cssW / videoAspect;
-  }
-
-  video.style.objectFit = 'fill';
-  video.style.top = `${-((cssH - containerH) / 2)}px`;
-  video.style.left = `${-((cssW - containerW) / 2)}px`;
-  video.style.width = `${cssW}px`;
-  video.style.height = `${cssH}px`;
+export const hideIosTrackingCanvas = (host: HTMLElement): void => {
+  if (!isIOS()) return;
+  host.classList.add('ar-scene-host--ios-html-camera');
+  const scene = host.querySelector('a-scene') as HTMLElement | null;
+  const canvas = (scene?.querySelector('.a-canvas, canvas') ??
+    host.querySelector('.a-canvas')) as HTMLElement | null;
+  scene?.style.setProperty('opacity', '0', 'important');
+  canvas?.style.setProperty('opacity', '0', 'important');
 };
 
 const tryMindArResize = (host: HTMLElement): void => {
@@ -214,6 +202,7 @@ const tryMindArResize = (host: HTMLElement): void => {
     // a-camera may not exist yet — cover layout still fills the screen
   }
   coverMindArCameraVideo(host);
+  hideIosTrackingCanvas(host);
 };
 
 const watchCoverLayout = (host: HTMLElement): void => {
@@ -276,11 +265,8 @@ export const keepMindArCameraPlaying = (host: HTMLElement): void => {
   if (!video) return;
   video.muted = true;
   video.playsInline = true;
-  video.style.setProperty('z-index', '1', 'important');
-  video.style.setProperty('opacity', '1', 'important');
-  if (video.style.width === '100%' || !video.style.width) {
-    coverMindArCameraVideo(host);
-  }
+  coverMindArCameraVideo(host);
+  hideIosTrackingCanvas(host);
   if (video.paused) void video.play().catch(() => undefined);
 };
 

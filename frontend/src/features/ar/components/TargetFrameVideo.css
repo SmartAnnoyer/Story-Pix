@@ -28,8 +28,7 @@
   aspect-ratio: auto;
   border-radius: 0;
   pointer-events: none;
-  will-change: transform, left, top, width, height;
-  background: #000;
+  background: transparent;
 }
 
 .ar-video-shell--tracked .ar-video-media {
