@@ -7,7 +7,6 @@ import type {
 import { ScanEventType } from '@/types/ar-target.types';
 import { detectDeviceInfo, getViewerSessionId, viewerService } from '@/services/viewer.service';
 import { ScanStatusOverlay } from './ScanStatusOverlay';
-import { MappingPreviewImage } from './MappingPreviewImage';
 import { ScanFocusFrame, type ScanFocusPhase } from './ScanFocusFrame';
 import { TargetFrameVideo, type VideoDisplayMode } from './TargetFrameVideo';
 import { ViewerControlBar } from './ViewerControlBar';
@@ -980,15 +979,6 @@ export const ARViewer = ({
           (status === 'scanning' || status === 'move_closer' || status === 'match_found')
         }
         phase={scanFocusPhase}
-        photo={
-          uniquePhotos[0] ? (
-            <MappingPreviewImage
-              albumSlug={albumSlug}
-              target={uniquePhotos[0]}
-              className="!h-full !w-full !rounded-none !border-0"
-            />
-          ) : undefined
-        }
       />
       <TargetFrameVideo
         host={sceneHost}
