@@ -10,6 +10,7 @@ import { ScanStatusOverlay } from './ScanStatusOverlay';
 import { MappingPreviewImage } from './MappingPreviewImage';
 import { ScanFocusFrame, type ScanFocusPhase } from './ScanFocusFrame';
 import { TargetFrameVideo, type VideoDisplayMode } from './TargetFrameVideo';
+import { ViewerDebugConsole } from './ViewerDebugConsole';
 import { ViewerControlBar } from './ViewerControlBar';
 import type { ViewerPhase } from './ViewerProgressBar';
 import {
@@ -1060,6 +1061,7 @@ export const ARViewer = ({
         onFlip={() => void handleFlipCamera()}
         onRetry={handleRetryScan}
       />
+      <ViewerDebugConsole />
     </div>
   );
 };
