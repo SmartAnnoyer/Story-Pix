@@ -3,7 +3,6 @@ import { BrandLogo } from '@/components/BrandLogo';
 import type { ViewerManifest } from '@/types/ar-target.types';
 import { uniqueTrackingPhotos } from '../utils/manifest-photos';
 import type { WarmupProgress } from '../utils/viewer-warmup';
-import { MappingPreviewImage } from './MappingPreviewImage';
 import { ScanHowTo } from './ScanHowTo';
 import './ViewerIntro.css';
 
@@ -19,7 +18,6 @@ const clampPercent = (progress: number) =>
   Math.min(100, Math.max(0, Math.round(progress > 1 ? progress : progress * 100)));
 
 export const ViewerWelcomeScreen = ({
-  albumSlug,
   manifest,
   warmup,
   onStart,
@@ -28,11 +26,9 @@ export const ViewerWelcomeScreen = ({
   const [heroVisible, setHeroVisible] = useState(false);
 
   const albumName = manifest?.album.albumName ?? 'Your album';
-  const cover = manifest?.album.coverImage;
   const albumId = manifest?.album.id;
   const targets = useMemo(() => uniqueTrackingPhotos(manifest?.targets ?? []), [manifest?.targets]);
   const canOpenCamera = Boolean(targets.length) && !warmup.error;
-  const primaryTarget = targets[0] ?? null;
   const showProgress = !warmup.ready && warmup.stage !== 'error';
   const percent = clampPercent(warmup.progress);
 
@@ -61,26 +57,12 @@ export const ViewerWelcomeScreen = ({
         >
           {!manifest ? (
             <div className="w-full max-w-xs">
-              <div className="aspect-[3/4] animate-pulse rounded-2xl border border-white/10 bg-white/5" />
+              <div className="aspect-square animate-pulse rounded-2xl border border-white/10 bg-white/5" />
             </div>
           ) : (
             <>
               <div className="viewer-intro__howto">
-                {primaryTarget ? (
-                  <ScanHowTo
-                    photo={
-                      <MappingPreviewImage
-                        albumSlug={albumSlug}
-                        target={primaryTarget}
-                        className="!h-full !w-full !rounded-none !border-0"
-                      />
-                    }
-                  />
-                ) : cover ? (
-                  <ScanHowTo photo={<img src={cover} alt={albumName} />} />
-                ) : (
-                  <ScanHowTo />
-                )}
+                <ScanHowTo />
               </div>
 
               <h1 className="viewer-intro__title">{albumName}</h1>

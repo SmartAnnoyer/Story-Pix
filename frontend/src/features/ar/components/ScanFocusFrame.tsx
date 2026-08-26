@@ -23,7 +23,7 @@ export const ScanFocusFrame = ({ visible, phase = 'scanning' }: ScanFocusFramePr
       ? 'Keep the print inside the frame'
       : phase === 'warming'
         ? 'Fill the frame with your photo'
-        : 'Align the printed photo in the frame';
+        : 'Align the printed photo in the square';
 
   return createPortal(
     <div className={`scan-focus-frame scan-focus-frame--${phase}`} aria-hidden>
@@ -51,6 +51,7 @@ export const ScanFocusFrame = ({ visible, phase = 'scanning' }: ScanFocusFramePr
         </div>
       </div>
 
+      {/* Classic scanner: 4 L-corners + sweeping line — visible until detection */}
       <div className={`scan-focus-frame__box scan-focus-frame__box--${phase}`}>
         <span className="scan-focus-frame__corner scan-focus-frame__corner--tl" />
         <span className="scan-focus-frame__corner scan-focus-frame__corner--tr" />

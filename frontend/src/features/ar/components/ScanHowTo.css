@@ -84,13 +84,13 @@
 
 .scan-howto__stage {
   position: relative;
-  width: min(248px, 78vw);
-  aspect-ratio: 3 / 4;
+  width: min(220px, 68vw);
+  aspect-ratio: 1 / 1;
 }
 
 .scan-howto--mini .scan-howto__stage {
   width: 124px;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 1 / 1;
 }
 
 .scan-howto--mini .scan-howto__hint {
