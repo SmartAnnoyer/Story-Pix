@@ -155,39 +155,48 @@ export const ensureTransparentRenderer = (host: HTMLElement): void => {
 };
 
 /**
- * Fill the host with the live camera (object-fit cover).
- * Do not use MindAR's oversized inline box — iOS then shows a 4:3 strip.
+ * Fill the viewport with the live camera (object-fit cover).
+ * MindAR often sizes the <video> to a small top-left tracking crop — override that.
  */
 export const coverMindArCameraVideo = (host: HTMLElement): void => {
   const video = getCameraVideo(host);
   if (!video) return;
 
   // MindAR sometimes mounts the camera <video> on body (z-index -2) — reparent so
-  // our fixed black shells cannot cover it.
+  // our shells cannot cover it and sizing has a real container.
   if (video.parentElement !== host) {
     host.appendChild(video);
   }
 
   video.removeAttribute('width');
   video.removeAttribute('height');
-  video.style.position = 'absolute';
-  video.style.display = 'block';
-  video.style.pointerEvents = 'none';
-  video.style.margin = '0';
-  video.style.padding = '0';
-  video.style.background = 'transparent';
-  video.style.setProperty('inset', '0', 'important');
-  video.style.setProperty('top', '0', 'important');
-  video.style.setProperty('left', '0', 'important');
+  video.style.setProperty('position', 'absolute', 'important');
+  video.style.setProperty('inset', '0px', 'important');
+  video.style.setProperty('top', '0px', 'important');
+  video.style.setProperty('left', '0px', 'important');
+  video.style.setProperty('right', '0px', 'important');
+  video.style.setProperty('bottom', '0px', 'important');
   video.style.setProperty('width', '100%', 'important');
   video.style.setProperty('height', '100%', 'important');
+  video.style.setProperty('min-width', '100%', 'important');
+  video.style.setProperty('min-height', '100%', 'important');
   video.style.setProperty('max-width', 'none', 'important');
   video.style.setProperty('max-height', 'none', 'important');
+  video.style.setProperty('margin', '0', 'important');
+  video.style.setProperty('padding', '0', 'important');
+  video.style.setProperty('border', '0', 'important');
   video.style.setProperty('object-fit', 'cover', 'important');
+  video.style.setProperty('object-position', 'center center', 'important');
   video.style.setProperty('aspect-ratio', 'auto', 'important');
-  video.style.setProperty('z-index', '5', 'important');
+  video.style.setProperty('transform', 'none', 'important');
+  video.style.setProperty('transform-origin', 'center center', 'important');
+  video.style.setProperty('z-index', '1', 'important');
   video.style.setProperty('opacity', '1', 'important');
   video.style.setProperty('visibility', 'visible', 'important');
+  video.style.setProperty('display', 'block', 'important');
+  video.style.setProperty('pointer-events', 'none', 'important');
+  video.style.setProperty('background', 'transparent', 'important');
+  video.classList.add('ar-camera-feed');
 };
 
 /** Hide opaque WebGL canvas; guests see the live HTML camera instead. */
@@ -212,6 +221,7 @@ const tryMindArResize = (host: HTMLElement): void => {
   } catch {
     // a-camera may not exist yet — cover layout still fills the screen
   }
+  // Always re-cover AFTER MindAR resize — `_resize` shrinks video to a corner crop.
   coverMindArCameraVideo(host);
   hideTrackingCanvas(host);
 };
@@ -221,23 +231,55 @@ const watchCoverLayout = (host: HTMLElement): void => {
   host.dataset.spCoverWatch = '1';
 
   let timer = 0;
+  let applying = false;
   const apply = () => {
-    if (!host.isConnected) return;
-    tryMindArResize(host);
+    if (!host.isConnected || applying) return;
+    applying = true;
+    try {
+      tryMindArResize(host);
+    } finally {
+      // Let MindAR finish any sync style writes before we watch again.
+      window.setTimeout(() => {
+        applying = false;
+      }, 30);
+    }
   };
   const schedule = () => {
+    if (applying) return;
     window.clearTimeout(timer);
-    timer = window.setTimeout(apply, 80);
+    timer = window.setTimeout(apply, 50);
   };
 
-  const video = getCameraVideo(host);
-  video?.addEventListener('loadedmetadata', apply);
-  video?.addEventListener('resize', schedule);
+  const bindVideoWatchers = (video: HTMLVideoElement | null) => {
+    if (!video || video.dataset.spCoverBound === '1') return;
+    video.dataset.spCoverBound = '1';
+    video.addEventListener('loadedmetadata', apply);
+    video.addEventListener('resize', schedule);
+    video.addEventListener('play', schedule);
+
+    // MindAR repeatedly writes inline width/height/transform — fight back.
+    const styleObserver = new MutationObserver(schedule);
+    styleObserver.observe(video, {
+      attributes: true,
+      attributeFilter: ['style', 'width', 'height'],
+    });
+  };
+
+  bindVideoWatchers(getCameraVideo(host));
   window.addEventListener('resize', schedule);
   window.addEventListener('orientationchange', schedule);
+  window.setTimeout(apply, 0);
+  window.setTimeout(apply, 200);
+  window.setTimeout(apply, 800);
 
   const observer = new ResizeObserver(schedule);
   observer.observe(host);
+
+  const treeObserver = new MutationObserver(() => {
+    bindVideoWatchers(getCameraVideo(host));
+    schedule();
+  });
+  treeObserver.observe(host, { childList: true, subtree: true });
 };
 
 /** Style and play the MindAR camera feed under a transparent tracking canvas. */

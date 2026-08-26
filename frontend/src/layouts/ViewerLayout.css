@@ -1,6 +1,7 @@
 html.viewer-route,
 html.viewer-route body,
 html.viewer-route #root {
+  width: 100%;
   height: 100%;
   height: 100dvh;
   max-height: 100dvh;
@@ -12,12 +13,16 @@ html.viewer-route #root {
 }
 
 .viewer-shell {
-  position: relative;
+  position: fixed;
+  inset: 0;
   width: 100%;
+  width: 100vw;
+  height: 100%;
   height: 100dvh;
   max-height: 100dvh;
   overflow: hidden;
   overscroll-behavior: none;
   background: #000;
   touch-action: manipulation;
+  z-index: 0;
 }
