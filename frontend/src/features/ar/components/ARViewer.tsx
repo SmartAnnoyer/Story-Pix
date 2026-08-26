@@ -10,6 +10,7 @@ import { ScanStatusOverlay } from './ScanStatusOverlay';
 import { ScanFocusFrame, type ScanFocusPhase } from './ScanFocusFrame';
 import { TargetFrameVideo, type VideoDisplayMode } from './TargetFrameVideo';
 import { ViewerControlBar } from './ViewerControlBar';
+import { ViewerTopChrome } from './ViewerTopChrome';
 import type { ViewerPhase } from './ViewerProgressBar';
 import {
   clearMindCacheForAlbum,
@@ -129,6 +130,8 @@ export const ARViewer = ({
   const [scanSeconds, setScanSeconds] = useState(0);
   const [matchPercent, setMatchPercent] = useState(0);
   const [videoReveal, setVideoReveal] = useState(false);
+  const [soundOn, setSoundOn] = useState(false);
+  const downloadActionRef = useRef<(() => void) | null>(null);
   const matchPercentRef = useRef(0);
   const [facingMode, setFacingMode] = useState<CameraFacing>(initialFacingMode);
   const [flipping, setFlipping] = useState(false);
@@ -1087,6 +1090,16 @@ export const ARViewer = ({
         }}
         className="ar-scene-host"
       />
+      {videoMode !== 'fullscreen' ? (
+        <ViewerTopChrome
+          soundOn={soundOn}
+          onToggleMute={() => setSoundOn((value) => !value)}
+          onDownload={() => downloadActionRef.current?.()}
+          canDownload={Boolean(
+            activeTarget?.videoAvailable && (activeVideoUrl || activeVideoFallbackUrl),
+          )}
+        />
+      ) : null}
       <ScanFocusFrame
         visible={
           videoMode !== 'fullscreen' &&
@@ -1110,6 +1123,12 @@ export const ARViewer = ({
         videoIndex={Math.max(0, siblingIndex)}
         onCycleVideo={cycleSiblingVideo}
         onModeChange={setVideoMode}
+        showInlineControls={false}
+        soundOn={soundOn}
+        onSoundOnChange={setSoundOn}
+        onDownloadReady={(download) => {
+          downloadActionRef.current = download;
+        }}
         onPlay={() => {
           viewerLog('info', 'video playing', {
             target: activeTarget?.targetName,

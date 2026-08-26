@@ -1,0 +1,77 @@
+.viewer-top-chrome {
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding:
+    max(12px, calc(env(safe-area-inset-top) + 8px))
+    max(12px, env(safe-area-inset-right))
+    8px
+    max(14px, env(safe-area-inset-left));
+}
+
+.viewer-top-chrome__brand {
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.viewer-top-chrome__logo {
+  max-width: min(52vw, 180px);
+  height: auto !important;
+  max-height: 48px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.45));
+}
+
+.viewer-top-chrome__actions {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+
+.viewer-top-chrome__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.65rem;
+  height: 2.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(12, 12, 18, 0.55);
+  color: #fff;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.viewer-top-chrome__btn:active {
+  transform: scale(0.96);
+}
+
+.viewer-top-chrome__btn:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+@media (max-height: 620px) {
+  .viewer-top-chrome__logo {
+    max-height: 38px;
+  }
+
+  .viewer-top-chrome__btn {
+    width: 2.35rem;
+    height: 2.35rem;
+  }
+}

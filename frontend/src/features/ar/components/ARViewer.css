@@ -1,4 +1,4 @@
-/* Full-screen live camera. Tracking canvas is invisible on iOS; clip is a CSS overlay. */
+/* Full-screen live camera. Tracking canvas is invisible; clip is a CSS overlay. */
 html.viewer-route,
 html.viewer-route body,
 html.viewer-route #root {
@@ -12,11 +12,10 @@ html.viewer-route #root {
 }
 
 .ar-viewer-root {
-  position: fixed;
+  position: absolute;
   inset: 0;
   width: 100%;
-  height: 100dvh;
-  max-height: 100dvh;
+  height: 100%;
   overflow: hidden;
   background: #000;
   touch-action: none;
@@ -29,7 +28,8 @@ html.viewer-route #root {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #000;
+  /* Transparent so black never paints over a late-arriving camera video */
+  background: transparent;
 }
 
 .ar-scene-host video:not(#sp-mapped-video) {
@@ -43,7 +43,7 @@ html.viewer-route #root {
   max-height: none !important;
   object-fit: cover !important;
   aspect-ratio: auto !important;
-  z-index: 1 !important;
+  z-index: 5 !important;
   opacity: 1 !important;
   visibility: visible !important;
   pointer-events: none;
@@ -78,7 +78,9 @@ html.viewer-route #root {
   pointer-events: none !important;
 }
 
-/* iPhone WebGL canvas is opaque black — hide it and keep the HTML camera. */
+/* Hide opaque WebGL — guests see the live HTML camera under the scan UI. */
+.ar-scene-host--html-camera > a-scene,
+.ar-scene-host--html-camera .a-canvas,
 .ar-scene-host--ios-html-camera > a-scene,
 .ar-scene-host--ios-html-camera .a-canvas {
   opacity: 0 !important;

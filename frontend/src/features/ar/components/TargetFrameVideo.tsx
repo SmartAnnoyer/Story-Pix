@@ -53,6 +53,11 @@ interface TargetFrameVideoProps {
   onError?: (message: string) => void;
   onEnded?: () => void;
   onExitFullscreen?: () => void;
+  /** When false, mute/download are owned by parent chrome. */
+  showInlineControls?: boolean;
+  soundOn?: boolean;
+  onSoundOnChange?: (soundOn: boolean) => void;
+  onDownloadReady?: (download: (() => void) | null) => void;
   onClose?: () => void;
   /** Fade in chrome once the clip is playing on the photo. */
   reveal?: boolean;
@@ -134,6 +139,10 @@ export const TargetFrameVideo = ({
   onEnded,
   onClose,
   reveal = false,
+  showInlineControls = true,
+  soundOn: soundOnProp,
+  onSoundOnChange,
+  onDownloadReady,
 }: TargetFrameVideoProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -145,8 +154,8 @@ export const TargetFrameVideo = ({
   const [needsTap, setNeedsTap] = useState(false);
   const [loading, setLoading] = useState(false);
   const [, setIsPlaying] = useState(false);
-  const [soundOn, setSoundOn] = useState(false);
-  const soundOnRef = useRef(false);
+  const [soundOn, setSoundOn] = useState(soundOnProp ?? false);
+  const soundOnRef = useRef(soundOnProp ?? false);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const lastTapAtRef = useRef(0);
 
@@ -520,8 +529,9 @@ export const TargetFrameVideo = ({
     video.volume = 1;
     setSoundOn(true);
     soundOnRef.current = true;
+    onSoundOnChange?.(true);
     return true;
-  }, []);
+  }, [onSoundOnChange]);
 
   const notifyPlay = useCallback(() => {
     if (hasNotifiedPlayRef.current) return;
@@ -623,7 +633,7 @@ export const TargetFrameVideo = ({
           video.src = src;
           video.load();
           await waitForVideoReady(video);
-          const played = await tryPlay(false);
+          const played = await tryPlay(soundOnRef.current);
           if (played || (video.videoWidth > 0 && !video.paused)) {
             if (!played) notifyPlay();
             window.setTimeout(() => {
@@ -738,16 +748,39 @@ export const TargetFrameVideo = ({
 
   const handleToggleMute = useCallback(() => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video) {
+      const next = !soundOnRef.current;
+      setSoundOn(next);
+      soundOnRef.current = next;
+      onSoundOnChange?.(next);
+      return;
+    }
     if (soundOn) {
       video.muted = true;
       setSoundOn(false);
       soundOnRef.current = false;
+      onSoundOnChange?.(false);
       return;
     }
     enableSound();
     if (video.paused) void video.play().catch(() => undefined);
-  }, [soundOn, enableSound]);
+  }, [soundOn, enableSound, onSoundOnChange]);
+
+  useEffect(() => {
+    if (typeof soundOnProp !== 'boolean') return;
+    if (soundOnProp === soundOnRef.current) return;
+    soundOnRef.current = soundOnProp;
+    setSoundOn(soundOnProp);
+    const video = videoRef.current;
+    if (!video || !active) return;
+    if (soundOnProp) {
+      video.muted = false;
+      video.volume = 1;
+      if (video.paused) void video.play().catch(() => undefined);
+    } else {
+      video.muted = true;
+    }
+  }, [soundOnProp, active]);
 
   const handleToggleFullscreen = useCallback(() => {
     onModeChange(mode === 'fullscreen' ? 'frame' : 'fullscreen');
@@ -784,11 +817,17 @@ export const TargetFrameVideo = ({
     }
   }, [playbackUrl, primaryUrl, fallbackUrl, title]);
 
+  useEffect(() => {
+    onDownloadReady?.(active ? () => void handleDownload() : null);
+    return () => onDownloadReady?.(null);
+  }, [active, onDownloadReady, handleDownload]);
+
   if (!active || typeof document === 'undefined') return null;
 
   const showFullscreen = mode === 'fullscreen';
+  const showControlsBar = showInlineControls || Boolean(onClose);
 
-  const controls = (
+  const controls = showControlsBar ? (
     <div
       className="ar-video-controls"
       style={{
@@ -802,38 +841,42 @@ export const TargetFrameVideo = ({
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
     >
-      <button
-        type="button"
-        className="ar-video-ctrl"
-        aria-label={soundOn ? 'Mute' : 'Unmute'}
-        onClick={handleToggleMute}
-      >
-        <span className="ar-video-ctrl__icon" aria-hidden>
-          {soundOn ? (
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-              <path d="M3 10v4h3.2L11 18.5V5.5L6.2 10H3zm11.5 2a3.5 3.5 0 0 0-2-3.15v6.3a3.5 3.5 0 0 0 2-3.15zm-2-7.05v1.55A6.01 6.01 0 0 1 17.5 12a6.01 6.01 0 0 1-5 5.5v1.55A7.52 7.52 0 0 0 19 12a7.52 7.52 0 0 0-6.5-7.05z" />
-            </svg>
-          ) : (
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-              <path d="M3 10v4h3.2L11 18.5V5.5L6.2 10H3zm15.9-5.1-1.4-1.4L15 9l-2.5 2.5v.1L15 14.1l2.5 2.5 1.4-1.4L16.4 12.7l2.5-2.5z" />
-              <path d="M4.2 3.1 3 4.3 19.7 21l1.2-1.2z" />
-            </svg>
-          )}
-        </span>
-      </button>
+      {showInlineControls ? (
+        <>
+          <button
+            type="button"
+            className="ar-video-ctrl"
+            aria-label={soundOn ? 'Mute' : 'Unmute'}
+            onClick={handleToggleMute}
+          >
+            <span className="ar-video-ctrl__icon" aria-hidden>
+              {soundOn ? (
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M3 10v4h3.2L11 18.5V5.5L6.2 10H3zm11.5 2a3.5 3.5 0 0 0-2-3.15v6.3a3.5 3.5 0 0 0 2-3.15zm-2-7.05v1.55A6.01 6.01 0 0 1 17.5 12a6.01 6.01 0 0 1-5 5.5v1.55A7.52 7.52 0 0 0 19 12a7.52 7.52 0 0 0-6.5-7.05z" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M3 10v4h3.2L11 18.5V5.5L6.2 10H3zm15.9-5.1-1.4-1.4L15 9l-2.5 2.5v.1L15 14.1l2.5 2.5 1.4-1.4L16.4 12.7l2.5-2.5z" />
+                  <path d="M4.2 3.1 3 4.3 19.7 21l1.2-1.2z" />
+                </svg>
+              )}
+            </span>
+          </button>
 
-      <button
-        type="button"
-        className="ar-video-ctrl"
-        aria-label="Download video"
-        onClick={() => void handleDownload()}
-      >
-        <span className="ar-video-ctrl__icon" aria-hidden>
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-            <path d="M11 4h2v9.2l3.1-3.1 1.4 1.4L12 17.1 6.5 11.5l1.4-1.4L11 13.2V4zM5 19h14v2H5v-2z" />
-          </svg>
-        </span>
-      </button>
+          <button
+            type="button"
+            className="ar-video-ctrl"
+            aria-label="Download video"
+            onClick={() => void handleDownload()}
+          >
+            <span className="ar-video-ctrl__icon" aria-hidden>
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                <path d="M11 4h2v9.2l3.1-3.1 1.4 1.4L12 17.1 6.5 11.5l1.4-1.4L11 13.2V4zM5 19h14v2H5v-2z" />
+              </svg>
+            </span>
+          </button>
+        </>
+      ) : null}
 
       {onClose ? (
         <button type="button" className="ar-video-ctrl" aria-label="Close" onClick={onClose}>
@@ -845,7 +888,7 @@ export const TargetFrameVideo = ({
         </button>
       ) : null}
     </div>
-  );
+  ) : null;
 
   return createPortal(
     <>
@@ -906,7 +949,7 @@ export const TargetFrameVideo = ({
                 className="ar-video-tap-play"
                 onClick={(event) => {
                   event.stopPropagation();
-                  void tryPlay(false);
+                  void tryPlay(soundOnRef.current);
                 }}
               >
                 Tap to play

@@ -2,8 +2,6 @@ import { installPoseCapture } from './target-projection';
 
 export type CameraFacing = 'environment' | 'user';
 
-const isIOS = () => typeof navigator !== 'undefined' && /iP(hone|od|ad)/.test(navigator.userAgent);
-
 export type MindArSceneResult = {
   scene: Element;
   targetEntities: HTMLElement[];
@@ -94,7 +92,8 @@ export const buildMindArScene = (
 
   host.replaceChildren();
   host.appendChild(scene);
-  if (isIOS()) host.classList.add('ar-scene-host--ios-html-camera');
+  // Always show the HTML <video> camera; WebGL canvas is often opaque black on mobile.
+  host.classList.add('ar-scene-host--html-camera');
 
   return { scene, targetEntities };
 };
@@ -163,6 +162,12 @@ export const coverMindArCameraVideo = (host: HTMLElement): void => {
   const video = getCameraVideo(host);
   if (!video) return;
 
+  // MindAR sometimes mounts the camera <video> on body (z-index -2) — reparent so
+  // our fixed black shells cannot cover it.
+  if (video.parentElement !== host) {
+    host.appendChild(video);
+  }
+
   video.removeAttribute('width');
   video.removeAttribute('height');
   video.style.position = 'absolute';
@@ -180,19 +185,25 @@ export const coverMindArCameraVideo = (host: HTMLElement): void => {
   video.style.setProperty('max-height', 'none', 'important');
   video.style.setProperty('object-fit', 'cover', 'important');
   video.style.setProperty('aspect-ratio', 'auto', 'important');
-  video.style.setProperty('z-index', '1', 'important');
+  video.style.setProperty('z-index', '5', 'important');
   video.style.setProperty('opacity', '1', 'important');
   video.style.setProperty('visibility', 'visible', 'important');
 };
 
-export const hideIosTrackingCanvas = (host: HTMLElement): void => {
-  if (!isIOS()) return;
+/** Hide opaque WebGL canvas; guests see the live HTML camera instead. */
+export const hideTrackingCanvas = (host: HTMLElement): void => {
+  host.classList.add('ar-scene-host--html-camera');
+  // Keep legacy class for any cached CSS during deploy overlap.
   host.classList.add('ar-scene-host--ios-html-camera');
   const scene = host.querySelector('a-scene') as HTMLElement | null;
   const canvas = (scene?.querySelector('.a-canvas, canvas') ??
     host.querySelector('.a-canvas')) as HTMLElement | null;
   scene?.style.setProperty('opacity', '0', 'important');
   canvas?.style.setProperty('opacity', '0', 'important');
+};
+
+export const hideIosTrackingCanvas = (host: HTMLElement): void => {
+  hideTrackingCanvas(host);
 };
 
 const tryMindArResize = (host: HTMLElement): void => {
@@ -202,7 +213,7 @@ const tryMindArResize = (host: HTMLElement): void => {
     // a-camera may not exist yet — cover layout still fills the screen
   }
   coverMindArCameraVideo(host);
-  hideIosTrackingCanvas(host);
+  hideTrackingCanvas(host);
 };
 
 const watchCoverLayout = (host: HTMLElement): void => {
@@ -242,6 +253,7 @@ export const ensureCameraPreviewVisible = (host: HTMLElement): HTMLVideoElement 
   host.classList.remove('ar-scene-host--crop-playing');
 
   coverMindArCameraVideo(host);
+  hideTrackingCanvas(host);
   tryMindArResize(host);
   watchCoverLayout(host);
 
@@ -266,7 +278,7 @@ export const keepMindArCameraPlaying = (host: HTMLElement): void => {
   video.muted = true;
   video.playsInline = true;
   coverMindArCameraVideo(host);
-  hideIosTrackingCanvas(host);
+  hideTrackingCanvas(host);
   if (video.paused) void video.play().catch(() => undefined);
 };
 

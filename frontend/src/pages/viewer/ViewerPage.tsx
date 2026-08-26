@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { ARViewer } from '@/features/ar/components/ARViewer';
 import { ViewerWelcomeScreen } from '@/features/ar/components/ViewerWelcomeScreen';
@@ -47,8 +47,10 @@ export const ViewerPage = () => {
   const initialWarmup = useMemo(() => buildInitialWarmup(albumSlug), [albumSlug]);
   const [started, setStarted] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [needsTap, setNeedsTap] = useState(false);
   const [facingMode, setFacingMode] = useState<CameraFacing>('environment');
   const [warmup, setWarmup] = useState<WarmupProgress>(initialWarmup);
+  const startLockRef = useRef(false);
 
   useEffect(() => {
     preloadViewerScripts();
@@ -63,6 +65,8 @@ export const ViewerPage = () => {
     bootstrapViewerRoute(albumSlug);
     setStarted(false);
     setStarting(false);
+    setNeedsTap(false);
+    startLockRef.current = false;
     setWarmup(buildInitialWarmup(albumSlug));
 
     void startViewerWarmup(albumSlug, setWarmup).catch((error) => {
@@ -80,30 +84,65 @@ export const ViewerPage = () => {
     return undefined;
   }, [albumSlug]);
 
-  const handleStart = async () => {
-    if (starting || started) return;
-    setStarting(true);
-    viewerLog('info', 'Open camera tapped — priming permission');
-    unlockPlaybackAudio();
+  const handleStart = useCallback(
+    async (fromUserGesture = false) => {
+      if (startLockRef.current || started) return;
+      startLockRef.current = true;
+      setStarting(true);
+      setNeedsTap(false);
+      setWarmup((current) =>
+        current.error && /camera|permission|denied/i.test(current.error)
+          ? { ...current, error: null, detail: null }
+          : current,
+      );
+      viewerLog('info', 'Starting camera — priming permission', { fromUserGesture });
+      unlockPlaybackAudio();
 
-    const permission = await primeCameraPermission('environment');
-    if (!permission.ok) {
-      releaseHeldCameraStream();
+      const permission = await primeCameraPermission('environment');
+      if (!permission.ok) {
+        releaseHeldCameraStream();
+        startLockRef.current = false;
+        setStarting(false);
+        viewerLog('error', 'camera permission failed', permission.error);
+        // Auto-start often fails without a tap (iOS). Keep loading UI + ask for a tap.
+        setNeedsTap(true);
+        if (fromUserGesture) {
+          setWarmup((current) => ({
+            ...current,
+            error: permission.error,
+            detail: permission.error,
+          }));
+        }
+        return;
+      }
+
+      viewerLog('info', 'camera permission ok', { facingMode: permission.facingMode });
+      setFacingMode(permission.facingMode);
+      setStarted(true);
       setStarting(false);
-      viewerLog('error', 'camera permission failed', permission.error);
-      setWarmup((current) => ({
-        ...current,
-        error: permission.error,
-        detail: permission.error,
-      }));
-      return;
-    }
+      setNeedsTap(false);
+    },
+    [started],
+  );
 
-    viewerLog('info', 'camera permission ok', { facingMode: permission.facingMode });
-    setFacingMode(permission.facingMode);
-    setStarted(true);
-    setStarting(false);
-  };
+  // After warmup finishes, open camera automatically (loading UI stays until then).
+  useEffect(() => {
+    if (started || starting || startLockRef.current) return;
+    if (!warmup.ready || warmup.error) return;
+    if (!warmup.manifest?.targets.length) return;
+    if (needsTap) return;
+
+    viewerLog('info', 'Warmup ready — auto-opening camera');
+    void handleStart(false);
+  }, [
+    warmup.ready,
+    warmup.error,
+    warmup.manifest?.targets.length,
+    started,
+    starting,
+    needsTap,
+    handleStart,
+  ]);
 
   if (warmup.stage === 'error' && !warmup.manifest) {
     return (
@@ -124,7 +163,8 @@ export const ViewerPage = () => {
         manifest={manifest}
         warmup={warmup}
         starting={starting}
-        onStart={handleStart}
+        needsTap={needsTap}
+        onStart={() => void handleStart(true)}
       />
     );
   }
