@@ -976,7 +976,7 @@ export const ARViewer = ({
         visible={
           videoMode !== 'fullscreen' &&
           !activeTarget &&
-          (status === 'scanning' || status === 'move_closer' || status === 'match_found')
+          (status === 'scanning' || status === 'move_closer')
         }
         phase={scanFocusPhase}
       />
