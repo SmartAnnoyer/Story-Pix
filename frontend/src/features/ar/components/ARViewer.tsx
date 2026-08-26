@@ -7,6 +7,7 @@ import type {
 import { ScanEventType } from '@/types/ar-target.types';
 import { detectDeviceInfo, getViewerSessionId, viewerService } from '@/services/viewer.service';
 import { ScanStatusOverlay } from './ScanStatusOverlay';
+import { MappingPreviewImage } from './MappingPreviewImage';
 import { ScanFocusFrame, type ScanFocusPhase } from './ScanFocusFrame';
 import { TargetFrameVideo, type VideoDisplayMode } from './TargetFrameVideo';
 import { ViewerControlBar } from './ViewerControlBar';
@@ -57,7 +58,10 @@ const AR_INIT_TIMEOUT_MS = 35_000;
 const SCAN_HINT_DELAY_MS = 18_000;
 const SCAN_NO_MATCH_DELAY_MS = 30_000;
 const TARGET_FOUND_CONFIRM_MS = 180;
+/** Brief wobble after lock — keep video up; was 280ms and tore video down instantly. */
 const TARGET_LOST_GRACE_MS = 280;
+const TARGET_LOST_PLAYING_GRACE_MS = 2200;
+const VIDEO_START_DELAY_MS = 120;
 
 const buildServerMindBundle = (albumSlug: string, manifest: ViewerManifest): MindBundle | null => {
   if (!manifest.mindFile) return null;
@@ -481,6 +485,7 @@ export const ARViewer = ({
           );
           setVideoMode('frame');
           targetTrackedRef.current = true;
+          statusRef.current = 'match_found';
           setStatus('match_found');
           void recordEventRef.current(ScanEventType.SCAN_SUCCESS, nextTarget);
           prefetchVideo(
@@ -490,7 +495,7 @@ export const ARViewer = ({
           window.setTimeout(() => {
             if (!mounted) return;
             setActiveTarget(nextTarget);
-          }, 520);
+          }, VIDEO_START_DELAY_MS);
         };
 
         const attachTargetListeners = () => {
@@ -557,6 +562,13 @@ export const ARViewer = ({
               const existingGrace = targetLostGraceRef.current.get(mindIndex);
               if (existingGrace) return;
 
+              const graceMs =
+                activeMindIndexRef.current === mindIndex ||
+                statusRef.current === 'match_found' ||
+                statusRef.current === 'recognized'
+                  ? TARGET_LOST_PLAYING_GRACE_MS
+                  : TARGET_LOST_GRACE_MS;
+
               const grace = window.setTimeout(() => {
                 targetLostGraceRef.current.delete(mindIndex);
                 if (!mounted) return;
@@ -587,7 +599,7 @@ export const ARViewer = ({
                   keepMindArCameraPlaying(host);
                   restartMindArTracking(host);
                 }, 80);
-              }, TARGET_LOST_GRACE_MS);
+              }, graceMs);
 
               targetLostGraceRef.current.set(mindIndex, grace);
             });
@@ -979,6 +991,15 @@ export const ARViewer = ({
           (status === 'scanning' || status === 'move_closer')
         }
         phase={scanFocusPhase}
+        photo={
+          uniquePhotos[0] ? (
+            <MappingPreviewImage
+              albumSlug={albumSlug}
+              target={uniquePhotos[0]}
+              className="!h-full !w-full !rounded-none !border-0"
+            />
+          ) : undefined
+        }
       />
       <TargetFrameVideo
         host={sceneHost}

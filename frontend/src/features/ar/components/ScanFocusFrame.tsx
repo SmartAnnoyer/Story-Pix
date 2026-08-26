@@ -1,4 +1,6 @@
 import { createPortal } from 'react-dom';
+import type { ReactNode } from 'react';
+import { ScanHowTo } from './ScanHowTo';
 import './ScanFocusFrame.css';
 
 export type ScanFocusPhase = 'scanning' | 'warming' | 'locking' | 'found';
@@ -6,9 +8,10 @@ export type ScanFocusPhase = 'scanning' | 'warming' | 'locking' | 'found';
 interface ScanFocusFrameProps {
   visible: boolean;
   phase?: ScanFocusPhase;
+  photo?: ReactNode;
 }
 
-export const ScanFocusFrame = ({ visible, phase = 'scanning' }: ScanFocusFrameProps) => {
+export const ScanFocusFrame = ({ visible, phase = 'scanning', photo }: ScanFocusFrameProps) => {
   if (!visible || typeof document === 'undefined') return null;
 
   const hint =
@@ -20,13 +23,12 @@ export const ScanFocusFrame = ({ visible, phase = 'scanning' }: ScanFocusFramePr
 
   return createPortal(
     <div className={`scan-focus-frame scan-focus-frame--${phase}`} aria-hidden>
-      {/* Four dim panels — avoids 9999px box-shadow which breaks mobile WebGL/camera */}
-      <div className="scan-focus-frame__veil scan-focus-frame__veil--top" />
-      <div className="scan-focus-frame__veil scan-focus-frame__veil--bottom" />
-      <div className="scan-focus-frame__veil scan-focus-frame__veil--left" />
-      <div className="scan-focus-frame__veil scan-focus-frame__veil--right" />
+      <div className="scan-focus-frame__hint-pill">
+        <span className="scan-focus-frame__hint-dot" />
+        <span>{hint}</span>
+      </div>
 
-      <div className={`scan-focus-frame__window scan-focus-frame__window--${phase}`}>
+      <div className={`scan-focus-frame__box scan-focus-frame__box--${phase}`}>
         <span className="scan-focus-frame__corner scan-focus-frame__corner--tl" />
         <span className="scan-focus-frame__corner scan-focus-frame__corner--tr" />
         <span className="scan-focus-frame__corner scan-focus-frame__corner--bl" />
@@ -34,9 +36,8 @@ export const ScanFocusFrame = ({ visible, phase = 'scanning' }: ScanFocusFramePr
         <div className="scan-focus-frame__scanline" />
       </div>
 
-      <div className="scan-focus-frame__hint-pill">
-        <span className="scan-focus-frame__hint-dot" />
-        <span>{hint}</span>
+      <div className="scan-focus-frame__coach">
+        <ScanHowTo variant="mini" showLabel={false} photo={photo} />
       </div>
     </div>,
     document.body,
