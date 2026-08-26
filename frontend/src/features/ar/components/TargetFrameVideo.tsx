@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { FULL_OVERLAY_FRAME, type OverlayFrame } from '../utils/overlay-frame';
+import { clampOverlayFrame, type OverlayFrame } from '../utils/overlay-frame';
 import { getPlaybackVideoElement } from '../utils/camera-permission';
 import {
   ensureTransparentRenderer,
@@ -118,7 +118,7 @@ export const TargetFrameVideo = ({
   host,
   targetEntity,
   aspectRatio,
-  overlayFrame: _overlayFrame,
+  overlayFrame,
   primaryUrl,
   fallbackUrl,
   active,
@@ -263,7 +263,7 @@ export const TargetFrameVideo = ({
       return undefined;
     }
 
-    const frame = FULL_OVERLAY_FRAME;
+    const frame = clampOverlayFrame(overlayFrame);
     installPoseCapture(entity);
     ensureTransparentRenderer(host);
     hideIosTrackingCanvas(host);
@@ -298,7 +298,9 @@ export const TargetFrameVideo = ({
     let missFrames = 0;
     let planeAttached = false;
     let lastBox: { left: number; top: number; width: number; height: number } | null = null;
+    let smoothBox: { left: number; top: number; width: number; height: number } | null = null;
     const srcSize = 400;
+    const SMOOTH = 0.42;
 
     let blitCanvas: HTMLCanvasElement | null = null;
     let blitCtx: CanvasRenderingContext2D | null = null;
@@ -315,14 +317,29 @@ export const TargetFrameVideo = ({
       blitCtx = blitCanvas.getContext('2d', { alpha: false });
     }
 
+    const blendBox = (box: { left: number; top: number; width: number; height: number }) => {
+      if (!smoothBox) {
+        smoothBox = { ...box };
+        return smoothBox;
+      }
+      smoothBox = {
+        left: smoothBox.left + (box.left - smoothBox.left) * SMOOTH,
+        top: smoothBox.top + (box.top - smoothBox.top) * SMOOTH,
+        width: smoothBox.width + (box.width - smoothBox.width) * SMOOTH,
+        height: smoothBox.height + (box.height - smoothBox.height) * SMOOTH,
+      };
+      return smoothBox;
+    };
+
     const applyBox = (box: { left: number; top: number; width: number; height: number }) => {
       if (!stage) return;
+      const next = blendBox(box);
       lastBox = box;
       stage.style.position = 'fixed';
-      stage.style.left = `${box.left}px`;
-      stage.style.top = `${box.top}px`;
-      stage.style.width = `${box.width}px`;
-      stage.style.height = `${box.height}px`;
+      stage.style.left = `${next.left}px`;
+      stage.style.top = `${next.top}px`;
+      stage.style.width = `${next.width}px`;
+      stage.style.height = `${next.height}px`;
       stage.style.transform = 'none';
       stage.style.transformOrigin = '0 0';
       stage.style.opacity = '1';
@@ -351,6 +368,8 @@ export const TargetFrameVideo = ({
       if (!stage) return false;
       const matrix = quadToCssMatrix3d(srcSize, srcSize, corners);
       if (!matrix) return false;
+      // Perspective quads already track the photo; skip AABB smoothing here.
+      smoothBox = null;
       stage.style.position = 'fixed';
       stage.style.left = '0px';
       stage.style.top = '0px';
@@ -367,15 +386,7 @@ export const TargetFrameVideo = ({
     };
 
     const layoutOverlay = () => {
-      const box = getOverlayAabbViewport(host, entity, aspectRatio, frame);
-      if (box && isUsableOverlayBox(box, host)) {
-        applyBox(box);
-        return box;
-      }
-      if (lastBox && isUsableOverlayBox(lastBox, host)) {
-        applyBox(lastBox);
-        return lastBox;
-      }
+      // Prefer perspective quad using the studio crop frame for correct placement.
       const quad = getOverlayQuadScreenCorners(host, entity, aspectRatio, frame);
       if (quad?.visible && applyQuad(quad.corners)) {
         const xs = quad.corners.map((corner) => corner.x);
@@ -388,6 +399,15 @@ export const TargetFrameVideo = ({
         };
         lastBox = quadBox;
         return quadBox;
+      }
+      const box = getOverlayAabbViewport(host, entity, aspectRatio, frame);
+      if (box && isUsableOverlayBox(box, host)) {
+        applyBox(box);
+        return box;
+      }
+      if (lastBox && isUsableOverlayBox(lastBox, host)) {
+        applyBox(lastBox);
+        return lastBox;
       }
       return null;
     };
@@ -479,7 +499,7 @@ export const TargetFrameVideo = ({
       detachOverlayVideoPlane(entity);
       keepMindArCameraPlaying(host);
     };
-  }, [active, mode, host, targetEntity, aspectRatio]);
+  }, [active, mode, host, targetEntity, aspectRatio, overlayFrame]);
 
   useEffect(() => {
     if (mode !== 'fullscreen' || !stageRef.current) return;

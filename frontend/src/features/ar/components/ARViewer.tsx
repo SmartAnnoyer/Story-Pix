@@ -59,9 +59,11 @@ const AR_INIT_TIMEOUT_MS = 35_000;
 const SCAN_HINT_DELAY_MS = 18_000;
 const SCAN_NO_MATCH_DELAY_MS = 30_000;
 const TARGET_FOUND_CONFIRM_MS = 180;
-/** Brief wobble after lock — keep video up; was 280ms and tore video down instantly. */
+const TARGET_SWITCH_CONFIRM_MS = 420;
+/** Leave the print — stop shortly; other indices finding cancels this. */
 const TARGET_LOST_GRACE_MS = 280;
-const TARGET_LOST_PLAYING_GRACE_MS = 4000;
+const TARGET_LOST_PLAYING_GRACE_MS = 900;
+const TARGET_SWITCH_COOLDOWN_MS = 1100;
 const VIDEO_START_DELAY_MS = 80;
 
 const buildServerMindBundle = (albumSlug: string, manifest: ViewerManifest): MindBundle | null => {
@@ -120,6 +122,7 @@ export const ARViewer = ({
   const [activeTarget, setActiveTarget] = useState<ViewerManifestTarget | null>(null);
   const [activeMindIndex, setActiveMindIndex] = useState<number | null>(null);
   const activeMindIndexRef = useRef<number | null>(null);
+  const lastTargetSwitchAtRef = useRef(0);
   const [targetAspectRatio, setTargetAspectRatio] = useState(1.414);
   const [videoMode, setVideoMode] = useState<VideoDisplayMode>('frame');
   const [mindBundle, setMindBundle] = useState<MindBundle | null>(initialMindBundle);
@@ -444,6 +447,46 @@ export const ARViewer = ({
         setSceneHost(host);
         viewerLog('info', 'a-scene mounted', { targetEntities: targetEntities.length });
 
+        const beginPlayback = (
+          mindIndex: number,
+          nextTarget: ViewerManifestTarget,
+          isSwitch: boolean,
+        ) => {
+          targetLostGraceRef.current.forEach((timer, index) => {
+            if (index === mindIndex) return;
+            window.clearTimeout(timer);
+            targetLostGraceRef.current.delete(index);
+          });
+
+          activeMindIndexRef.current = mindIndex;
+          setActiveMindIndex(mindIndex);
+          setTrackedEntity(targetEntities[mindIndex] ?? null);
+          setTargetAspectRatio(
+            manifest.mindFile?.targetDimensions?.[mindIndex]
+              ? manifest.mindFile.targetDimensions[mindIndex].height /
+                  manifest.mindFile.targetDimensions[mindIndex].width
+              : getTargetAspectRatio(mindCacheKey, mindIndex),
+          );
+          if (!isSwitch) {
+            setVideoMode('frame');
+          }
+          targetTrackedRef.current = true;
+          statusRef.current = 'match_found';
+          setStatus('match_found');
+          setVideoReveal(false);
+          void recordEventRef.current(ScanEventType.SCAN_SUCCESS, nextTarget);
+          prefetchVideo(
+            viewerService.getMappingVideoUrl(albumSlug, nextTarget.id, nextTarget.videoMediaId),
+          );
+
+          const startDelay = isSwitch ? 0 : VIDEO_START_DELAY_MS;
+          window.setTimeout(() => {
+            if (!mounted) return;
+            if (activeMindIndexRef.current !== mindIndex) return;
+            setActiveTarget(nextTarget);
+          }, startDelay);
+        };
+
         const confirmTargetMatch = (mindIndex: number) => {
           if (!mounted) return;
 
@@ -457,22 +500,55 @@ export const ARViewer = ({
 
           const current = statusRef.current;
           const playing = current === 'match_found' || current === 'recognized';
-          // Sticky lock: similar prints often false-match other mind indices and thrash video.
-          if (playing) {
-            if (activeMindIndexRef.current === mindIndex) {
-              viewerLog('debug', 'target match confirmed — already on active target', {
-                target: nextTarget.targetName,
+          const activeIndex = activeMindIndexRef.current;
+
+          if (playing && activeIndex === mindIndex) {
+            return;
+          }
+
+          if (playing && activeIndex !== null && activeIndex !== mindIndex) {
+            const activeGroup = mappingsForMindIndex(targetsRef.current, activeIndex);
+            const activePhotoId = activeGroup[0]?.photoMediaId;
+            // Same print false-matched to another mind slot — keep current clip.
+            if (activePhotoId && activePhotoId === nextTarget.photoMediaId) {
+              viewerLog('info', 'targetFound keep — same photo via other mind index', {
                 mindIndex,
+                active: activeIndex,
+              });
+              setTrackedEntity(targetEntities[mindIndex] ?? targetEntities[activeIndex] ?? null);
+              return;
+            }
+
+            const now = Date.now();
+            if (now - lastTargetSwitchAtRef.current < TARGET_SWITCH_COOLDOWN_MS) {
+              viewerLog('info', 'target switch deferred — cooldown', {
+                mindIndex,
+                active: activeIndex,
               });
               return;
             }
-            viewerLog('info', 'targetFound ignored — sticky lock on active target', {
-              mindIndex,
-              active: activeMindIndexRef.current,
-              status: current,
+
+            if (!nextTarget.videoAvailable) {
+              viewerLog('warn', 'target switch skipped — no playable video', {
+                mindIndex,
+                target: nextTarget.targetName,
+              });
+              return;
+            }
+
+            lastTargetSwitchAtRef.current = now;
+            viewerLog('info', 'switching playback to newly found photo', {
+              from: activeIndex,
+              to: mindIndex,
+              target: nextTarget.targetName,
             });
+            clearScanTimers();
+            setProgress(1);
+            setStatusDetail(null);
+            beginPlayback(mindIndex, nextTarget, true);
             return;
           }
+
           if (current !== 'scanning' && current !== 'move_closer') {
             return;
           }
@@ -494,36 +570,7 @@ export const ARViewer = ({
             return;
           }
 
-          // Cancel pending lost timers from other indices so they can't kill this playback.
-          targetLostGraceRef.current.forEach((timer, index) => {
-            if (index === mindIndex) return;
-            window.clearTimeout(timer);
-            targetLostGraceRef.current.delete(index);
-          });
-
-          activeMindIndexRef.current = mindIndex;
-          setActiveMindIndex(mindIndex);
-          setTrackedEntity(targetEntities[mindIndex] ?? null);
-          setTargetAspectRatio(
-            manifest.mindFile?.targetDimensions?.[mindIndex]
-              ? manifest.mindFile.targetDimensions[mindIndex].height /
-                  manifest.mindFile.targetDimensions[mindIndex].width
-              : getTargetAspectRatio(mindCacheKey, mindIndex),
-          );
-          setVideoMode('frame');
-          targetTrackedRef.current = true;
-          statusRef.current = 'match_found';
-          setStatus('match_found');
-          void recordEventRef.current(ScanEventType.SCAN_SUCCESS, nextTarget);
-          prefetchVideo(
-            viewerService.getMappingVideoUrl(albumSlug, nextTarget.id, nextTarget.videoMediaId),
-          );
-
-          window.setTimeout(() => {
-            if (!mounted) return;
-            if (activeMindIndexRef.current !== mindIndex) return;
-            setActiveTarget(nextTarget);
-          }, VIDEO_START_DELAY_MS);
+          beginPlayback(mindIndex, nextTarget, false);
         };
 
         const attachTargetListeners = () => {
@@ -546,7 +593,7 @@ export const ARViewer = ({
               const playing =
                 statusRef.current === 'match_found' || statusRef.current === 'recognized';
 
-              // MindAR hops similar prints across indices — any detection keeps the active clip alive.
+              // Any detection while playing cancels leave-timers (MindAR index hopping).
               if (playing) {
                 targetLostGraceRef.current.forEach((timer, index) => {
                   window.clearTimeout(timer);
@@ -571,10 +618,16 @@ export const ARViewer = ({
               const pending = targetFoundTimersRef.current.get(mindIndex);
               if (pending) window.clearTimeout(pending);
 
+              const switching =
+                playing &&
+                activeMindIndexRef.current !== null &&
+                activeMindIndexRef.current !== mindIndex;
+              const confirmMs = switching ? TARGET_SWITCH_CONFIRM_MS : TARGET_FOUND_CONFIRM_MS;
+
               const timer = window.setTimeout(() => {
                 targetFoundTimersRef.current.delete(mindIndex);
                 confirmTargetMatch(mindIndex);
-              }, TARGET_FOUND_CONFIRM_MS);
+              }, confirmMs);
 
               targetFoundTimersRef.current.set(mindIndex, timer);
             });
@@ -590,11 +643,7 @@ export const ARViewer = ({
               if (pending) {
                 window.clearTimeout(pending);
                 targetFoundTimersRef.current.delete(mindIndex);
-                if (
-                  !statusRef.current ||
-                  statusRef.current === 'scanning' ||
-                  statusRef.current === 'move_closer'
-                ) {
+                if (statusRef.current === 'scanning' || statusRef.current === 'move_closer') {
                   targetTrackedRef.current = false;
                 }
                 return;
@@ -602,15 +651,9 @@ export const ARViewer = ({
 
               if (!mounted) return;
 
-              // Latched playback: once the clip is playing (or fullscreen), only Done ends it.
-              // Similar album photos false-match other mind indices and would otherwise kill the video.
-              if (statusRef.current === 'recognized' || videoModeRef.current === 'fullscreen') {
-                viewerLog('info', 'targetLost ignored — playback latched', {
-                  mindIndex,
-                  active: activeMindIndexRef.current,
-                  status: statusRef.current,
-                  videoMode: videoModeRef.current,
-                });
+              // Fullscreen is user-controlled — don't tear down from tracking blips.
+              if (videoModeRef.current === 'fullscreen') {
+                viewerLog('info', 'targetLost ignored — fullscreen latched', { mindIndex });
                 return;
               }
 
@@ -618,7 +661,9 @@ export const ARViewer = ({
               if (existingGrace) return;
 
               const graceMs =
-                activeMindIndexRef.current === mindIndex || statusRef.current === 'match_found'
+                activeMindIndexRef.current === mindIndex ||
+                statusRef.current === 'match_found' ||
+                statusRef.current === 'recognized'
                   ? TARGET_LOST_PLAYING_GRACE_MS
                   : TARGET_LOST_GRACE_MS;
 
@@ -626,14 +671,10 @@ export const ARViewer = ({
                 targetLostGraceRef.current.delete(mindIndex);
                 if (!mounted) return;
 
-                if (statusRef.current === 'recognized' || videoModeRef.current === 'fullscreen') {
-                  viewerLog('info', 'targetLost timer skipped — playback latched', {
-                    mindIndex,
-                  });
+                if (videoModeRef.current === 'fullscreen') {
                   return;
                 }
 
-                // Stale losses from other mind indices must not kill the active clip.
                 if (activeMindIndexRef.current !== mindIndex) {
                   viewerLog('info', 'targetLost ignored — not the active index', {
                     mindIndex,
@@ -653,6 +694,7 @@ export const ARViewer = ({
                 setActiveMindIndex(null);
                 setTrackedEntity(null);
                 setVideoMode('frame');
+                setVideoReveal(false);
                 statusRef.current = 'scanning';
                 setStatus('scanning');
                 setStatusDetail(null);
