@@ -80,15 +80,15 @@
 
 .ar-video-nowplaying {
   pointer-events: none;
-  margin: 0;
-  padding: 0.4rem 0.9rem;
+  margin: max(12px, env(safe-area-inset-top)) auto 0;
+  padding: 0.4rem 0.85rem;
   border-radius: 999px;
-  background: rgba(15, 15, 20, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: #fff;
+  background: rgba(15, 15, 20, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.88);
   font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-weight: 500;
+  letter-spacing: 0.01em;
 }
 
 .ar-video-stage {
@@ -231,18 +231,18 @@
 /* Controls sit under the frame so they don’t cover the video */
 .ar-video-controls {
   pointer-events: auto !important;
-  display: flex;
+  display: inline-flex;
   flex-wrap: nowrap;
-  align-items: stretch;
+  align-items: center;
   justify-content: center;
-  gap: 0;
+  gap: 0.35rem;
   width: max-content;
-  max-width: calc(100vw - 16px);
-  padding: 0.28rem 0.3rem 0.22rem;
-  border-radius: 22px;
-  background: rgba(18, 18, 24, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.38);
+  max-width: calc(100vw - 20px);
+  padding: 0.4rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(12, 12, 18, 0.58);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   touch-action: manipulation;
@@ -260,16 +260,14 @@
 
 .ar-video-ctrl {
   display: inline-flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.12rem;
   flex: 0 0 auto;
-  min-width: 2.55rem;
-  min-height: 2.9rem;
-  padding: 0.16rem 0.18rem 0.12rem;
+  width: 2.55rem;
+  height: 2.55rem;
+  padding: 0;
   border: none;
-  border-radius: 14px;
+  border-radius: 999px;
   background: transparent;
   color: #fff;
   text-decoration: none;
@@ -283,12 +281,12 @@
 }
 
 .ar-video-ctrl:active {
-  transform: scale(0.94);
+  transform: scale(0.92);
 }
 
 .ar-video-ctrl:hover,
 .ar-video-ctrl:focus-visible {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.1);
   outline: none;
 }
 
@@ -296,21 +294,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.95rem;
-  height: 1.95rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+  width: 100%;
+  height: 100%;
   color: #fff;
 }
 
 .ar-video-ctrl__label {
-  font-size: 0.5rem;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.88);
-  white-space: nowrap;
+  display: none;
 }
 
 @keyframes ar-video-border-spin {

@@ -58,7 +58,7 @@ interface TargetFrameVideoProps {
   reveal?: boolean;
 }
 
-const LOAD_TIMEOUT_MS = 25_000;
+const LOAD_TIMEOUT_MS = 2_800;
 
 const isIOS = () => typeof navigator !== 'undefined' && /iP(hone|od|ad)/.test(navigator.userAgent);
 
@@ -123,9 +123,9 @@ export const TargetFrameVideo = ({
   fallbackUrl,
   active,
   mode,
-  videoCount = 1,
-  videoIndex = 0,
-  onCycleVideo,
+  videoCount: _videoCount = 1,
+  videoIndex: _videoIndex = 0,
+  onCycleVideo: _onCycleVideo,
   title,
   preferDirectUrl = true,
   onModeChange,
@@ -144,10 +144,11 @@ export const TargetFrameVideo = ({
   const hasNotifiedPlayRef = useRef(false);
   const [needsTap, setNeedsTap] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [soundOn, setSoundOn] = useState(true);
-  const soundOnRef = useRef(true);
+  const [, setIsPlaying] = useState(false);
+  const [soundOn, setSoundOn] = useState(false);
+  const soundOnRef = useRef(false);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
+  const lastTapAtRef = useRef(0);
 
   useEffect(() => {
     onPlayRef.current = onPlay;
@@ -596,7 +597,9 @@ export const TargetFrameVideo = ({
       video.preload = 'auto';
       video.controls = false;
       video.volume = 1;
-      video.muted = !soundOnRef.current;
+      video.muted = true;
+      soundOnRef.current = false;
+      setSoundOn(false);
       let lastError: unknown;
       const uniqueSources = [...new Set(sources)];
       viewerLog('info', 'video load start', { sources: uniqueSources.length });
@@ -620,7 +623,7 @@ export const TargetFrameVideo = ({
           video.src = src;
           video.load();
           await waitForVideoReady(video);
-          const played = await tryPlay(true);
+          const played = await tryPlay(false);
           if (played || (video.videoWidth > 0 && !video.paused)) {
             if (!played) notifyPlay();
             window.setTimeout(() => {
@@ -672,8 +675,8 @@ export const TargetFrameVideo = ({
       setNeedsTap(false);
       setLoading(false);
       setIsPlaying(false);
-      setSoundOn(true);
-      soundOnRef.current = true;
+      setSoundOn(false);
+      soundOnRef.current = false;
       setPlaybackUrl(null);
       video.pause();
       video.removeAttribute('src');
@@ -697,14 +700,11 @@ export const TargetFrameVideo = ({
 
     void loadAndPlay(sources)
       .catch(() => {
-        const video = videoRef.current;
         if (cancelled) return;
-        if (video && video.videoWidth > 0) {
-          viewerLog('warn', 'video start needed a tap; clip already has frames');
-          setNeedsTap(true);
-          return;
-        }
-        onErrorRef.current?.('Could not play the mapped video. Tap Try again or open the link.');
+        // Instant-or-nothing: never leave a silent late-start / audio-only path hanging.
+        onErrorRef.current?.(
+          'Video did not start instantly. Hold the photo steady in the frame and try again.',
+        );
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -736,17 +736,6 @@ export const TargetFrameVideo = ({
     };
   }, [active]);
 
-  const handleTogglePlay = useCallback(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    if (video.paused) {
-      void tryPlay(true);
-      return;
-    }
-    video.pause();
-    setIsPlaying(false);
-  }, [tryPlay]);
-
   const handleToggleMute = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -764,10 +753,36 @@ export const TargetFrameVideo = ({
     onModeChange(mode === 'fullscreen' ? 'frame' : 'fullscreen');
   }, [mode, onModeChange]);
 
-  const handleOpenVideo = useCallback(() => {
-    if (!playbackUrl) return;
-    window.open(playbackUrl, '_blank', 'noopener,noreferrer');
-  }, [playbackUrl]);
+  const handleStageTap = useCallback(() => {
+    const now = Date.now();
+    if (now - lastTapAtRef.current < 340) {
+      lastTapAtRef.current = 0;
+      handleToggleFullscreen();
+      return;
+    }
+    lastTapAtRef.current = now;
+  }, [handleToggleFullscreen]);
+
+  const handleDownload = useCallback(async () => {
+    const source = playbackUrl || primaryUrl || fallbackUrl;
+    if (!source) return;
+    const filename = `${(title || 'story-pix').replace(/[^\w.-]+/g, '_')}.mp4`;
+    try {
+      const response = await fetch(source, { mode: 'cors', credentials: 'omit' });
+      if (!response.ok) throw new Error(`download ${response.status}`);
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 2_000);
+    } catch {
+      window.open(source, '_blank', 'noopener,noreferrer');
+    }
+  }, [playbackUrl, primaryUrl, fallbackUrl, title]);
 
   if (!active || typeof document === 'undefined') return null;
 
@@ -779,36 +794,14 @@ export const TargetFrameVideo = ({
       style={{
         position: 'fixed',
         left: '50%',
-        bottom: 'max(14px, env(safe-area-inset-bottom, 0px))',
+        bottom: 'max(18px, env(safe-area-inset-bottom, 0px))',
         transform: 'translateX(-50%)',
         zIndex: 2147483000,
         pointerEvents: 'auto',
-        flexWrap: 'nowrap',
-        whiteSpace: 'nowrap',
       }}
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
     >
-      <button
-        type="button"
-        className="ar-video-ctrl"
-        aria-label={isPlaying ? 'Pause' : 'Play'}
-        onClick={handleTogglePlay}
-      >
-        <span className="ar-video-ctrl__icon" aria-hidden>
-          {isPlaying ? (
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-              <rect x="5" y="4" width="5" height="16" rx="1.5" />
-              <rect x="14" y="4" width="5" height="16" rx="1.5" />
-            </svg>
-          ) : (
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-              <path d="M8 5.2v13.6c0 .9 1 1.4 1.7.9l10-6.8c.7-.5.7-1.4 0-1.8l-10-6.8C9 3.8 8 4.3 8 5.2z" />
-            </svg>
-          )}
-        </span>
-        <span className="ar-video-ctrl__label">{isPlaying ? 'Pause' : 'Play'}</span>
-      </button>
       <button
         type="button"
         className="ar-video-ctrl"
@@ -817,76 +810,38 @@ export const TargetFrameVideo = ({
       >
         <span className="ar-video-ctrl__icon" aria-hidden>
           {soundOn ? (
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-              <path d="M4 9v6h3.2L12 19.2V4.8L7.2 9H4zm13.5 3c0-1.8-1-3.3-2.5-4.1v8.2c1.5-.8 2.5-2.3 2.5-4.1zm-2.5-7v1.6c2.9.9 5 3.6 5 6.9s-2.1 6-5 6.9V20c3.8-1 6.5-4.5 6.5-8.5S18.8 6 15 5z" />
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M3 10v4h3.2L11 18.5V5.5L6.2 10H3zm11.5 2a3.5 3.5 0 0 0-2-3.15v6.3a3.5 3.5 0 0 0 2-3.15zm-2-7.05v1.55A6.01 6.01 0 0 1 17.5 12a6.01 6.01 0 0 1-5 5.5v1.55A7.52 7.52 0 0 0 19 12a7.52 7.52 0 0 0-6.5-7.05z" />
             </svg>
           ) : (
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-              <path d="M4 9v6h3.2L12 19.2V4.8L7.2 9H4zm16.3-3.1-1.4-1.4L15 8.4l-3.9 3.9v.1L15 15.6l3.9 3.9 1.4-1.4L16.4 14l3.9-3.9-1.4-1.4L15 12.2z" />
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M3 10v4h3.2L11 18.5V5.5L6.2 10H3zm15.9-5.1-1.4-1.4L15 9l-2.5 2.5v.1L15 14.1l2.5 2.5 1.4-1.4L16.4 12.7l2.5-2.5z" />
+              <path d="M4.2 3.1 3 4.3 19.7 21l1.2-1.2z" />
             </svg>
           )}
         </span>
-        <span className="ar-video-ctrl__label">{soundOn ? 'Mute' : 'Sound'}</span>
       </button>
+
       <button
         type="button"
         className="ar-video-ctrl"
-        aria-label={showFullscreen ? 'Exit full screen' : 'Full screen'}
-        onClick={handleToggleFullscreen}
+        aria-label="Download video"
+        onClick={() => void handleDownload()}
       >
         <span className="ar-video-ctrl__icon" aria-hidden>
-          {showFullscreen ? (
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-              <path d="M7 14H5v5h5v-2H7v-3zm0-4h2V7h3V5H5v5h2zm10 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
-            </svg>
-          ) : (
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-              <path d="M7 14H5v5h5v-2H7v-3zm12 5h-5v-2h3v-3h2v5zM5 5h5v2H7v3H5V5zm14 5h-2V7h-3V5h5v5z" />
-            </svg>
-          )}
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <path d="M11 4h2v9.2l3.1-3.1 1.4 1.4L12 17.1 6.5 11.5l1.4-1.4L11 13.2V4zM5 19h14v2H5v-2z" />
+          </svg>
         </span>
-        <span className="ar-video-ctrl__label">{showFullscreen ? 'Exit' : 'Full'}</span>
       </button>
-      {videoCount > 1 && onCycleVideo ? (
-        <button
-          type="button"
-          className="ar-video-ctrl"
-          aria-label="Next mapped video"
-          onClick={() => onCycleVideo(1)}
-        >
-          <span className="ar-video-ctrl__icon" aria-hidden>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-              <path d="M8 5.2v13.6c0 .9 1 1.4 1.7.9l10-6.8c.7-.5.7-1.4 0-1.8l-10-6.8C9 3.8 8 4.3 8 5.2z" />
-            </svg>
-          </span>
-          <span className="ar-video-ctrl__label">
-            {videoIndex + 1}/{videoCount}
-          </span>
-        </button>
-      ) : null}
-      {playbackUrl ? (
-        <button
-          type="button"
-          className="ar-video-ctrl"
-          aria-label="Open video"
-          onClick={handleOpenVideo}
-        >
-          <span className="ar-video-ctrl__icon" aria-hidden>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-              <path d="M14 3h7v7h-2V6.4l-9.3 9.3-1.4-1.4L17.6 5H14V3zM5 5h6v2H7v10h10v-4h2v6H5V5z" />
-            </svg>
-          </span>
-          <span className="ar-video-ctrl__label">Open</span>
-        </button>
-      ) : null}
+
       {onClose ? (
-        <button type="button" className="ar-video-ctrl" aria-label="Close video" onClick={onClose}>
+        <button type="button" className="ar-video-ctrl" aria-label="Close" onClick={onClose}>
           <span className="ar-video-ctrl__icon" aria-hidden>
             <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
               <path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6 6.4 5z" />
             </svg>
           </span>
-          <span className="ar-video-ctrl__label">Done</span>
         </button>
       ) : null}
     </div>
@@ -913,14 +868,13 @@ export const TargetFrameVideo = ({
         aria-label={title ? `Playing ${title}` : 'Playing mapped video'}
       >
         {showFullscreen ? (
-          <p className="ar-video-nowplaying">
-            {loading ? 'Loading video…' : `Now playing${title ? ` · ${title}` : ''}`}
-          </p>
+          <p className="ar-video-nowplaying">Double tap to exit · tap speaker for sound</p>
         ) : null}
 
         <div
           ref={stageRef}
           className="ar-video-stage"
+          onClick={handleStageTap}
           style={
             showFullscreen
               ? {
@@ -938,7 +892,7 @@ export const TargetFrameVideo = ({
                   position: 'fixed',
                   overflow: 'hidden',
                   background: 'transparent',
-                  pointerEvents: 'none',
+                  pointerEvents: 'auto',
                   zIndex: 10080,
                   transformOrigin: '0 0',
                 }
@@ -950,7 +904,10 @@ export const TargetFrameVideo = ({
               <button
                 type="button"
                 className="ar-video-tap-play"
-                onClick={() => void tryPlay(true)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void tryPlay(false);
+                }}
               >
                 Tap to play
               </button>

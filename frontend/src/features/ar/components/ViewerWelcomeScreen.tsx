@@ -46,28 +46,27 @@ export const ViewerWelcomeScreen = ({
   }, [albumId]);
 
   return (
-    <div className="viewer-intro relative flex min-h-[100dvh] flex-col overflow-hidden bg-gradient-to-b from-[#1a0a2e] via-[#120818] to-black text-white">
+    <div className="viewer-intro">
       <div className="viewer-intro-glow pointer-events-none absolute inset-0" />
 
-      <div className="relative z-10 flex flex-1 flex-col px-5 pb-8 pt-6 sm:px-8 sm:pt-10">
-        <div className="mb-8 flex justify-center">
-          <BrandLogo variant="full" height={28} />
+      <div className="viewer-intro__body">
+        <div className="viewer-intro__brand">
+          <BrandLogo variant="full" height={26} />
         </div>
 
         <div
-          className={`mx-auto w-full max-w-md flex-1 transition-all duration-700 ease-out ${
+          className={`viewer-intro__main transition-all duration-700 ease-out ${
             heroVisible ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0'
           }`}
         >
           {!manifest ? (
-            <div className="mx-auto mb-6 max-w-xs">
-              <div className="aspect-[4/3] animate-pulse rounded-2xl border border-white/10 bg-white/5" />
-              <div className="mx-auto mt-4 h-6 w-3/4 animate-pulse rounded-lg bg-white/10" />
+            <div className="w-full max-w-xs">
+              <div className="aspect-[3/4] animate-pulse rounded-2xl border border-white/10 bg-white/5" />
             </div>
           ) : (
             <>
-              {primaryTarget ? (
-                <div className="mx-auto mb-5 flex flex-col items-center">
+              <div className="viewer-intro__howto">
+                {primaryTarget ? (
                   <ScanHowTo
                     photo={
                       <MappingPreviewImage
@@ -77,26 +76,20 @@ export const ViewerWelcomeScreen = ({
                       />
                     }
                   />
-                </div>
-              ) : cover ? (
-                <div className="mx-auto mb-5 flex flex-col items-center">
+                ) : cover ? (
                   <ScanHowTo photo={<img src={cover} alt={albumName} />} />
-                </div>
-              ) : (
-                <div className="mx-auto mb-5 flex justify-center">
+                ) : (
                   <ScanHowTo />
-                </div>
-              )}
+                )}
+              </div>
 
-              <h1 className="mb-4 text-center text-2xl font-bold leading-tight sm:text-3xl">
-                {albumName}
-              </h1>
+              <h1 className="viewer-intro__title">{albumName}</h1>
             </>
           )}
 
           {showProgress ? (
-            <div className="mb-5 overflow-hidden rounded-2xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur-sm">
-              <p className="mb-2 text-center text-sm text-white/70">{warmup.message}</p>
+            <div className="viewer-intro__progress">
+              <p className="mb-2 text-center text-xs text-white/70">{warmup.message}</p>
               <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-[#8A2BE2] to-[#FF4FA3] transition-all duration-700 ease-out"
@@ -107,7 +100,7 @@ export const ViewerWelcomeScreen = ({
           ) : null}
         </div>
 
-        <div className="relative z-10 mx-auto w-full max-w-md">
+        <div className="viewer-intro__footer">
           {warmup.error ? (
             <p className="mb-3 rounded-xl bg-red-500/15 px-4 py-3 text-center text-sm text-red-100">
               {warmup.detail ?? warmup.error}
@@ -118,7 +111,7 @@ export const ViewerWelcomeScreen = ({
             type="button"
             disabled={!canOpenCamera || starting}
             onClick={() => void onStart()}
-            className={`w-full rounded-2xl px-6 py-4 text-base font-semibold transition-all ${
+            className={`w-full rounded-2xl px-6 py-3.5 text-base font-semibold transition-all ${
               canOpenCamera && !starting
                 ? 'viewer-intro-cta bg-gradient-to-r from-[#8A2BE2] to-[#FF4FA3] text-white shadow-lg shadow-purple-900/40 active:scale-[0.98]'
                 : 'cursor-wait bg-white/10 text-white/50'
@@ -127,7 +120,7 @@ export const ViewerWelcomeScreen = ({
             {starting ? 'Allow camera…' : canOpenCamera ? 'Open camera' : 'Loading…'}
           </button>
 
-          <p className="mt-3 text-center text-[11px] text-white/45">
+          <p className="mt-2 text-center text-[11px] text-white/45">
             {starting
               ? 'Choose Allow when your phone asks for the camera.'
               : canOpenCamera

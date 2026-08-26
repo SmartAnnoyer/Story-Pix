@@ -5,31 +5,81 @@
   align-items: center;
 }
 
-.scan-howto__pill {
+.scan-howto__hint {
+  position: relative;
   z-index: 2;
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 0.4rem;
-  margin-bottom: 0.7rem;
-  padding: 0.4rem 0.8rem;
-  border-radius: 999px;
-  background: rgba(12, 12, 18, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: rgba(255, 255, 255, 0.95);
-  font-size: 0.72rem;
-  font-weight: 600;
-  white-space: nowrap;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  gap: 0.65rem;
+  width: min(100%, 280px);
+  margin-bottom: 0.75rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(22, 16, 34, 0.92), rgba(10, 10, 16, 0.86));
+  border: 1px solid transparent;
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
-.scan-howto__pill i {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #2196f3, #8a2be2);
-  box-shadow: 0 0 10px rgba(138, 43, 226, 0.55);
-  animation: scan-howto-dot 1.6s ease-in-out infinite;
+.scan-howto__hint::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(33, 150, 243, 0.85),
+    rgba(138, 43, 226, 0.75),
+    rgba(255, 79, 163, 0.7)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.scan-howto__hint-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 12px;
+  color: #fff;
+  background: linear-gradient(145deg, rgba(33, 150, 243, 0.35), rgba(138, 43, 226, 0.4));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.scan-howto__hint-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.scan-howto__hint-title {
+  color: #fff;
+  font-size: 0.84rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.scan-howto__hint-sub {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.68rem;
+  font-weight: 500;
+  line-height: 1.25;
 }
 
 .scan-howto__stage {
@@ -43,10 +93,28 @@
   aspect-ratio: 3 / 4;
 }
 
-.scan-howto--mini .scan-howto__pill {
+.scan-howto--mini .scan-howto__hint {
+  width: auto;
+  max-width: 100%;
   margin-bottom: 0.45rem;
-  padding: 0.28rem 0.6rem;
-  font-size: 0.62rem;
+  padding: 0.4rem 0.55rem;
+  gap: 0.45rem;
+  border-radius: 12px;
+}
+
+.scan-howto--mini .scan-howto__hint-icon {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 9px;
+}
+
+.scan-howto--mini .scan-howto__hint-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+.scan-howto--mini .scan-howto__hint-title {
+  font-size: 0.68rem;
 }
 
 .scan-howto__print {
@@ -248,7 +316,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .scan-howto__pill i,
   .scan-howto__print,
   .scan-howto__phone,
   .scan-howto__corner,

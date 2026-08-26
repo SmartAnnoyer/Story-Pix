@@ -7,6 +7,8 @@ import { ROUTES } from '@/routes/paths';
 import { startViewerWarmup } from '@/features/ar/utils/viewer-warmup';
 import '@/styles/globals.css';
 
+document.documentElement.classList.add('viewer-route');
+
 // Kick off manifest + video prefetch before React mounts (saves 200–800ms)
 const earlySlug = location.pathname.match(/^\/viewer\/([^/?#]+)/)?.[1];
 if (earlySlug) {

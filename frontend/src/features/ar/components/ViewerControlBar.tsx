@@ -21,14 +21,9 @@ export const ViewerControlBar = ({
   if (!showFlip && !showRetry) return null;
 
   return (
-    <div className="pointer-events-auto absolute bottom-28 right-4 z-30 flex flex-col gap-2 sm:bottom-32">
+    <div className="viewer-control-bar pointer-events-auto">
       {showFlip ? (
-        <button
-          type="button"
-          onClick={onFlip}
-          disabled={flipping}
-          className="viewer-control-btn"
-        >
+        <button type="button" onClick={onFlip} disabled={flipping} className="viewer-control-btn">
           <span className={`viewer-control-icon ${flipping ? 'is-spinning' : ''}`} aria-hidden>
             ↻
           </span>
@@ -36,7 +31,11 @@ export const ViewerControlBar = ({
         </button>
       ) : null}
       {showRetry ? (
-        <button type="button" onClick={onRetry} className="viewer-control-btn viewer-control-btn-primary">
+        <button
+          type="button"
+          onClick={onRetry}
+          className="viewer-control-btn viewer-control-btn-primary"
+        >
           <span className="viewer-control-icon" aria-hidden>
             ⟳
           </span>

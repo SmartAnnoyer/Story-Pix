@@ -7,10 +7,8 @@ import type {
 import { ScanEventType } from '@/types/ar-target.types';
 import { detectDeviceInfo, getViewerSessionId, viewerService } from '@/services/viewer.service';
 import { ScanStatusOverlay } from './ScanStatusOverlay';
-import { MappingPreviewImage } from './MappingPreviewImage';
 import { ScanFocusFrame, type ScanFocusPhase } from './ScanFocusFrame';
 import { TargetFrameVideo, type VideoDisplayMode } from './TargetFrameVideo';
-import { ViewerDebugConsole } from './ViewerDebugConsole';
 import { ViewerControlBar } from './ViewerControlBar';
 import type { ViewerPhase } from './ViewerProgressBar';
 import {
@@ -58,13 +56,12 @@ type MindBundle = {
 const AR_INIT_TIMEOUT_MS = 35_000;
 const SCAN_HINT_DELAY_MS = 18_000;
 const SCAN_NO_MATCH_DELAY_MS = 30_000;
-const TARGET_FOUND_CONFIRM_MS = 180;
-const TARGET_SWITCH_CONFIRM_MS = 420;
+const TARGET_FOUND_CONFIRM_MS = 0;
+const TARGET_SWITCH_CONFIRM_MS = 0;
 /** Leave the print — stop shortly; other indices finding cancels this. */
-const TARGET_LOST_GRACE_MS = 280;
-const TARGET_LOST_PLAYING_GRACE_MS = 900;
-const TARGET_SWITCH_COOLDOWN_MS = 1100;
-const VIDEO_START_DELAY_MS = 80;
+const TARGET_LOST_GRACE_MS = 180;
+const TARGET_LOST_PLAYING_GRACE_MS = 550;
+const TARGET_SWITCH_COOLDOWN_MS = 450;
 
 const buildServerMindBundle = (albumSlug: string, manifest: ViewerManifest): MindBundle | null => {
   if (!manifest.mindFile) return null;
@@ -478,13 +475,8 @@ export const ARViewer = ({
           prefetchVideo(
             viewerService.getMappingVideoUrl(albumSlug, nextTarget.id, nextTarget.videoMediaId),
           );
-
-          const startDelay = isSwitch ? 0 : VIDEO_START_DELAY_MS;
-          window.setTimeout(() => {
-            if (!mounted) return;
-            if (activeMindIndexRef.current !== mindIndex) return;
-            setActiveTarget(nextTarget);
-          }, startDelay);
+          // Instant: mount the player on the same tick as MindAR targetFound.
+          setActiveTarget(nextTarget);
         };
 
         const confirmTargetMatch = (mindIndex: number) => {
@@ -617,6 +609,12 @@ export const ARViewer = ({
 
               const pending = targetFoundTimersRef.current.get(mindIndex);
               if (pending) window.clearTimeout(pending);
+
+              // Instant detection: start on the same event — no delayed confirm.
+              if (TARGET_FOUND_CONFIRM_MS <= 0 && TARGET_SWITCH_CONFIRM_MS <= 0) {
+                confirmTargetMatch(mindIndex);
+                return;
+              }
 
               const switching =
                 playing &&
@@ -921,18 +919,13 @@ export const ARViewer = ({
     return () => window.cancelAnimationFrame(frameId);
   }, [status]);
 
-  // Prefetch mapped video while the user is close to a match so playback starts faster.
+  // Prefetch every mapped clip as soon as scanning starts — instant play on detect.
   useEffect(() => {
-    if (
-      prefetchedOnWarmRef.current ||
-      matchPercent < 68 ||
-      (status !== 'scanning' && status !== 'move_closer')
-    ) {
+    if (status !== 'scanning' && status !== 'move_closer' && status !== 'loading') {
       return;
     }
-    prefetchedOnWarmRef.current = true;
     prefetchManifestVideos(albumSlug, targets);
-  }, [matchPercent, status, albumSlug, targets]);
+  }, [status, albumSlug, targets]);
 
   useEffect(() => {
     if (status !== 'scanning' && status !== 'move_closer' && status !== 'loading') {
@@ -1086,7 +1079,7 @@ export const ARViewer = ({
       status === 'camera_required');
 
   return (
-    <div className="relative h-[100dvh] w-full overflow-hidden bg-black">
+    <div className="ar-viewer-root relative bg-black">
       <div
         ref={(node) => {
           containerRef.current = node;
@@ -1101,15 +1094,6 @@ export const ARViewer = ({
           (status === 'scanning' || status === 'move_closer')
         }
         phase={scanFocusPhase}
-        photo={
-          uniquePhotos[0] ? (
-            <MappingPreviewImage
-              albumSlug={albumSlug}
-              target={uniquePhotos[0]}
-              className="!h-full !w-full !rounded-none !border-0"
-            />
-          ) : undefined
-        }
       />
       <TargetFrameVideo
         host={sceneHost}
@@ -1143,7 +1127,12 @@ export const ARViewer = ({
           }
         }}
         onError={(message) => {
-          viewerLog('error', 'video playback failed', { message, url: activeVideoUrl });
+          viewerLog('error', 'video playback failed — aborting late play', {
+            message,
+            url: activeVideoUrl,
+          });
+          // Instant-or-nothing: do not keep a half-started clip that only plays audio later.
+          resumeScanningAfterVideo();
           setStatusDetail(message);
         }}
         onEnded={handleFullscreenEnded}
@@ -1170,7 +1159,6 @@ export const ARViewer = ({
         onFlip={() => void handleFlipCamera()}
         onRetry={handleRetryScan}
       />
-      <ViewerDebugConsole />
     </div>
   );
 };

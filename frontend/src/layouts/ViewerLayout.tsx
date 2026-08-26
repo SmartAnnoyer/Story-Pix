@@ -1,8 +1,9 @@
 import { Outlet } from 'react-router-dom';
+import './ViewerLayout.css';
 
 export const ViewerLayout = () => {
   return (
-    <div className="min-h-[100dvh] bg-black">
+    <div className="viewer-shell">
       <Outlet />
     </div>
   );

@@ -4,6 +4,23 @@ html.viewer-route body,
 html.viewer-route #root {
   background: #000 !important;
   color: #fff;
+  height: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+
+.ar-viewer-root {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+  background: #000;
+  touch-action: none;
+  overscroll-behavior: none;
 }
 
 .ar-scene-host {
