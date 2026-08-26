@@ -61,8 +61,8 @@ const SCAN_NO_MATCH_DELAY_MS = 30_000;
 const TARGET_FOUND_CONFIRM_MS = 180;
 /** Brief wobble after lock — keep video up; was 280ms and tore video down instantly. */
 const TARGET_LOST_GRACE_MS = 280;
-const TARGET_LOST_PLAYING_GRACE_MS = 2200;
-const VIDEO_START_DELAY_MS = 120;
+const TARGET_LOST_PLAYING_GRACE_MS = 4000;
+const VIDEO_START_DELAY_MS = 80;
 
 const buildServerMindBundle = (albumSlug: string, manifest: ViewerManifest): MindBundle | null => {
   if (!manifest.mindFile) return null;
@@ -457,10 +457,17 @@ export const ARViewer = ({
 
           const current = statusRef.current;
           const playing = current === 'match_found' || current === 'recognized';
-          if (playing && activeMindIndexRef.current === mindIndex) {
+          // Sticky lock: similar prints often false-match other mind indices and thrash video.
+          if (playing) {
+            if (activeMindIndexRef.current === mindIndex) return;
+            viewerLog('info', 'targetFound ignored — sticky lock on active target', {
+              mindIndex,
+              active: activeMindIndexRef.current,
+              status: current,
+            });
             return;
           }
-          if (!playing && current !== 'scanning' && current !== 'move_closer') {
+          if (current !== 'scanning' && current !== 'move_closer') {
             return;
           }
 
@@ -474,6 +481,13 @@ export const ARViewer = ({
             void recordEventRef.current(ScanEventType.SCAN_FAILED, nextTarget);
             return;
           }
+
+          // Cancel pending lost timers from other indices so they can't kill this playback.
+          targetLostGraceRef.current.forEach((timer, index) => {
+            if (index === mindIndex) return;
+            window.clearTimeout(timer);
+            targetLostGraceRef.current.delete(index);
+          });
 
           activeMindIndexRef.current = mindIndex;
           setActiveMindIndex(mindIndex);
@@ -495,6 +509,7 @@ export const ARViewer = ({
 
           window.setTimeout(() => {
             if (!mounted) return;
+            if (activeMindIndexRef.current !== mindIndex) return;
             setActiveTarget(nextTarget);
           }, VIDEO_START_DELAY_MS);
         };
@@ -574,19 +589,27 @@ export const ARViewer = ({
                 targetLostGraceRef.current.delete(mindIndex);
                 if (!mounted) return;
 
-                if (activeMindIndexRef.current === mindIndex) {
-                  targetTrackedRef.current = false;
+                // Stale losses from other mind indices must not kill the active clip.
+                if (activeMindIndexRef.current !== mindIndex) {
+                  viewerLog('info', 'targetLost ignored — not the active index', {
+                    mindIndex,
+                    active: activeMindIndexRef.current,
+                  });
+                  return;
                 }
 
-                viewerLog('info', 'targetLost — stopping video and resuming scan');
+                targetTrackedRef.current = false;
+                viewerLog('info', 'targetLost — stopping video and resuming scan', {
+                  mindIndex,
+                  status: statusRef.current,
+                });
                 detachOverlayVideoPlane(targetEntitiesRef.current[mindIndex] ?? null);
-                setActiveTarget((current) => (current?.targetIndex === mindIndex ? null : current));
-                if (activeMindIndexRef.current === mindIndex) {
-                  activeMindIndexRef.current = null;
-                  setActiveMindIndex(null);
-                  setTrackedEntity(null);
-                }
+                setActiveTarget(null);
+                activeMindIndexRef.current = null;
+                setActiveMindIndex(null);
+                setTrackedEntity(null);
                 setVideoMode('frame');
+                statusRef.current = 'scanning';
                 setStatus('scanning');
                 setStatusDetail(null);
                 setProgress(0.92);
