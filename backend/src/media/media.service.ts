@@ -16,6 +16,7 @@ import {
   MediaSortField,
   MediaSortOrder,
   QueryMediaDto,
+  UpdateMediaDto,
 } from './dto/media.dto';
 import { MediaLimitService } from './media-limit.service';
 import { MediaProcessingService } from './media-processing.service';
@@ -233,6 +234,17 @@ export class MediaService {
 
   async findById(studioId: string, id: string) {
     const media = await this.findDocument(studioId, id);
+    return this.serialize(media);
+  }
+
+  async updateDisplayName(studioId: string, id: string, dto: UpdateMediaDto) {
+    const media = await this.findDocument(studioId, id);
+    if (media.status === MediaStatus.DELETED) {
+      throw new BadRequestException('Cannot rename deleted media');
+    }
+
+    media.originalFileName = dto.originalFileName.trim();
+    await media.save();
     return this.serialize(media);
   }
 

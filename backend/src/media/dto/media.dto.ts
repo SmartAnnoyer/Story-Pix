@@ -60,6 +60,13 @@ export class ConfirmUploadDto {
   overlayFrame?: OverlayFrameDto;
 }
 
+export class UpdateMediaDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  originalFileName!: string;
+}
+
 export enum MediaSortField {
   CREATED_AT = 'createdAt',
   FILE_NAME = 'fileName',

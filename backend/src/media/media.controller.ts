@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   Get,
   Param,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
@@ -13,7 +14,12 @@ import { RequirePermissions, Roles } from '../decorators';
 import { Role } from '../common/enums';
 import { AuthenticatedUser } from '../common/interfaces';
 import { MediaService } from './media.service';
-import { ConfirmUploadDto, InitiateUploadDto, QueryMediaDto } from './dto/media.dto';
+import {
+  ConfirmUploadDto,
+  InitiateUploadDto,
+  QueryMediaDto,
+  UpdateMediaDto,
+} from './dto/media.dto';
 
 @Controller('media')
 @Roles(Role.STUDIO_ADMIN, Role.STUDIO_STAFF)
@@ -65,6 +71,16 @@ export class MediaController {
   @RequirePermissions('media:read')
   findOne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.mediaService.findById(this.assertStudioId(user), id);
+  }
+
+  @Patch(':id')
+  @RequirePermissions('media:write')
+  update(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateMediaDto,
+  ) {
+    return this.mediaService.updateDisplayName(this.assertStudioId(user), id, dto);
   }
 
   @Delete(':id')

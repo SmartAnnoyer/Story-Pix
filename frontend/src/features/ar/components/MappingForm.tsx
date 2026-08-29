@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Form, Input, Select, Button, Space } from 'antd';
+import { Form, Input, Select, Button, Space, message } from 'antd';
 import type { MediaItem, OverlayFrame } from '@/types/media.types';
 import { MediaType } from '@/types/media.types';
 import { FrameSelector } from '@/features/media/components/FrameSelector';
 import { clampOverlayFrame, DEFAULT_OVERLAY_FRAME } from '@/features/ar/utils/overlay-frame';
+import { useUpdateMediaMutation } from '@/hooks/useMediaQueries';
+import { getErrorMessage } from '@/api/client';
 
 export interface MappingFormValues {
   targetName: string;
@@ -33,13 +35,18 @@ export const MappingForm = ({
 }: MappingFormProps) => {
   const [form] = Form.useForm<Omit<MappingFormValues, 'overlayFrame'>>();
   const photoMediaId = Form.useWatch('photoMediaId', form);
+  const videoMediaId = Form.useWatch('videoMediaId', form);
   const [overlayFrame, setOverlayFrame] = useState<OverlayFrame>(
     clampOverlayFrame(initialValues?.overlayFrame ?? DEFAULT_OVERLAY_FRAME),
   );
+  const [photoLabel, setPhotoLabel] = useState('');
+  const [videoLabel, setVideoLabel] = useState('');
+  const updateMediaMutation = useUpdateMediaMutation();
 
   const readyPhotos = photos.filter((item) => item.mediaType === MediaType.PHOTO);
   const readyVideos = videos.filter((item) => item.mediaType === MediaType.VIDEO);
   const selectedPhoto = readyPhotos.find((photo) => photo.id === photoMediaId);
+  const selectedVideo = readyVideos.find((video) => video.id === videoMediaId);
   const photoPreview = selectedPhoto?.publicUrl ?? selectedPhoto?.thumbnailUrl ?? null;
 
   const photosRef = useRef(photos);
@@ -62,6 +69,32 @@ export const MappingForm = ({
     initialValues?.overlayFrame,
     initialValues?.targetName,
   ]);
+
+  useEffect(() => {
+    setPhotoLabel(selectedPhoto?.originalFileName ?? '');
+  }, [selectedPhoto?.id, selectedPhoto?.originalFileName]);
+
+  useEffect(() => {
+    setVideoLabel(selectedVideo?.originalFileName ?? '');
+  }, [selectedVideo?.id, selectedVideo?.originalFileName]);
+
+  const renameMedia = async (
+    mediaId: string,
+    originalFileName: string,
+    kind: 'Photo' | 'Video',
+  ) => {
+    const trimmed = originalFileName.trim();
+    if (!trimmed) {
+      message.warning(`Enter a ${kind.toLowerCase()} name`);
+      return;
+    }
+    try {
+      await updateMediaMutation.mutateAsync({ id: mediaId, originalFileName: trimmed });
+      message.success(`${kind} renamed`);
+    } catch (error) {
+      message.error(getErrorMessage(error, `${kind} rename failed`));
+    }
+  };
 
   return (
     <Form
@@ -104,6 +137,26 @@ export const MappingForm = ({
         />
       </Form.Item>
 
+      {selectedPhoto ? (
+        <Form.Item label="Photo name" extra="Rename if uploads look alike.">
+          <Space.Compact className="!w-full">
+            <Input
+              value={photoLabel}
+              maxLength={255}
+              placeholder="Name shown in the list"
+              onChange={(event) => setPhotoLabel(event.target.value)}
+            />
+            <Button
+              loading={updateMediaMutation.isPending}
+              disabled={!photoLabel.trim() || photoLabel.trim() === selectedPhoto.originalFileName}
+              onClick={() => void renameMedia(selectedPhoto.id, photoLabel, 'Photo')}
+            >
+              Rename
+            </Button>
+          </Space.Compact>
+        </Form.Item>
+      ) : null}
+
       {photoPreview ? (
         <Form.Item label="Video plays inside this frame">
           <p className="mb-2 text-sm text-neutral-500">
@@ -132,6 +185,26 @@ export const MappingForm = ({
           notFoundContent="No videos yet — upload them on Photos & videos"
         />
       </Form.Item>
+
+      {selectedVideo ? (
+        <Form.Item label="Video name" extra="Rename if uploads look alike.">
+          <Space.Compact className="!w-full">
+            <Input
+              value={videoLabel}
+              maxLength={255}
+              placeholder="Name shown in the list"
+              onChange={(event) => setVideoLabel(event.target.value)}
+            />
+            <Button
+              loading={updateMediaMutation.isPending}
+              disabled={!videoLabel.trim() || videoLabel.trim() === selectedVideo.originalFileName}
+              onClick={() => void renameMedia(selectedVideo.id, videoLabel, 'Video')}
+            >
+              Rename
+            </Button>
+          </Space.Compact>
+        </Form.Item>
+      ) : null}
 
       <Space>
         <Button type="primary" htmlType="submit" loading={loading}>
