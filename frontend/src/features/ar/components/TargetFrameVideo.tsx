@@ -26,6 +26,7 @@ import {
 import {
   awaitSameOriginVideoUrl,
   getPrefetchedBlobUrl,
+  prefetchVideo,
   resolvePlayableVideoUrl,
 } from '../utils/video-prefetch';
 import { dumpArOverlayDebug } from '../utils/ar-overlay-debug';
@@ -65,6 +66,8 @@ interface TargetFrameVideoProps {
 }
 
 const LOAD_TIMEOUT_MS = 2_800;
+const IOS_LOAD_TIMEOUT_MS = 12_000;
+const IOS_BLOB_FALLBACK_TIMEOUT_MS = 18_000;
 
 const isIOS = () => typeof navigator !== 'undefined' && /iP(hone|od|ad)/.test(navigator.userAgent);
 
@@ -79,15 +82,24 @@ const buildSourceList = (
   return ordered.filter((url): url is string => Boolean(url));
 };
 
-const waitForVideoReady = (video: HTMLVideoElement): Promise<void> =>
+const waitForVideoReady = (video: HTMLVideoElement, timeoutMs = LOAD_TIMEOUT_MS): Promise<void> =>
   new Promise((resolve, reject) => {
     const timeout = window.setTimeout(() => {
       cleanup();
-      reject(new Error('Video load timed out'));
-    }, LOAD_TIMEOUT_MS);
+      reject(
+        new Error(
+          `Video load timed out (${timeoutMs}ms, ready=${video.readyState}, size=${video.videoWidth}x${video.videoHeight}, code=${video.error?.code ?? 'none'})`,
+        ),
+      );
+    }, timeoutMs);
 
     const checkReady = () => {
       if (video.videoWidth > 0 && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+        cleanup();
+        resolve();
+        return;
+      }
+      if (video.readyState >= HTMLMediaElement.HAVE_METADATA && Number.isFinite(video.duration)) {
         cleanup();
         resolve();
       }
@@ -661,10 +673,60 @@ export const TargetFrameVideo = ({
       const uniqueSources = [...new Set(sources)];
       const iosHtmlCamera =
         isIOS() && Boolean(host?.classList.contains('ar-scene-host--html-camera'));
+      const loadTimeout = iosHtmlCamera ? IOS_LOAD_TIMEOUT_MS : LOAD_TIMEOUT_MS;
       viewerLog('info', 'video load start', {
         sources: uniqueSources.length,
         iosHtmlCamera,
+        loadTimeout,
       });
+
+      const applyVideoSrc = (src: string, originalSource: string) => {
+        if (src.startsWith('blob:') || iosHtmlCamera) {
+          video.removeAttribute('crossorigin');
+          video.crossOrigin = null;
+        } else {
+          video.crossOrigin = 'anonymous';
+          video.setAttribute('crossorigin', 'anonymous');
+        }
+        setPlaybackUrl(src.startsWith('blob:') ? originalSource : src);
+        video.src = src;
+        video.load();
+      };
+
+      const tryResolvedSource = async (src: string, originalSource: string, label: string) => {
+        viewerLog('debug', 'video trying source', {
+          label,
+          blob: src.startsWith('blob:'),
+          ios: isIOS(),
+          iosHtmlCamera,
+          src: src.slice(0, 120),
+        });
+        applyVideoSrc(src, originalSource);
+        await waitForVideoReady(video, loadTimeout);
+        const played = await tryPlay(soundOnRef.current);
+        if (played || (video.videoWidth > 0 && !video.paused) || Number.isFinite(video.duration)) {
+          if (!played) notifyPlay();
+          window.setTimeout(() => {
+            const rect = video.getBoundingClientRect();
+            viewerLog('info', 'video play ok', {
+              label,
+              width: video.videoWidth,
+              height: video.videoHeight,
+              paused: video.paused,
+              muted: video.muted,
+              currentTime: Number(video.currentTime.toFixed(2)),
+              rect: {
+                w: Math.round(rect.width),
+                h: Math.round(rect.height),
+                top: Math.round(rect.top),
+                left: Math.round(rect.left),
+              },
+            });
+          }, 120);
+          return;
+        }
+        throw new Error('play() rejected');
+      };
 
       for (const source of uniqueSources) {
         try {
@@ -673,59 +735,44 @@ export const TargetFrameVideo = ({
             src: source.slice(0, 120),
           });
 
-          let blobUrl = getPrefetchedBlobUrl(source);
-          if (!iosHtmlCamera) {
-            blobUrl =
-              blobUrl ??
-              (await awaitSameOriginVideoUrl(source, 2_500)) ??
-              getPrefetchedBlobUrl(source);
+          prefetchVideo(source);
+
+          if (iosHtmlCamera) {
+            const cachedBlob = getPrefetchedBlobUrl(source);
+            if (cachedBlob) {
+              await tryResolvedSource(cachedBlob, source, 'cached-blob');
+              return;
+            }
+
+            try {
+              await tryResolvedSource(source, source, 'direct');
+              return;
+            } catch (directError) {
+              lastError = directError;
+              viewerLog('warn', 'direct iOS video load failed — trying blob', {
+                message: directError instanceof Error ? directError.message : String(directError),
+                code: video.error?.code ?? null,
+              });
+              const blobUrl =
+                getPrefetchedBlobUrl(source) ??
+                (await awaitSameOriginVideoUrl(source, IOS_BLOB_FALLBACK_TIMEOUT_MS));
+              if (!blobUrl) {
+                throw directError;
+              }
+              await tryResolvedSource(blobUrl, source, 'blob');
+              return;
+            }
           }
 
-          const resolved =
+          let blobUrl = getPrefetchedBlobUrl(source);
+          blobUrl =
             blobUrl ??
-            (iosHtmlCamera
-              ? source
-              : ((await resolvePlayableVideoUrl(source, { allowBlob: true })) ?? source));
-          const src = resolved;
-          if (src.startsWith('blob:') || iosHtmlCamera) {
-            video.removeAttribute('crossorigin');
-            video.crossOrigin = null;
-          } else {
-            video.crossOrigin = 'anonymous';
-            video.setAttribute('crossorigin', 'anonymous');
-          }
-          setPlaybackUrl(src.startsWith('blob:') ? source : src);
-          viewerLog('debug', 'video trying source', {
-            blob: src.startsWith('blob:'),
-            ios: isIOS(),
-            iosHtmlCamera,
-            src: src.slice(0, 120),
-          });
-          video.src = src;
-          video.load();
-          await waitForVideoReady(video);
-          const played = await tryPlay(soundOnRef.current);
-          if (played || (video.videoWidth > 0 && !video.paused)) {
-            if (!played) notifyPlay();
-            window.setTimeout(() => {
-              const rect = video.getBoundingClientRect();
-              viewerLog('info', 'video play ok', {
-                width: video.videoWidth,
-                height: video.videoHeight,
-                paused: video.paused,
-                muted: video.muted,
-                currentTime: Number(video.currentTime.toFixed(2)),
-                rect: {
-                  w: Math.round(rect.width),
-                  h: Math.round(rect.height),
-                  top: Math.round(rect.top),
-                  left: Math.round(rect.left),
-                },
-              });
-            }, 120);
-            return;
-          }
-          lastError = new Error('play() rejected');
+            (await awaitSameOriginVideoUrl(source, 2_500)) ??
+            getPrefetchedBlobUrl(source);
+          const resolved =
+            blobUrl ?? (await resolvePlayableVideoUrl(source, { allowBlob: true })) ?? source;
+          await tryResolvedSource(resolved, source, blobUrl ? 'blob' : 'direct');
+          return;
         } catch (error) {
           if (video.videoWidth > 0 && !video.paused) {
             viewerLog('warn', 'video error ignored — clip already playing', {
@@ -737,6 +784,7 @@ export const TargetFrameVideo = ({
           lastError = error;
           viewerLog('warn', 'video source failed', {
             message: error instanceof Error ? error.message : String(error),
+            code: video.error?.code ?? null,
             src: source.slice(0, 96),
           });
         }

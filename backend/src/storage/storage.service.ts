@@ -50,6 +50,13 @@ export class MockStorageService extends IStorageService {
     return null;
   }
 
+  async getObjectStream(
+    _key: string,
+    _range?: { start: number; end: number },
+  ): Promise<import('./interfaces/storage.interface').StorageObjectStream | null> {
+    return null;
+  }
+
   async putObjectBuffer(
     key: string,
     _buffer: Buffer,

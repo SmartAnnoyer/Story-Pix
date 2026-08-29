@@ -177,6 +177,11 @@ export class ViewerService {
   }
 
   async getMappingVideoBuffer(albumSlug: string, targetId: string) {
+    const asset = await this.resolveMappingVideoAsset(albumSlug, targetId);
+    return this.loadMediaBuffer(asset.r2ObjectKey, asset.fallbackUrl, asset.contentType);
+  }
+
+  async resolveMappingVideoAsset(albumSlug: string, targetId: string) {
     const target = await this.findActiveTarget(albumSlug, targetId);
 
     const video = await this.mediaService
@@ -187,11 +192,59 @@ export class ViewerService {
       throw new NotFoundException('Mapping video not available');
     }
 
-    return this.loadMediaBuffer(
-      video.r2ObjectKey,
-      video.publicUrl ?? video.thumbnailUrl,
-      video.mimeType ?? 'video/mp4',
-    );
+    const metadata = await this.storageService.getObjectMetadata(video.r2ObjectKey);
+    const contentType = video.mimeType ?? metadata?.contentType ?? 'video/mp4';
+
+    return {
+      r2ObjectKey: video.r2ObjectKey,
+      fallbackUrl: video.publicUrl ?? video.thumbnailUrl ?? null,
+      contentType,
+      sizeBytes: metadata?.sizeBytes ?? 0,
+    };
+  }
+
+  async openMappingVideoStream(
+    albumSlug: string,
+    targetId: string,
+    range?: { start: number; end: number },
+  ) {
+    const asset = await this.resolveMappingVideoAsset(albumSlug, targetId);
+    const fromStorage = await this.storageService.getObjectStream(asset.r2ObjectKey, range);
+    if (fromStorage) {
+      return {
+        ...fromStorage,
+        contentType: fromStorage.contentType || asset.contentType,
+        sizeBytes: asset.sizeBytes,
+      };
+    }
+
+    if (!asset.fallbackUrl) {
+      throw new NotFoundException('Mapping video not available');
+    }
+
+    const headers: Record<string, string> = {};
+    if (range) {
+      headers.Range = `bytes=${range.start}-${range.end}`;
+    }
+
+    const response = await fetch(asset.fallbackUrl, { headers });
+    if (!response.ok || !response.body) {
+      throw new BadGatewayException('Failed to load mapping video from storage');
+    }
+
+    const contentLengthHeader = response.headers.get('content-length');
+    const contentLength = contentLengthHeader
+      ? Number(contentLengthHeader)
+      : range
+        ? range.end - range.start + 1
+        : asset.sizeBytes;
+
+    return {
+      body: response.body as unknown as NodeJS.ReadableStream,
+      contentType: response.headers.get('content-type') ?? asset.contentType,
+      contentLength: Number.isFinite(contentLength) ? contentLength : 0,
+      sizeBytes: asset.sizeBytes,
+    };
   }
 
   async recordEvent(albumSlug: string, dto: RecordViewerEventDto, req?: Request) {

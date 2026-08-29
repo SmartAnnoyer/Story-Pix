@@ -23,6 +23,8 @@ describe('ViewerService', () => {
   const usageService = { incrementScanUsage: jest.fn() };
   const storageService = {
     getObjectBuffer: jest.fn(),
+    getObjectMetadata: jest.fn(),
+    getObjectStream: jest.fn(),
     getPublicUrl: jest.fn((key: string) => `https://cdn.example.com/${key}`),
   };
 

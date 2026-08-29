@@ -106,6 +106,34 @@ export class R2StorageService extends IStorageService {
     }
   }
 
+  async getObjectStream(
+    key: string,
+    range?: { start: number; end: number },
+  ): Promise<import('./interfaces/storage.interface').StorageObjectStream | null> {
+    try {
+      const response = await this.client.send(
+        new GetObjectCommand({
+          Bucket: this.bucketName,
+          Key: key,
+          ...(range ? { Range: `bytes=${range.start}-${range.end}` } : {}),
+        }),
+      );
+
+      if (!response.Body) {
+        return null;
+      }
+
+      return {
+        body: response.Body as NodeJS.ReadableStream,
+        contentType: response.ContentType ?? 'application/octet-stream',
+        contentLength: response.ContentLength ?? (range ? range.end - range.start + 1 : 0),
+      };
+    } catch (error) {
+      this.logger.warn(`Failed to stream object ${key}: ${(error as Error).message}`);
+      return null;
+    }
+  }
+
   async getObjectBuffer(key: string): Promise<StorageObjectBody | null> {
     try {
       const response = await this.client.send(

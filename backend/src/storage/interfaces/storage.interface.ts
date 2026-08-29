@@ -16,6 +16,12 @@ export interface StorageObjectBody {
   contentType: string;
 }
 
+export interface StorageObjectStream {
+  body: NodeJS.ReadableStream;
+  contentType: string;
+  contentLength: number;
+}
+
 export abstract class IStorageService {
   abstract getPresignedUploadUrl(
     key: string,
@@ -31,6 +37,11 @@ export abstract class IStorageService {
   abstract getObjectMetadata(key: string): Promise<StorageObjectMetadata | null>;
 
   abstract getObjectBuffer(key: string): Promise<StorageObjectBody | null>;
+
+  abstract getObjectStream(
+    key: string,
+    range?: { start: number; end: number },
+  ): Promise<StorageObjectStream | null>;
 
   abstract putObjectBuffer(
     key: string,
