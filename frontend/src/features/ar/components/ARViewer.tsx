@@ -62,7 +62,8 @@ const TARGET_FOUND_CONFIRM_MS = 0;
 const TARGET_SWITCH_CONFIRM_MS = 0;
 /** Leave the print — stop shortly; other indices finding cancels this. */
 const TARGET_LOST_GRACE_MS = 180;
-const TARGET_LOST_PLAYING_GRACE_MS = 550;
+/** Keep overlay alive through brief tracking blips and iOS video startup. */
+const TARGET_LOST_PLAYING_GRACE_MS = 3_500;
 const TARGET_SWITCH_COOLDOWN_MS = 450;
 
 const buildServerMindBundle = (albumSlug: string, manifest: ViewerManifest): MindBundle | null => {

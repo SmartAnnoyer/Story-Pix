@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { clampOverlayFrame, type OverlayFrame } from '../utils/overlay-frame';
 import { getPlaybackVideoElement } from '../utils/camera-permission';
@@ -166,7 +166,7 @@ export const TargetFrameVideo = ({
     onEndedRef.current = onEnded;
   }, [onPlay, onError, onEnded]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!active) return undefined;
     const video = getPlaybackVideoElement();
     videoRef.current = video;
@@ -218,29 +218,48 @@ export const TargetFrameVideo = ({
       };
     }
 
-    const parent = mediaRef.current;
-    if (!parent) return undefined;
-
-    video.style.position = 'absolute';
-    video.style.inset = '0';
-    video.style.width = '100%';
-    video.style.height = '100%';
-    video.style.display = 'block';
-    video.style.objectFit = mode === 'fullscreen' ? 'contain' : 'fill';
-    video.style.background = htmlCamera && mode === 'frame' ? 'transparent' : '#000';
-    video.style.opacity = '1';
-    video.style.visibility = 'visible';
-    video.style.zIndex = '2';
-    video.style.pointerEvents = 'none';
-    video.style.transform = 'none';
-    parent.appendChild(video);
+    const mountToMedia = () => {
+      const parent = mediaRef.current;
+      if (!parent) return false;
+      video.style.position = 'absolute';
+      video.style.inset = '0';
+      video.style.width = '100%';
+      video.style.height = '100%';
+      video.style.display = 'block';
+      video.style.objectFit = mode === 'fullscreen' ? 'contain' : 'fill';
+      video.style.background = htmlCamera && mode === 'frame' ? 'transparent' : '#000';
+      video.style.opacity = '1';
+      video.style.visibility = 'visible';
+      video.style.zIndex = '2';
+      video.style.pointerEvents = 'none';
+      video.style.transform = 'none';
+      if (video.parentElement !== parent) {
+        parent.appendChild(video);
+      }
+      return true;
+    };
 
     const onEndedEvt = () => {
       if (mode === 'fullscreen') onEndedRef.current?.();
     };
-    video.addEventListener('ended', onEndedEvt);
+
+    let cancelled = false;
+    let retryFrame = 0;
+
+    const ensureMounted = () => {
+      if (cancelled) return;
+      if (mountToMedia()) {
+        video.addEventListener('ended', onEndedEvt);
+        return;
+      }
+      retryFrame = window.requestAnimationFrame(ensureMounted);
+    };
+
+    ensureMounted();
 
     return () => {
+      cancelled = true;
+      if (retryFrame) window.cancelAnimationFrame(retryFrame);
       video.removeEventListener('ended', onEndedEvt);
       video.pause();
       video.parentNode?.removeChild(video);
@@ -640,15 +659,38 @@ export const TargetFrameVideo = ({
       setSoundOn(false);
       let lastError: unknown;
       const uniqueSources = [...new Set(sources)];
-      viewerLog('info', 'video load start', { sources: uniqueSources.length });
+      const iosHtmlCamera =
+        isIOS() && Boolean(host?.classList.contains('ar-scene-host--html-camera'));
+      viewerLog('info', 'video load start', {
+        sources: uniqueSources.length,
+        iosHtmlCamera,
+      });
 
       for (const source of uniqueSources) {
         try {
-          const blobUrl = (await awaitSameOriginVideoUrl(source)) ?? getPrefetchedBlobUrl(source);
+          viewerLog('debug', 'video resolving source', {
+            iosHtmlCamera,
+            src: source.slice(0, 120),
+          });
+
+          let blobUrl = getPrefetchedBlobUrl(source);
+          if (!iosHtmlCamera) {
+            blobUrl =
+              blobUrl ??
+              (await awaitSameOriginVideoUrl(source, 2_500)) ??
+              getPrefetchedBlobUrl(source);
+          }
+
           const resolved =
-            blobUrl ?? (await resolvePlayableVideoUrl(source, { allowBlob: true })) ?? source;
+            blobUrl ??
+            (iosHtmlCamera
+              ? source
+              : ((await resolvePlayableVideoUrl(source, { allowBlob: true })) ?? source));
           const src = resolved;
-          if (!src.startsWith('blob:')) {
+          if (src.startsWith('blob:') || iosHtmlCamera) {
+            video.removeAttribute('crossorigin');
+            video.crossOrigin = null;
+          } else {
             video.crossOrigin = 'anonymous';
             video.setAttribute('crossorigin', 'anonymous');
           }
@@ -656,6 +698,7 @@ export const TargetFrameVideo = ({
           viewerLog('debug', 'video trying source', {
             blob: src.startsWith('blob:'),
             ios: isIOS(),
+            iosHtmlCamera,
             src: src.slice(0, 120),
           });
           video.src = src;
@@ -701,7 +744,7 @@ export const TargetFrameVideo = ({
 
       throw lastError ?? new Error('Video did not start');
     },
-    [tryPlay, notifyPlay],
+    [tryPlay, notifyPlay, host],
   );
 
   useEffect(() => {
