@@ -185,8 +185,10 @@ export const TargetFrameVideo = ({
     }
 
     const iosFrame = isIOS() && mode === 'frame';
+    const htmlCamera = Boolean(host?.classList.contains('ar-scene-host--html-camera'));
+    const useIosDecoderPark = iosFrame && host && !htmlCamera;
 
-    if (iosFrame && host) {
+    if (useIosDecoderPark) {
       video.id = 'sp-mapped-video';
       video.style.position = 'fixed';
       video.style.left = '0';
@@ -225,7 +227,7 @@ export const TargetFrameVideo = ({
     video.style.height = '100%';
     video.style.display = 'block';
     video.style.objectFit = mode === 'fullscreen' ? 'contain' : 'fill';
-    video.style.background = '#000';
+    video.style.background = htmlCamera && mode === 'frame' ? 'transparent' : '#000';
     video.style.opacity = '1';
     video.style.visibility = 'visible';
     video.style.zIndex = '2';
@@ -275,6 +277,7 @@ export const TargetFrameVideo = ({
     }
 
     const htmlCamera = host.classList.contains('ar-scene-host--html-camera');
+    const useIosBlit = ios && !htmlCamera;
 
     const frame = clampOverlayFrame(overlayFrame);
     installPoseCapture(entity);
@@ -299,7 +302,7 @@ export const TargetFrameVideo = ({
         host.insertBefore(video, host.firstChild);
       }
     };
-    if (ios) {
+    if (ios && useIosBlit) {
       parkDecoder();
       if (stage) {
         stage.style.opacity = '0';
@@ -319,7 +322,7 @@ export const TargetFrameVideo = ({
 
     let blitCanvas: HTMLCanvasElement | null = null;
     let blitCtx: CanvasRenderingContext2D | null = null;
-    if (ios && stage) {
+    if (ios && useIosBlit && stage) {
       blitCanvas = document.createElement('canvas');
       blitCanvas.setAttribute('aria-hidden', 'true');
       blitCanvas.style.position = 'absolute';
@@ -347,10 +350,10 @@ export const TargetFrameVideo = ({
     };
 
     const mountVideoInStage = () => {
-      if (ios) return;
+      if (ios && useIosBlit) return;
       const video = videoRef.current;
       const media = mediaRef.current;
-      if (!video || !media || video.parentElement === media) return;
+      if (!video || !media) return;
       video.style.position = 'absolute';
       video.style.inset = '0';
       video.style.width = '100%';
@@ -359,7 +362,11 @@ export const TargetFrameVideo = ({
       video.style.visibility = 'visible';
       video.style.zIndex = '2';
       video.style.objectFit = 'fill';
-      media.appendChild(video);
+      video.style.background = 'transparent';
+      video.style.transform = 'none';
+      if (video.parentElement !== media) {
+        media.appendChild(video);
+      }
     };
 
     const applyBox = (box: { left: number; top: number; width: number; height: number }) => {
@@ -376,7 +383,7 @@ export const TargetFrameVideo = ({
       stage.style.opacity = '1';
       stage.style.visibility = 'visible';
       stage.style.zIndex = '10080';
-      stage.style.background = ios ? 'transparent' : '#000';
+      stage.style.background = 'transparent';
       stage.style.pointerEvents = 'none';
 
       mountVideoInStage();
@@ -398,7 +405,7 @@ export const TargetFrameVideo = ({
       stage.style.opacity = '1';
       stage.style.visibility = 'visible';
       stage.style.zIndex = '10080';
-      stage.style.background = ios ? 'transparent' : '#000';
+      stage.style.background = 'transparent';
       stage.style.pointerEvents = 'none';
       mountVideoInStage();
       return true;
@@ -472,9 +479,11 @@ export const TargetFrameVideo = ({
     };
 
     const paintIosBlit = () => {
+      if (!useIosBlit || !blitCanvas || !blitCtx) return;
       const video = videoRef.current;
-      if (!ios || !blitCanvas || !blitCtx || !video) return;
-      if (video.videoWidth < 2 || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
+      if (!video || video.videoWidth < 2 || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+        return;
+      }
       if (blitCanvas.width !== video.videoWidth) blitCanvas.width = video.videoWidth;
       if (blitCanvas.height !== video.videoHeight) blitCanvas.height = video.videoHeight;
       blitCtx.drawImage(video, 0, 0, blitCanvas.width, blitCanvas.height);
@@ -484,7 +493,7 @@ export const TargetFrameVideo = ({
       if (cancelled) return;
       keepMindArCameraPlaying(host);
       hideIosTrackingCanvas(host);
-      if (ios && videoRef.current?.parentElement !== host) parkDecoder();
+      if (useIosBlit && videoRef.current?.parentElement !== host) parkDecoder();
       const placed = layoutOverlay();
       tryAttachPlane();
       paintIosBlit();

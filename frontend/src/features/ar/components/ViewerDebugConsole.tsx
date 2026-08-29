@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   clearViewerLogs,
   getViewerLogs,
@@ -14,6 +15,9 @@ const formatTime = (at: number) => {
 
 const levelClass = (level: ViewerLogEntry['level']) => `viewer-debug-console__line--${level}`;
 
+const buildLogText = (logs: ViewerLogEntry[]) =>
+  logs.map((entry) => `${formatTime(entry.at)} [${entry.level}] ${entry.message}`).join('\n');
+
 export const ViewerDebugConsole = () => {
   const [logs, setLogs] = useState(() => getViewerLogs());
   const [collapsed, setCollapsed] = useState(false);
@@ -28,9 +32,15 @@ export const ViewerDebugConsole = () => {
   }, [logs, collapsed]);
 
   const handleCopy = useCallback(async () => {
-    const text = logs
-      .map((entry) => `${formatTime(entry.at)} [${entry.level}] ${entry.message}`)
-      .join('\n');
+    const text = buildLogText(logs);
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'Story-pix debug log', text });
+        return;
+      }
+    } catch {
+      // fall through to clipboard / prompt
+    }
     try {
       await navigator.clipboard.writeText(text);
     } catch {
@@ -38,28 +48,26 @@ export const ViewerDebugConsole = () => {
     }
   }, [logs]);
 
-  if (collapsed) {
-    return (
-      <div className="viewer-debug-console viewer-debug-console--collapsed">
-        <button
-          type="button"
-          className="viewer-debug-console__toggle"
-          onClick={() => setCollapsed(false)}
-        >
-          Debug ({logs.length})
-        </button>
-      </div>
-    );
-  }
+  if (typeof document === 'undefined') return null;
 
-  return (
+  const panel = collapsed ? (
+    <div className="viewer-debug-console viewer-debug-console--collapsed">
+      <button
+        type="button"
+        className="viewer-debug-console__toggle"
+        onClick={() => setCollapsed(false)}
+      >
+        Debug log ({logs.length}) — tap to open
+      </button>
+    </div>
+  ) : (
     <div className="viewer-debug-console" aria-label="Viewer debug log">
       <div className="viewer-debug-console__panel">
         <div className="viewer-debug-console__header">
-          <span className="viewer-debug-console__title">Viewer debug · {logs.length}</span>
+          <span className="viewer-debug-console__title">Debug · {logs.length} lines</span>
           <div className="viewer-debug-console__actions">
             <button type="button" className="viewer-debug-console__btn" onClick={handleCopy}>
-              Copy
+              Share
             </button>
             <button type="button" className="viewer-debug-console__btn" onClick={clearViewerLogs}>
               Clear
@@ -69,7 +77,7 @@ export const ViewerDebugConsole = () => {
               className="viewer-debug-console__btn"
               onClick={() => setCollapsed(true)}
             >
-              Hide
+              Min
             </button>
           </div>
         </div>
@@ -90,4 +98,6 @@ export const ViewerDebugConsole = () => {
       </div>
     </div>
   );
+
+  return createPortal(panel, document.body);
 };

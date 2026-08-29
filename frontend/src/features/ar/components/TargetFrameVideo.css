@@ -208,9 +208,13 @@
   opacity: 1 !important;
   visibility: visible !important;
   z-index: 2;
-  background: transparent;
+  background: transparent !important;
   transform: none;
   -webkit-transform: none;
+}
+
+.ar-video-shell--tracked .ar-video-stage {
+  background: transparent !important;
 }
 
 .ar-video-tap-play {
