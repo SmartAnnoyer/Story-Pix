@@ -13,7 +13,7 @@ import { ROUTES } from '@/routes/paths';
 import { getErrorMessage } from '@/api/client';
 import { AlbumDeliveryGuide } from '@/features/albums/components/AlbumDeliveryGuide';
 
-const { Title } = Typography;
+const { Title, Paragraph } = Typography;
 
 export const EditMappingPage = () => {
   const { id = '', mappingId = '' } = useParams();
@@ -71,11 +71,15 @@ export const EditMappingPage = () => {
       <Title level={3} className="!mb-1">
         Edit mapping
       </Title>
+      <Paragraph type="secondary" className="!mb-4 max-w-2xl">
+        Tap a photo and a video to update this mapping, or drag a photo onto a video.
+      </Paragraph>
       <AlbumDeliveryGuide albumId={id} current="map" />
-      <Card className="max-w-xl">
+      <Card className="!border-0 !bg-transparent !shadow-none">
         <MappingForm
           photos={readyMedia}
           videos={readyMedia}
+          singleMapping
           initialValues={{
             targetName: mapping.targetName,
             photoMediaId: mapping.photoMediaId,
