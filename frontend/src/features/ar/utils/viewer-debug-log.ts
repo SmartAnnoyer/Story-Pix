@@ -12,8 +12,18 @@ const entries: ViewerLogEntry[] = [];
 const listeners = new Set<() => void>();
 let nextId = 1;
 
+type SpViewerDebugWindow = Window & {
+  __spViewerDebugPush?: (level: string, message: string) => void;
+  __spViewerDebugClear?: () => void;
+};
+
 const notify = () => {
   listeners.forEach((listener) => listener());
+};
+
+const syncHtmlDebug = (level: ViewerLogLevel, line: string) => {
+  if (typeof window === 'undefined') return;
+  (window as SpViewerDebugWindow).__spViewerDebugPush?.(level, line);
 };
 
 const formatExtra = (extra: unknown): string => {
@@ -36,6 +46,7 @@ export const viewerLog = (level: ViewerLogLevel, message: string, extra?: unknow
   const consoleFn =
     level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
   consoleFn(`[Story-pix] ${line}`);
+  syncHtmlDebug(level, line);
   notify();
 };
 
@@ -43,6 +54,9 @@ export const getViewerLogs = () => entries.slice();
 
 export const clearViewerLogs = () => {
   entries.length = 0;
+  if (typeof window !== 'undefined') {
+    (window as SpViewerDebugWindow).__spViewerDebugClear?.();
+  }
   notify();
 };
 
