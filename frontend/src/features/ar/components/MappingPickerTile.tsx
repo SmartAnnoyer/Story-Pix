@@ -1,7 +1,8 @@
 import type { DragEvent } from 'react';
-import { Image, Tag, Typography } from 'antd';
+import { Tag, Typography } from 'antd';
 import type { MediaItem } from '@/types/media.types';
 import { MediaType } from '@/types/media.types';
+import { StudioMediaThumbnail } from '@/features/media/components/StudioMediaThumbnail';
 import './MappingWorkspace.css';
 
 const { Text } = Typography;
@@ -37,7 +38,6 @@ export const MappingPickerTile = ({
   onDragEnterTile,
   onDragLeaveTile,
 }: MappingPickerTileProps) => {
-  const previewUrl = item.thumbnailUrl ?? item.publicUrl;
   const isVideo = item.mediaType === MediaType.VIDEO;
 
   const handleDragStart = (event: DragEvent<HTMLButtonElement>) => {
@@ -81,16 +81,11 @@ export const MappingPickerTile = ({
       }}
     >
       <div className="mapping-picker-tile__thumb">
-        {previewUrl ? (
-          <Image
-            src={previewUrl}
-            alt={item.originalFileName}
-            className="mapping-picker-tile__image"
-            preview={false}
-          />
-        ) : (
-          <div className="mapping-picker-tile__placeholder">No preview</div>
-        )}
+        <StudioMediaThumbnail
+          item={item}
+          className="mapping-picker-tile__image"
+          variant={isVideo ? 'thumbnail' : 'thumbnail'}
+        />
         {isVideo && item.duration != null ? (
           <Tag className="mapping-picker-tile__duration">{formatDuration(item.duration)}</Tag>
         ) : null}

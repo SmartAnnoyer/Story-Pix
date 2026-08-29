@@ -237,6 +237,27 @@ export class MediaService {
     return this.serialize(media);
   }
 
+  async getPreviewBuffer(
+    studioId: string,
+    id: string,
+    variant: 'thumbnail' | 'original',
+  ): Promise<{ buffer: Buffer; contentType: string }> {
+    const media = await this.findDocument(studioId, id);
+    const keys =
+      variant === 'thumbnail'
+        ? [this.resolvePreviewKey(media, 'thumbnail'), media.r2ObjectKey]
+        : [media.r2ObjectKey];
+
+    for (const key of keys) {
+      const object = await this.storageService.getObjectBuffer(key);
+      if (object) {
+        return { buffer: object.buffer, contentType: object.contentType };
+      }
+    }
+
+    throw new NotFoundException('Media preview is not available yet');
+  }
+
   async updateDisplayName(studioId: string, id: string, dto: UpdateMediaDto) {
     const media = await this.findDocument(studioId, id);
     if (media.status === MediaStatus.DELETED) {
@@ -350,12 +371,28 @@ export class MediaService {
   }
 
   private extractKeyFromUrl(url: string): string | null {
+    if (!/^https?:\/\//i.test(url)) {
+      return url.replace(/^\//, '') || null;
+    }
+
     try {
       const base = this.storageService.getPublicUrl('');
+      if (!base || !/^https?:\/\//i.test(base)) {
+        const parsed = new URL(url);
+        return parsed.pathname.replace(/^\//, '') || null;
+      }
       return url.replace(base.replace(/\/$/, ''), '').replace(/^\//, '');
     } catch {
       return null;
     }
+  }
+
+  private resolvePreviewKey(media: MediaDocument, variant: 'thumbnail' | 'original'): string {
+    if (variant === 'thumbnail' && media.thumbnailUrl) {
+      const extracted = this.extractKeyFromUrl(media.thumbnailUrl);
+      if (extracted) return extracted;
+    }
+    return media.r2ObjectKey;
   }
 
   serialize(media: MediaDocument) {

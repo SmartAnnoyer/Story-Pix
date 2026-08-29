@@ -133,10 +133,29 @@
 }
 
 .mapping-picker-tile__image,
-.mapping-picker-tile__image .ant-image-img {
+.mapping-picker-tile__thumb img,
+.mapping-picker-tile__thumb .studio-media-thumb__placeholder {
+  display: block;
   width: 100% !important;
   height: 100% !important;
   object-fit: cover;
+}
+
+.mapping-picker-tile__thumb {
+  display: flex;
+}
+
+.studio-media-thumb__placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 0.72rem;
+  color: #9ca3af;
+  background: #f3f4f6;
+  text-align: center;
+  padding: 0.25rem;
 }
 
 .mapping-picker-tile__placeholder {
@@ -217,10 +236,11 @@
 }
 
 .mapping-pair-card__thumb img,
-.mapping-pair-card__thumb .ant-image-img {
+.mapping-pair-card__thumb .studio-media-thumb__placeholder {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
 }
 
 .mapping-pair-card__arrow {

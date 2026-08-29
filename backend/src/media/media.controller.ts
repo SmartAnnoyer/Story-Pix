@@ -8,7 +8,9 @@ import {
   Patch,
   Post,
   Query,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { CurrentUser } from '../decorators/current-user.decorator';
 import { RequirePermissions, Roles } from '../decorators';
 import { Role } from '../common/enums';
@@ -65,6 +67,40 @@ export class MediaController {
   @RequirePermissions('media:read')
   findAll(@CurrentUser() user: AuthenticatedUser, @Query() query: QueryMediaDto) {
     return this.mediaService.findAll(this.assertStudioId(user), query);
+  }
+
+  @Get(':id/thumbnail')
+  @RequirePermissions('media:read')
+  async getThumbnail(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Res() res: Response,
+  ) {
+    const { buffer, contentType } = await this.mediaService.getPreviewBuffer(
+      this.assertStudioId(user),
+      id,
+      'thumbnail',
+    );
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    res.send(buffer);
+  }
+
+  @Get(':id/preview')
+  @RequirePermissions('media:read')
+  async getPreview(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Res() res: Response,
+  ) {
+    const { buffer, contentType } = await this.mediaService.getPreviewBuffer(
+      this.assertStudioId(user),
+      id,
+      'original',
+    );
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    res.send(buffer);
   }
 
   @Get(':id')

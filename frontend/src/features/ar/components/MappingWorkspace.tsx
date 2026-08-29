@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, Button, Empty, Image, Input, Typography, message } from 'antd';
+import { Alert, Button, Empty, Input, Typography, message } from 'antd';
 import {
   ArrowRightOutlined,
   DeleteOutlined,
@@ -11,6 +11,10 @@ import type { MediaItem, OverlayFrame } from '@/types/media.types';
 import { MediaType } from '@/types/media.types';
 import { FrameSelector } from '@/features/media/components/FrameSelector';
 import { MappingPickerTile } from '@/features/ar/components/MappingPickerTile';
+import {
+  StudioMediaThumbnail,
+  useStudioMediaPreviewSrc,
+} from '@/features/media/components/StudioMediaThumbnail';
 import { clampOverlayFrame, DEFAULT_OVERLAY_FRAME } from '@/features/ar/utils/overlay-frame';
 import './MappingWorkspace.css';
 
@@ -183,6 +187,13 @@ export const MappingWorkspace = ({
     );
   };
 
+  const activeMapping = useMemo(
+    () => pendingMappings.find((item) => item.key === activeMappingKey) ?? null,
+    [pendingMappings, activeMappingKey],
+  );
+  const activePhoto = activeMapping ? photoById.get(activeMapping.photoMediaId) : undefined;
+  const activePhotoSrc = useStudioMediaPreviewSrc(activePhoto, 'original');
+
   return (
     <div className="mapping-workspace">
       <div className="mapping-workspace__pickers">
@@ -271,7 +282,6 @@ export const MappingWorkspace = ({
             const photo = photoById.get(mapping.photoMediaId);
             const video = videoById.get(mapping.videoMediaId);
             const isActive = mapping.key === activeMappingKey;
-            const photoPreview = photo?.publicUrl ?? photo?.thumbnailUrl ?? null;
 
             return (
               <div
@@ -287,9 +297,7 @@ export const MappingWorkspace = ({
                 >
                   <div className="mapping-pair-card__media">
                     <div className="mapping-pair-card__thumb">
-                      {photoPreview ? (
-                        <Image src={photoPreview} alt={photo?.originalFileName} preview={false} />
-                      ) : null}
+                      {photo ? <StudioMediaThumbnail item={photo} variant="thumbnail" /> : null}
                     </div>
                     <Text ellipsis className="mapping-pair-card__label">
                       {photo?.originalFileName ?? 'Photo'}
@@ -298,13 +306,7 @@ export const MappingWorkspace = ({
                   <ArrowRightOutlined className="mapping-pair-card__arrow" />
                   <div className="mapping-pair-card__media">
                     <div className="mapping-pair-card__thumb">
-                      {(video?.thumbnailUrl ?? video?.publicUrl) ? (
-                        <Image
-                          src={video?.thumbnailUrl ?? video?.publicUrl ?? ''}
-                          alt={video?.originalFileName}
-                          preview={false}
-                        />
-                      ) : null}
+                      {video ? <StudioMediaThumbnail item={video} variant="thumbnail" /> : null}
                     </div>
                     <Text ellipsis className="mapping-pair-card__label">
                       {video?.originalFileName ?? 'Video'}
@@ -334,13 +336,13 @@ export const MappingWorkspace = ({
                         updateMapping(mapping.key, { targetName: event.target.value })
                       }
                     />
-                    {photoPreview ? (
+                    {isActive && activePhotoSrc ? (
                       <div className="mapping-pair-card__frame">
                         <Text type="secondary" className="mb-2 block text-xs">
                           Drag the rectangle to where the video should play on the print.
                         </Text>
                         <FrameSelector
-                          imageSrc={photoPreview}
+                          imageSrc={activePhotoSrc}
                           value={mapping.overlayFrame}
                           onChange={(overlayFrame) => updateMapping(mapping.key, { overlayFrame })}
                         />

@@ -1,6 +1,7 @@
-import { Card, Image, Tag, Typography } from 'antd';
+import { Card, Tag, Typography } from 'antd';
 import type { MediaItem } from '@/types/media.types';
 import { MediaStatus, MediaType } from '@/types/media.types';
+import { StudioMediaThumbnail } from '@/features/media/components/StudioMediaThumbnail';
 
 const { Text } = Typography;
 
@@ -18,17 +19,16 @@ const STATUS_COLORS: Record<MediaStatus, string> = {
 };
 
 export const MediaCard = ({ item, onClick }: MediaCardProps) => {
-  const previewUrl = item.thumbnailUrl ?? item.publicUrl;
   const isVideo = item.mediaType === MediaType.VIDEO;
 
   return (
     <Card hoverable={Boolean(onClick)} className="overflow-hidden" onClick={onClick}>
       <div className="relative mb-3 aspect-square overflow-hidden rounded-md bg-gray-100">
-        {previewUrl ? (
-          <Image src={previewUrl} alt={item.originalFileName} className="h-full w-full object-cover" preview={false} />
-        ) : (
-          <div className="flex h-full items-center justify-center text-sm text-gray-400">No preview</div>
-        )}
+        <StudioMediaThumbnail
+          item={item}
+          className="h-full w-full object-cover"
+          variant={isVideo ? 'thumbnail' : 'thumbnail'}
+        />
         {isVideo && item.duration != null ? (
           <Tag className="absolute bottom-2 right-2 m-0">{formatDuration(item.duration)}</Tag>
         ) : null}
