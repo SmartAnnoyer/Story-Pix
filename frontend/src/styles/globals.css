@@ -36,9 +36,14 @@ body,
 html.viewer-route,
 html.viewer-route body,
 html.viewer-route #root {
+  position: fixed;
+  inset: 0;
   width: 100%;
+  width: 100vw;
   height: 100%;
   height: 100dvh;
+  min-width: 100vw;
+  min-height: 100dvh;
   max-height: 100dvh;
   overflow: hidden !important;
   overscroll-behavior: none;
