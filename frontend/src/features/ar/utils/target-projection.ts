@@ -131,9 +131,22 @@ const getCameraPreview = (host: HTMLElement): HTMLVideoElement | null => {
 
 const isFiniteNumber = (value: number): boolean => Number.isFinite(value) && Math.abs(value) > 1e-6;
 
+const needsHtmlCameraResync = (host: HTMLElement): boolean => {
+  if (!host.classList.contains('ar-scene-host--html-camera')) return false;
+  const view = getProjectionRect(host);
+  const camera = getSceneCamera(host);
+  if (!view || view.width < 8 || view.height < 8) return true;
+  if (!camera?.aspect) return true;
+  const expectedAspect = view.width / view.height;
+  return Math.abs(camera.aspect - expectedAspect) > 0.04;
+};
+
 /** MindAR often runs _resize before the host has height, leaving fov=0 and a NaN projection. */
 const syncMindArCameraToHost = (host: HTMLElement): void => {
-  if (isUsableSceneCamera(host, getSceneCamera(host))) return;
+  const htmlCamera = host.classList.contains('ar-scene-host--html-camera');
+  const cameraReady = isUsableSceneCamera(host, getSceneCamera(host));
+  if (!htmlCamera && cameraReady) return;
+  if (htmlCamera && cameraReady && !needsHtmlCameraResync(host)) return;
 
   const scene = host.querySelector('a-scene') as
     | (HTMLElement & { systems?: Record<string, { _resize?: () => void }> })
@@ -143,7 +156,7 @@ const syncMindArCameraToHost = (host: HTMLElement): void => {
   } catch {
     // keep going — we can still copy the projection below
   }
-  if (isUsableSceneCamera(host, getSceneCamera(host))) return;
+  if (!htmlCamera && isUsableSceneCamera(host, getSceneCamera(host))) return;
 
   const mindProj = getMindArProjection(host);
   const camera = getSceneCamera(host);
@@ -572,7 +585,10 @@ export type ViewportBox = { left: number; top: number; width: number; height: nu
 
 /** True when the overlay sits on the live camera view, not in the black band above it. */
 export const isUsableOverlayBox = (box: ViewportBox, host: HTMLElement): boolean => {
-  const hostRect = host.getBoundingClientRect();
+  const projectionRect = host.classList.contains('ar-scene-host--html-camera')
+    ? getProjectionRect(host)
+    : null;
+  const hostRect = projectionRect ?? host.getBoundingClientRect();
   if (box.width < 48 || box.height < 48) return false;
   const overlapLeft = Math.max(box.left, hostRect.left);
   const overlapTop = Math.max(box.top, hostRect.top);
@@ -605,9 +621,23 @@ export const getOverlayAabbViewport = (
   frame: OverlayFrame,
 ): ViewportBox | null => {
   const quad = getOverlayQuadScreenCorners(host, targetEntity, aspectRatio, frame);
-  if (!quad) return null;
-  const box = aabbFromQuad(quad);
-  if (!box || !isUsableOverlayBox(box, host)) return null;
+  if (quad) {
+    const box = aabbFromQuad(quad);
+    if (box && isUsableOverlayBox(box, host)) return box;
+  }
+
+  const bounds = getTargetScreenBounds(host, targetEntity, aspectRatio);
+  if (!bounds?.visible) return null;
+  const view = getProjectionRect(host);
+  if (!view) return null;
+  const overlay = clampOverlayFrame(frame);
+  const box = {
+    left: view.left + bounds.left + overlay.x * bounds.width,
+    top: view.top + bounds.top + overlay.y * bounds.height,
+    width: overlay.width * bounds.width,
+    height: overlay.height * bounds.height,
+  };
+  if (!isUsableOverlayBox(box, host)) return null;
   return box;
 };
 

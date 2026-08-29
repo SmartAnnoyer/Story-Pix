@@ -345,6 +345,22 @@ export const TargetFrameVideo = ({
       return smoothBox;
     };
 
+    const mountVideoInStage = () => {
+      if (ios) return;
+      const video = videoRef.current;
+      const media = mediaRef.current;
+      if (!video || !media || video.parentElement === media) return;
+      video.style.position = 'absolute';
+      video.style.inset = '0';
+      video.style.width = '100%';
+      video.style.height = '100%';
+      video.style.opacity = '1';
+      video.style.visibility = 'visible';
+      video.style.zIndex = '2';
+      video.style.objectFit = 'fill';
+      media.appendChild(video);
+    };
+
     const applyBox = (box: { left: number; top: number; width: number; height: number }) => {
       if (!stage) return;
       const next = blendBox(box);
@@ -362,20 +378,7 @@ export const TargetFrameVideo = ({
       stage.style.background = ios ? 'transparent' : '#000';
       stage.style.pointerEvents = 'none';
 
-      if (ios) return;
-
-      const video = videoRef.current;
-      const media = mediaRef.current;
-      if (video && media && video.parentElement !== media) {
-        video.style.position = 'absolute';
-        video.style.inset = '0';
-        video.style.width = '100%';
-        video.style.height = '100%';
-        video.style.opacity = '1';
-        video.style.visibility = 'visible';
-        video.style.zIndex = '2';
-        media.appendChild(video);
-      }
+      mountVideoInStage();
     };
 
     const applyQuad = (corners: Parameters<typeof quadToCssMatrix3d>[2]) => {
@@ -396,10 +399,24 @@ export const TargetFrameVideo = ({
       stage.style.zIndex = '10080';
       stage.style.background = ios ? 'transparent' : '#000';
       stage.style.pointerEvents = 'none';
+      mountVideoInStage();
       return true;
     };
 
     const layoutOverlay = () => {
+      const tryAabb = () => {
+        const box = getOverlayAabbViewport(host, entity, aspectRatio, frame);
+        if (!box) return null;
+        applyBox(box);
+        return box;
+      };
+
+      // Full-viewport HTML camera: axis-aligned box is more reliable on mobile Safari.
+      if (htmlCamera) {
+        const aligned = tryAabb();
+        if (aligned) return aligned;
+      }
+
       // Prefer perspective quad using the studio crop frame for correct placement.
       const quad = getOverlayQuadScreenCorners(host, entity, aspectRatio, frame);
       if (quad?.visible && applyQuad(quad.corners)) {
@@ -414,11 +431,8 @@ export const TargetFrameVideo = ({
         lastBox = quadBox;
         return quadBox;
       }
-      const box = getOverlayAabbViewport(host, entity, aspectRatio, frame);
-      if (box && isUsableOverlayBox(box, host)) {
-        applyBox(box);
-        return box;
-      }
+      const box = tryAabb();
+      if (box) return box;
       if (lastBox && isUsableOverlayBox(lastBox, host)) {
         applyBox(lastBox);
         return lastBox;
