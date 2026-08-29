@@ -273,6 +273,8 @@ export const TargetFrameVideo = ({
       return undefined;
     }
 
+    const htmlCamera = host.classList.contains('ar-scene-host--html-camera');
+
     const frame = clampOverlayFrame(overlayFrame);
     installPoseCapture(entity);
     ensureTransparentRenderer(host);
@@ -296,12 +298,14 @@ export const TargetFrameVideo = ({
         host.insertBefore(video, host.firstChild);
       }
     };
-    parkDecoder();
-    if (stage) {
-      stage.style.opacity = '0';
-      stage.style.visibility = 'hidden';
-      stage.style.width = '0px';
-      stage.style.height = '0px';
+    if (ios) {
+      parkDecoder();
+      if (stage) {
+        stage.style.opacity = '0';
+        stage.style.visibility = 'hidden';
+        stage.style.width = '0px';
+        stage.style.height = '0px';
+      }
     }
 
     let cancelled = false;
@@ -423,7 +427,7 @@ export const TargetFrameVideo = ({
     };
 
     const tryAttachPlane = () => {
-      if (ios || cancelled || planeAttached) return false;
+      if (ios || htmlCamera || cancelled || planeAttached) return false;
       const video = videoRef.current;
       if (!video || video.videoWidth < 2 || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
         return false;
@@ -465,7 +469,7 @@ export const TargetFrameVideo = ({
       if (cancelled) return;
       keepMindArCameraPlaying(host);
       hideIosTrackingCanvas(host);
-      if (videoRef.current?.parentElement !== host) parkDecoder();
+      if (ios && videoRef.current?.parentElement !== host) parkDecoder();
       const placed = layoutOverlay();
       tryAttachPlane();
       paintIosBlit();

@@ -16,15 +16,33 @@ html.viewer-route #root {
 .ar-viewer-root {
   position: fixed !important;
   inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
   width: 100% !important;
   width: 100vw !important;
   height: 100% !important;
   height: 100dvh !important;
+  min-width: 100vw !important;
+  min-height: 100dvh !important;
   overflow: hidden !important;
   background: #000;
   touch-action: none;
   overscroll-behavior: none;
   z-index: 1;
+  isolation: isolate;
+}
+
+/* Guest chrome must anchor to the viewport, not a collapsed inner host. */
+.ar-viewer-root > .viewer-top-chrome,
+.ar-viewer-root > .scan-focus-frame,
+.ar-viewer-root > .scan-status-overlay,
+.ar-viewer-root > .viewer-control-bar {
+  position: fixed !important;
+  left: 0 !important;
+  right: 0 !important;
+  max-width: 100vw !important;
 }
 
 .ar-scene-host {

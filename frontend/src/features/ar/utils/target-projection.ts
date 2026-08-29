@@ -85,10 +85,23 @@ const applyMat4 = (m: ArrayLike<number>, x: number, y: number, z: number) => {
   };
 };
 
-/** Visible AR window. Prefer the live host; fall back to the WebGL canvas if the host is not laid out yet. */
+/** Visible AR window. Prefer full viewport when the HTML camera fills the screen. */
+const getViewportRect = (): DOMRect => {
+  const w = window.visualViewport?.width ?? window.innerWidth;
+  const h = window.visualViewport?.height ?? window.innerHeight;
+  const top = window.visualViewport?.offsetTop ?? 0;
+  const left = window.visualViewport?.offsetLeft ?? 0;
+  return new DOMRect(left, top, w, h);
+};
+
 const getProjectionRect = (host: HTMLElement): DOMRect | null => {
+  if (host.classList.contains('ar-scene-host--html-camera')) {
+    return getViewportRect();
+  }
+
   const candidates: Array<DOMRect | undefined> = [
     host.getBoundingClientRect(),
+    host.closest('.ar-viewer-root')?.getBoundingClientRect(),
     host.querySelector('a-scene')?.getBoundingClientRect(),
     host.querySelector('.a-canvas')?.getBoundingClientRect(),
     host.querySelector('canvas')?.getBoundingClientRect(),
@@ -96,11 +109,25 @@ const getProjectionRect = (host: HTMLElement): DOMRect | null => {
   for (const rect of candidates) {
     if (rect && rect.width > 8 && rect.height > 8) return rect;
   }
-  return null;
+  return getViewportRect();
 };
 
-const getCameraPreview = (host: HTMLElement): HTMLVideoElement | null =>
-  host.querySelector(':scope > video:not(#sp-mapped-video)') as HTMLVideoElement | null;
+const getCameraPreview = (host: HTMLElement): HTMLVideoElement | null => {
+  const scoped = host.querySelector(
+    ':scope > video:not(#sp-mapped-video)',
+  ) as HTMLVideoElement | null;
+  if (scoped) return scoped;
+
+  const viewerRoot = host.closest('.ar-viewer-root') as HTMLElement | null;
+  if (viewerRoot) {
+    const elevated = viewerRoot.querySelector(
+      'video.ar-camera-feed:not(#sp-mapped-video)',
+    ) as HTMLVideoElement | null;
+    if (elevated) return elevated;
+  }
+
+  return host.querySelector('video:not(#sp-mapped-video)') as HTMLVideoElement | null;
+};
 
 const isFiniteNumber = (value: number): boolean => Number.isFinite(value) && Math.abs(value) > 1e-6;
 
@@ -130,8 +157,13 @@ const syncMindArCameraToHost = (host: HTMLElement): void => {
   if (!isFiniteNumber(fy)) return;
 
   const view = getProjectionRect(host);
-  const containerW = Math.max(host.clientWidth, view?.width ?? 0, 1);
-  const containerH = Math.max(host.clientHeight, view?.height ?? 0, 1);
+  const useViewport = host.classList.contains('ar-scene-host--html-camera');
+  const containerW = useViewport
+    ? Math.max(view?.width ?? window.innerWidth, 1)
+    : Math.max(host.clientWidth, view?.width ?? 0, 1);
+  const containerH = useViewport
+    ? Math.max(view?.height ?? window.innerHeight, 1)
+    : Math.max(host.clientHeight, view?.height ?? 0, 1);
   const videoAspect = video.videoWidth / video.videoHeight;
   const cssHeight = videoAspect > containerW / containerH ? containerH : containerW / videoAspect;
   const fov = (2 * Math.atan((1 / fy / cssHeight) * containerH) * 180) / Math.PI;

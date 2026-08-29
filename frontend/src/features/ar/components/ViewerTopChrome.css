@@ -1,9 +1,11 @@
 .viewer-top-chrome {
   pointer-events: none;
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   right: 0;
+  width: 100%;
+  max-width: 100vw;
   z-index: 50;
   display: flex;
   align-items: center;

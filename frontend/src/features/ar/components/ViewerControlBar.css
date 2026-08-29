@@ -1,5 +1,5 @@
 .viewer-control-bar {
-  position: absolute;
+  position: fixed;
   right: max(0.85rem, env(safe-area-inset-right));
   bottom: max(5.5rem, calc(env(safe-area-inset-bottom) + 4.5rem));
   z-index: 45;
