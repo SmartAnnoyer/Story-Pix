@@ -1,20 +1,13 @@
 /* Full-screen live camera. Tracking canvas is invisible; clip is a CSS overlay. */
 html.viewer-route,
-html.viewer-route body,
+html.viewer-route body {
+  background: #000 !important;
+  color: #fff;
+}
+
 html.viewer-route #root {
   background: #000 !important;
   color: #fff;
-  position: fixed !important;
-  inset: 0 !important;
-  width: 100% !important;
-  width: 100vw !important;
-  height: 100% !important;
-  height: 100dvh !important;
-  min-width: 100vw !important;
-  min-height: 100dvh !important;
-  max-height: 100dvh !important;
-  overflow: hidden !important;
-  overscroll-behavior: none;
 }
 
 .ar-viewer-root {
@@ -103,20 +96,25 @@ video.ar-camera-feed {
   transform: none !important;
 }
 
+.ar-scene-host .a-canvas,
+.ar-scene-host canvas.a-canvas,
 .ar-scene-host > a-scene {
-  position: absolute !important;
+  position: fixed !important;
   inset: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
-  z-index: 2 !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-width: none !important;
+  max-height: none !important;
   background: transparent !important;
   pointer-events: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
 }
 
-.ar-scene-host .a-canvas,
-.ar-scene-host canvas.a-canvas {
-  background: transparent !important;
-  pointer-events: none !important;
+.ar-scene-host > a-scene {
+  z-index: 2 !important;
 }
 
 /* Hide opaque WebGL — guests see the live HTML camera under the scan UI. */
@@ -125,4 +123,5 @@ video.ar-camera-feed {
 .ar-scene-host--ios-html-camera > a-scene,
 .ar-scene-host--ios-html-camera .a-canvas {
   opacity: 0 !important;
+  visibility: hidden !important;
 }

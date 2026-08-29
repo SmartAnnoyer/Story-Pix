@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type {
   ScanOverlayMessage,
   ViewerManifest,
@@ -21,6 +21,7 @@ import {
 } from '../utils/mindar-loader';
 import {
   attachCameraStream,
+  bootstrapGuestCameraLayout,
   buildMindArScene,
   destroyMindArScene,
   ensureCameraPreviewVisible,
@@ -142,6 +143,12 @@ export const ARViewer = ({
   const scanNoMatchTimeoutRef = useRef<number | null>(null);
   const scanTickRef = useRef<number | null>(null);
   const statusRef = useRef<ScanOverlayMessage>(status);
+
+  useLayoutEffect(() => {
+    const host = containerRef.current;
+    if (!host) return;
+    bootstrapGuestCameraLayout(host);
+  }, []);
   const scanningEnabledRef = useRef(false);
   const deviceInfo = useMemo(() => detectDeviceInfo(), []);
   const sessionId = useMemo(() => getViewerSessionId(), []);

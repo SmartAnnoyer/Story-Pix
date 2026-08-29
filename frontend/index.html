@@ -11,6 +11,66 @@
     <meta name="theme-color" content="#8A2BE2" />
     <title>Story-pix</title>
     <style>
+      /* Critical guest viewer layout — must load before JS/CSS bundles (mobile Safari). */
+      html.viewer-route,
+      html.viewer-route body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        height: 100dvh;
+        overflow: hidden;
+        background: #000;
+        color: #fff;
+      }
+      html.viewer-route #root,
+      html.viewer-route .viewer-shell,
+      html.viewer-route .viewer-intro,
+      html.viewer-route .ar-viewer-root {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        width: 100vw;
+        height: 100%;
+        height: 100dvh;
+        min-width: 100vw;
+        min-height: 100dvh;
+        overflow: hidden;
+      }
+      html.viewer-route .viewer-intro {
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        border: 0;
+        padding: 0;
+        background: linear-gradient(180deg, #1a0a2e 0%, #120818 48%, #000 100%);
+      }
+      html.viewer-route .ar-scene-host {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+      html.viewer-route video.ar-camera-feed,
+      html.viewer-route .ar-viewer-root > video:not(#sp-mapped-video) {
+        position: fixed !important;
+        inset: 0 !important;
+        width: 100vw !important;
+        height: 100dvh !important;
+        object-fit: cover !important;
+        transform: none !important;
+        z-index: 1 !important;
+      }
+      html.viewer-route .ar-scene-host canvas,
+      html.viewer-route .ar-scene-host .a-canvas {
+        position: fixed !important;
+        inset: 0 !important;
+        width: 100vw !important;
+        height: 100dvh !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+      }
+
       #viewer-boot {
         display: none;
         position: fixed;

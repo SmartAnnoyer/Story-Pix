@@ -59,6 +59,15 @@ export const ViewerWelcomeScreen = ({
     <button
       type="button"
       className="viewer-intro viewer-intro--boot"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        width: '100vw',
+        height: '100dvh',
+        zIndex: 2,
+        display: 'flex',
+        flexDirection: 'column',
+      }}
       disabled={Boolean(warmup.error) || starting || !canStart}
       onClick={() => {
         if (!canStart || starting || warmup.error) return;

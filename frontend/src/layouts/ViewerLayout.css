@@ -1,5 +1,16 @@
 html.viewer-route,
-html.viewer-route body,
+html.viewer-route body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  overflow: hidden !important;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+  background: #000 !important;
+  color: #fff;
+}
+
 html.viewer-route #root {
   position: fixed;
   inset: 0;
@@ -20,10 +31,6 @@ html.viewer-route #root {
 .viewer-shell {
   position: fixed;
   inset: 0;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
   display: flex;
   flex-direction: column;
   align-items: stretch;

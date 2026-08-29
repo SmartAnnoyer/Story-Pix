@@ -92,24 +92,51 @@ export const buildMindArScene = (
     installPoseCapture(entity);
   }
 
+  ensureSceneHostFillViewport(host);
   host.replaceChildren();
   host.appendChild(scene);
-  // Always show the HTML <video> camera; WebGL canvas is often opaque black on mobile.
   host.classList.add('ar-scene-host--html-camera');
-  ensureSceneHostFillViewport(host);
+  bootstrapGuestCameraLayout(host);
+  scene.addEventListener('loaded', () => bootstrapGuestCameraLayout(host));
+  scene.addEventListener('arReady', () => bootstrapGuestCameraLayout(host));
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => bootstrapGuestCameraLayout(host));
+  });
 
   return { scene, targetEntities };
 };
 
+const getViewportSize = (): { width: number; height: number } => {
+  const view = window.visualViewport;
+  return {
+    width: Math.max(view?.width ?? window.innerWidth, 1),
+    height: Math.max(view?.height ?? window.innerHeight, 1),
+  };
+};
+
 /** MindAR reads container.clientWidth/Height — keep the host full viewport on mobile. */
 export const ensureSceneHostFillViewport = (host: HTMLElement): void => {
+  const { width, height } = getViewportSize();
   host.style.setProperty('position', 'absolute', 'important');
   host.style.setProperty('inset', '0', 'important');
-  host.style.setProperty('width', '100%', 'important');
-  host.style.setProperty('height', '100%', 'important');
-  host.style.setProperty('min-width', '100%', 'important');
-  host.style.setProperty('min-height', '100dvh', 'important');
+  host.style.setProperty('top', '0', 'important');
+  host.style.setProperty('left', '0', 'important');
+  host.style.setProperty('right', '0', 'important');
+  host.style.setProperty('bottom', '0', 'important');
+  host.style.setProperty('width', `${width}px`, 'important');
+  host.style.setProperty('height', `${height}px`, 'important');
+  host.style.setProperty('min-width', `${width}px`, 'important');
+  host.style.setProperty('min-height', `${height}px`, 'important');
   host.style.setProperty('overflow', 'hidden', 'important');
+};
+
+/** Patch MindAR resize + full-screen camera as early as possible (before first _resize). */
+export const bootstrapGuestCameraLayout = (host: HTMLElement): void => {
+  ensureSceneHostFillViewport(host);
+  hideTrackingCanvas(host);
+  patchMindArVideoResize(host);
+  coverMindArCameraVideo(host);
+  watchCoverLayout(host);
 };
 
 export const getCameraVideo = (host: HTMLElement): HTMLVideoElement | null => {
@@ -236,6 +263,22 @@ export const coverMindArCameraVideo = (host: HTMLElement): void => {
   video.classList.add('ar-camera-feed');
 };
 
+const coverTrackingSurface = (node: HTMLElement | null): void => {
+  if (!node) return;
+  const { width, height } = getViewportSize();
+  node.style.setProperty('position', 'fixed', 'important');
+  node.style.setProperty('inset', '0', 'important');
+  node.style.setProperty('top', '0', 'important');
+  node.style.setProperty('left', '0', 'important');
+  node.style.setProperty('width', `${width}px`, 'important');
+  node.style.setProperty('height', `${height}px`, 'important');
+  node.style.setProperty('max-width', 'none', 'important');
+  node.style.setProperty('max-height', 'none', 'important');
+  node.style.setProperty('opacity', '0', 'important');
+  node.style.setProperty('visibility', 'hidden', 'important');
+  node.style.setProperty('pointer-events', 'none', 'important');
+};
+
 /** Hide opaque WebGL canvas; guests see the live HTML camera instead. */
 export const hideTrackingCanvas = (host: HTMLElement): void => {
   host.classList.add('ar-scene-host--html-camera');
@@ -244,8 +287,8 @@ export const hideTrackingCanvas = (host: HTMLElement): void => {
   const scene = host.querySelector('a-scene') as HTMLElement | null;
   const canvas = (scene?.querySelector('.a-canvas, canvas') ??
     host.querySelector('.a-canvas')) as HTMLElement | null;
-  scene?.style.setProperty('opacity', '0', 'important');
-  canvas?.style.setProperty('opacity', '0', 'important');
+  coverTrackingSurface(scene);
+  coverTrackingSurface(canvas);
 };
 
 export const hideIosTrackingCanvas = (host: HTMLElement): void => {
@@ -253,6 +296,7 @@ export const hideIosTrackingCanvas = (host: HTMLElement): void => {
 };
 
 const applyGuestCameraLayout = (host: HTMLElement): void => {
+  ensureSceneHostFillViewport(host);
   patchMindArVideoResize(host);
   coverMindArCameraVideo(host);
   hideTrackingCanvas(host);
