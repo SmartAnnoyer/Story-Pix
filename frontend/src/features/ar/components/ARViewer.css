@@ -37,18 +37,20 @@ html.viewer-route #root {
 }
 
 /* Force fullscreen camera — MindAR defaults to a small top-left tracking crop. */
+.ar-viewer-root > video.ar-camera-feed,
+.ar-viewer-root > video:not(#sp-mapped-video),
 .ar-scene-host video:not(#sp-mapped-video),
 video.ar-camera-feed {
-  position: absolute !important;
+  position: fixed !important;
   inset: 0 !important;
   top: 0 !important;
   left: 0 !important;
   right: 0 !important;
   bottom: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
-  min-width: 100% !important;
-  min-height: 100% !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  min-width: 100vw !important;
+  min-height: 100dvh !important;
   max-width: none !important;
   max-height: none !important;
   margin: 0 !important;

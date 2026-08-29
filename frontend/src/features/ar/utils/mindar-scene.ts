@@ -25,6 +25,8 @@ type MindArImageSystem = {
   };
   video?: HTMLVideoElement | null;
   _resize?: () => void;
+  _spResizePatched?: boolean;
+  _spOriginalResize?: () => void;
 };
 
 export const getMindArSystem = (host: HTMLElement): MindArImageSystem | null => {
@@ -94,8 +96,20 @@ export const buildMindArScene = (
   host.appendChild(scene);
   // Always show the HTML <video> camera; WebGL canvas is often opaque black on mobile.
   host.classList.add('ar-scene-host--html-camera');
+  ensureSceneHostFillViewport(host);
 
   return { scene, targetEntities };
+};
+
+/** MindAR reads container.clientWidth/Height — keep the host full viewport on mobile. */
+export const ensureSceneHostFillViewport = (host: HTMLElement): void => {
+  host.style.setProperty('position', 'absolute', 'important');
+  host.style.setProperty('inset', '0', 'important');
+  host.style.setProperty('width', '100%', 'important');
+  host.style.setProperty('height', '100%', 'important');
+  host.style.setProperty('min-width', '100%', 'important');
+  host.style.setProperty('min-height', '100dvh', 'important');
+  host.style.setProperty('overflow', 'hidden', 'important');
 };
 
 export const getCameraVideo = (host: HTMLElement): HTMLVideoElement | null => {
@@ -155,6 +169,26 @@ export const ensureTransparentRenderer = (host: HTMLElement): void => {
 };
 
 /**
+ * MindAR `_resize` sets pixel width/height on the camera <video> (small top-left crop).
+ * Wrap it so tracking math still runs but the guest always sees a full-screen feed.
+ */
+export const patchMindArVideoResize = (host: HTMLElement): void => {
+  const arSystem = getMindArSystem(host);
+  if (!arSystem?._resize || arSystem._spResizePatched) return;
+
+  arSystem._spOriginalResize = arSystem._resize.bind(arSystem);
+  arSystem._resize = () => {
+    try {
+      arSystem._spOriginalResize?.();
+    } catch {
+      // a-camera may not exist yet
+    }
+    coverMindArCameraVideo(host);
+  };
+  arSystem._spResizePatched = true;
+};
+
+/**
  * Fill the viewport with the live camera (object-fit cover).
  * MindAR often sizes the <video> to a small top-left tracking crop — override that.
  */
@@ -162,24 +196,27 @@ export const coverMindArCameraVideo = (host: HTMLElement): void => {
   const video = getCameraVideo(host);
   if (!video) return;
 
-  // MindAR sometimes mounts the camera <video> on body (z-index -2) — reparent so
-  // our shells cannot cover it and sizing has a real container.
-  if (video.parentElement !== host) {
-    host.appendChild(video);
+  ensureSceneHostFillViewport(host);
+
+  // MindAR mounts the camera <video> on the scene host with z-index -2 — reparent if needed.
+  const viewerRoot = host.closest('.ar-viewer-root') as HTMLElement | null;
+  const mount = viewerRoot ?? host;
+  if (video.parentElement !== mount) {
+    mount.appendChild(video);
   }
 
   video.removeAttribute('width');
   video.removeAttribute('height');
-  video.style.setProperty('position', 'absolute', 'important');
+  video.style.setProperty('position', 'fixed', 'important');
   video.style.setProperty('inset', '0px', 'important');
   video.style.setProperty('top', '0px', 'important');
   video.style.setProperty('left', '0px', 'important');
   video.style.setProperty('right', '0px', 'important');
   video.style.setProperty('bottom', '0px', 'important');
-  video.style.setProperty('width', '100%', 'important');
-  video.style.setProperty('height', '100%', 'important');
-  video.style.setProperty('min-width', '100%', 'important');
-  video.style.setProperty('min-height', '100%', 'important');
+  video.style.setProperty('width', '100vw', 'important');
+  video.style.setProperty('height', '100dvh', 'important');
+  video.style.setProperty('min-width', '100vw', 'important');
+  video.style.setProperty('min-height', '100dvh', 'important');
   video.style.setProperty('max-width', 'none', 'important');
   video.style.setProperty('max-height', 'none', 'important');
   video.style.setProperty('margin', '0', 'important');
@@ -215,15 +252,20 @@ export const hideIosTrackingCanvas = (host: HTMLElement): void => {
   hideTrackingCanvas(host);
 };
 
-const tryMindArResize = (host: HTMLElement): void => {
+const applyGuestCameraLayout = (host: HTMLElement): void => {
+  patchMindArVideoResize(host);
+  coverMindArCameraVideo(host);
+  hideTrackingCanvas(host);
+};
+
+const syncMindArTrackingViewport = (host: HTMLElement): void => {
+  patchMindArVideoResize(host);
   try {
     getMindArSystem(host)?._resize?.();
   } catch {
-    // a-camera may not exist yet — cover layout still fills the screen
+    // a-camera may not exist yet — layout cover still fills the screen
   }
-  // Always re-cover AFTER MindAR resize — `_resize` shrinks video to a corner crop.
-  coverMindArCameraVideo(host);
-  hideTrackingCanvas(host);
+  applyGuestCameraLayout(host);
 };
 
 const watchCoverLayout = (host: HTMLElement): void => {
@@ -236,7 +278,7 @@ const watchCoverLayout = (host: HTMLElement): void => {
     if (!host.isConnected || applying) return;
     applying = true;
     try {
-      tryMindArResize(host);
+      applyGuestCameraLayout(host);
     } finally {
       // Let MindAR finish any sync style writes before we watch again.
       window.setTimeout(() => {
@@ -253,8 +295,8 @@ const watchCoverLayout = (host: HTMLElement): void => {
   const bindVideoWatchers = (video: HTMLVideoElement | null) => {
     if (!video || video.dataset.spCoverBound === '1') return;
     video.dataset.spCoverBound = '1';
-    video.addEventListener('loadedmetadata', apply);
-    video.addEventListener('resize', schedule);
+    video.addEventListener('loadedmetadata', () => syncMindArTrackingViewport(host));
+    video.addEventListener('resize', () => syncMindArTrackingViewport(host));
     video.addEventListener('play', schedule);
 
     // MindAR repeatedly writes inline width/height/transform — fight back.
@@ -266,9 +308,9 @@ const watchCoverLayout = (host: HTMLElement): void => {
   };
 
   bindVideoWatchers(getCameraVideo(host));
-  window.addEventListener('resize', schedule);
-  window.addEventListener('orientationchange', schedule);
-  window.setTimeout(apply, 0);
+  window.addEventListener('resize', () => syncMindArTrackingViewport(host));
+  window.addEventListener('orientationchange', () => syncMindArTrackingViewport(host));
+  window.setTimeout(() => syncMindArTrackingViewport(host), 0);
   window.setTimeout(apply, 200);
   window.setTimeout(apply, 800);
 
@@ -294,9 +336,9 @@ export const ensureCameraPreviewVisible = (host: HTMLElement): HTMLVideoElement 
   video.autoplay = true;
   host.classList.remove('ar-scene-host--crop-playing');
 
-  coverMindArCameraVideo(host);
-  hideTrackingCanvas(host);
-  tryMindArResize(host);
+  patchMindArVideoResize(host);
+  applyGuestCameraLayout(host);
+  syncMindArTrackingViewport(host);
   watchCoverLayout(host);
 
   if (video.paused) {
@@ -352,8 +394,7 @@ export const restartMindArTracking = (host: HTMLElement): void => {
   }
 
   keepMindArCameraPlaying(host);
-  coverMindArCameraVideo(host);
-  tryMindArResize(host);
+  syncMindArTrackingViewport(host);
 
   try {
     system.unpause();
@@ -364,8 +405,7 @@ export const restartMindArTracking = (host: HTMLElement): void => {
   window.setTimeout(() => {
     if (!host.isConnected || !video.isConnected) return;
     keepMindArCameraPlaying(host);
-    coverMindArCameraVideo(host);
-    tryMindArResize(host);
+    syncMindArTrackingViewport(host);
     try {
       system.controller?.processVideo(video);
     } catch {
@@ -451,7 +491,9 @@ export const attachCameraStream = async (
       if (arSystem?.controller && video.videoWidth > 0) {
         arSystem.controller.inputWidth = video.videoWidth;
         arSystem.controller.inputHeight = video.videoHeight;
+        patchMindArVideoResize(host);
         arSystem._resize?.call(arSystem);
+        applyGuestCameraLayout(host);
         try {
           await arSystem.controller.dummyRun(video);
           arSystem.controller.processVideo(video);
@@ -504,7 +546,9 @@ export const flipMindArCamera = async (
 
   arSystem.controller.inputWidth = video.videoWidth;
   arSystem.controller.inputHeight = video.videoHeight;
+  patchMindArVideoResize(host);
   arSystem._resize?.call(arSystem);
+  applyGuestCameraLayout(host);
   await arSystem.controller.dummyRun(video);
   arSystem.controller.processVideo(video);
 

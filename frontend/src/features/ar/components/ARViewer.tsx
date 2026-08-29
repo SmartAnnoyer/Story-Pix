@@ -1082,7 +1082,7 @@ export const ARViewer = ({
       status === 'camera_required');
 
   return (
-    <div className="ar-viewer-root relative bg-black">
+    <div className="ar-viewer-root bg-black">
       <div
         ref={(node) => {
           containerRef.current = node;
