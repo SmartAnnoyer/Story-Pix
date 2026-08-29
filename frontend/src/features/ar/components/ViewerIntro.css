@@ -5,6 +5,81 @@
   animation: viewer-glow-shift 8s ease-in-out infinite alternate;
 }
 
+.viewer-intro__badge {
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(12, 12, 18, 0.45);
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 0.84rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  backdrop-filter: blur(12px);
+}
+
+.viewer-intro__scan-preview {
+  position: relative;
+  width: min(42vw, 168px, 28dvh);
+  height: min(42vw, 168px, 28dvh);
+}
+
+.viewer-intro__corner {
+  position: absolute;
+  width: 28%;
+  height: 28%;
+  border: 3.5px solid transparent;
+}
+
+.viewer-intro__corner--tl {
+  top: 0;
+  left: 0;
+  border-top-color: #fff;
+  border-left-color: #fff;
+}
+
+.viewer-intro__corner--tr {
+  top: 0;
+  right: 0;
+  border-top-color: #fff;
+  border-right-color: #fff;
+}
+
+.viewer-intro__corner--bl {
+  bottom: 0;
+  left: 0;
+  border-bottom-color: #fff;
+  border-left-color: #fff;
+}
+
+.viewer-intro__corner--br {
+  right: 0;
+  bottom: 0;
+  border-bottom-color: #fff;
+  border-right-color: #fff;
+}
+
+.viewer-intro__scanline {
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, #2196f3, #fff, #8a2be2, transparent);
+  box-shadow: 0 0 12px rgba(33, 150, 243, 0.8);
+  animation: viewer-intro-sweep 2s linear infinite;
+}
+
+@keyframes viewer-intro-sweep {
+  0% {
+    top: 10%;
+    opacity: 0.5;
+  }
+  100% {
+    top: 88%;
+    opacity: 0.85;
+  }
+}
+
 .viewer-intro-frame {
   animation: viewer-frame-in 0.8s ease-out both;
 }

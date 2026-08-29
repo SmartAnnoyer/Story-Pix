@@ -24,6 +24,7 @@ describe('MediaController', () => {
       findAll: jest.fn(),
       findById: jest.fn(),
       softDelete: jest.fn(),
+      updateDisplayName: jest.fn(),
       retryUpload: jest.fn(),
       cancelUpload: jest.fn(),
       findByAlbum: jest.fn(),
@@ -55,8 +56,8 @@ describe('MediaController', () => {
   });
 
   it('should reject missing studio context', () => {
-    expect(() =>
-      controller.findAll({ ...mockUser, studioId: undefined } as never, {}),
-    ).toThrow(ForbiddenException);
+    expect(() => controller.findAll({ ...mockUser, studioId: undefined } as never, {})).toThrow(
+      ForbiddenException,
+    );
   });
 });

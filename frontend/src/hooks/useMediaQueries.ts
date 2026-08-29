@@ -52,3 +52,12 @@ export const useConfirmUploadMutation = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: mediaKeys.all }),
   });
 };
+
+export const useUpdateMediaMutation = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, originalFileName }: { id: string; originalFileName: string }) =>
+      mediaService.updateMedia(id, { originalFileName }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: mediaKeys.all }),
+  });
+};

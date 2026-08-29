@@ -1,5 +1,4 @@
 import type { ScanOverlayMessage, ViewerManifestTarget } from '@/types/ar-target.types';
-import { MappingPreviewImage } from './MappingPreviewImage';
 import { ViewerProgressBar, type ViewerPhase } from './ViewerProgressBar';
 import './ScanStatusOverlay.css';
 
@@ -91,16 +90,9 @@ export const ScanStatusOverlay = ({
         ) : null}
 
         {showTargetHints ? (
-          <div className="mt-4 flex flex-wrap justify-center gap-3">
-            {targets.slice(0, 4).map((target) => (
-              <div key={target.id} className="flex flex-col items-center gap-1">
-                <MappingPreviewImage albumSlug={albumSlug} target={target} size="sm" />
-                <span className="max-w-[80px] truncate text-[10px] font-medium text-white/85">
-                  {target.targetName}
-                </span>
-              </div>
-            ))}
-          </div>
+          <p className="scan-status-card__sub mt-3">
+            {targets.length} printable photo{targets.length === 1 ? '' : 's'} ready to scan.
+          </p>
         ) : null}
 
         {showTips ? (

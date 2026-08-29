@@ -3,7 +3,6 @@ import { BrandLogo } from '@/components/BrandLogo';
 import type { ViewerManifest } from '@/types/ar-target.types';
 import { uniqueTrackingPhotos } from '../utils/manifest-photos';
 import type { WarmupProgress } from '../utils/viewer-warmup';
-import { MappingPreviewImage } from './MappingPreviewImage';
 import './ViewerIntro.css';
 
 interface ViewerWelcomeScreenProps {
@@ -15,9 +14,8 @@ interface ViewerWelcomeScreenProps {
 }
 
 const TIPS = [
-  'Find the printed photo in your album — that is what you will scan.',
+  'Point your camera at the printed photo in your album.',
   'Good lighting helps. Avoid glare on glossy prints.',
-  'Point at another print to switch photos — one QR opens the whole album.',
   'Tap the speaker icon if you want sound.',
 ];
 
@@ -27,7 +25,6 @@ const clampPercent = (progress: number) =>
   Math.min(100, Math.max(0, Math.round(progress > 1 ? progress : progress * 100)));
 
 export const ViewerWelcomeScreen = ({
-  albumSlug,
   manifest,
   warmup,
   onStart,
@@ -39,13 +36,10 @@ export const ViewerWelcomeScreen = ({
   const albumName = manifest?.album.albumName ?? 'Your Story-pix Album';
   const studioName = manifest?.branding.studioName;
   const studioLogo = manifest?.branding.logoUrl;
-  const cover = manifest?.album.coverImage;
   const description = manifest?.album.description;
   const targets = useMemo(() => uniqueTrackingPhotos(manifest?.targets ?? []), [manifest?.targets]);
-  const mappingCount = manifest?.targets.length ?? 0;
   const canOpenCamera = Boolean(targets.length) && !warmup.error;
   const scanFileReady = warmup.ready && Boolean(warmup.mindBundle);
-  const primaryTarget = targets[0] ?? null;
 
   const introStep = warmup.ready
     ? 2
@@ -62,7 +56,7 @@ export const ViewerWelcomeScreen = ({
     }
     setHeroVisible(false);
     return undefined;
-  }, [manifest?.album.id]);
+  }, [manifest?.album.id, manifest]);
 
   useEffect(() => {
     if (warmup.ready) return undefined;
@@ -113,9 +107,8 @@ export const ViewerWelcomeScreen = ({
         >
           {!manifest ? (
             <div className="mx-auto mb-6 max-w-xs">
-              <div className="aspect-[4/3] animate-pulse rounded-2xl border border-white/10 bg-white/5" />
+              <div className="aspect-square animate-pulse rounded-2xl border border-white/10 bg-white/5" />
               <div className="mx-auto mt-4 h-6 w-3/4 animate-pulse rounded-lg bg-white/10" />
-              <div className="mx-auto mt-2 h-4 w-1/2 animate-pulse rounded-lg bg-white/5" />
             </div>
           ) : (
             <>
@@ -129,26 +122,16 @@ export const ViewerWelcomeScreen = ({
                 </div>
               ) : null}
 
-              {primaryTarget ? (
-                <div className="mx-auto mb-5 flex flex-col items-center">
-                  <div className="viewer-intro-frame relative overflow-hidden rounded-2xl border border-white/15 bg-black/30 p-3 shadow-2xl">
-                    <MappingPreviewImage
-                      albumSlug={albumSlug}
-                      target={primaryTarget}
-                      size="lg"
-                      className="!h-auto !w-full max-h-52 max-w-[260px] sm:max-w-[300px]"
-                    />
-                  </div>
-                  <p className="mt-3 text-center text-sm font-medium text-[#FF4FA3]">
-                    Scan this photo in your album
-                  </p>
-                  <p className="text-center text-xs text-white/60">{primaryTarget.targetName}</p>
+              <div className="mx-auto mb-5 flex flex-col items-center">
+                <span className="viewer-intro__badge mb-4">Point camera at your photo</span>
+                <div className="viewer-intro__scan-preview" aria-hidden>
+                  <span className="viewer-intro__corner viewer-intro__corner--tl" />
+                  <span className="viewer-intro__corner viewer-intro__corner--tr" />
+                  <span className="viewer-intro__corner viewer-intro__corner--bl" />
+                  <span className="viewer-intro__corner viewer-intro__corner--br" />
+                  <span className="viewer-intro__scanline" />
                 </div>
-              ) : cover ? (
-                <div className="viewer-intro-frame mx-auto mb-5 aspect-[4/3] w-full max-w-xs overflow-hidden rounded-2xl border border-white/10 shadow-2xl">
-                  <img src={cover} alt={albumName} className="h-full w-full object-cover" />
-                </div>
-              ) : null}
+              </div>
 
               <h1 className="mb-2 text-center text-2xl font-bold leading-tight sm:text-3xl">
                 {albumName}
@@ -168,22 +151,9 @@ export const ViewerWelcomeScreen = ({
           </div>
 
           {targets.length > 0 ? (
-            <div className="mb-5">
-              <p className="mb-3 text-center text-xs font-medium uppercase tracking-wide text-white/45">
-                {targets.length} live photo{targets.length === 1 ? '' : 's'}
-                {mappingCount > targets.length ? ` · ${mappingCount} videos` : ''} · one QR
-              </p>
-              <div className="flex flex-wrap justify-center gap-3">
-                {targets.slice(0, 8).map((target) => (
-                  <div key={target.photoMediaId} className="flex flex-col items-center gap-1">
-                    <MappingPreviewImage albumSlug={albumSlug} target={target} size="sm" />
-                    <span className="max-w-[72px] truncate text-center text-[10px] text-white/70">
-                      {target.targetName}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <p className="mb-5 text-center text-xs font-medium uppercase tracking-wide text-white/45">
+              {targets.length} printable photo{targets.length === 1 ? '' : 's'} in this album
+            </p>
           ) : null}
 
           {showProgress ? (
@@ -237,7 +207,7 @@ export const ViewerWelcomeScreen = ({
                 ? scanFileReady
                   ? 'Camera opens on this tap — have your printed photo ready.'
                   : 'Camera opens now. Scan data may finish loading in the background.'
-                : 'Setting things up in the background. This screen is your album preview.'}
+                : 'Getting your album ready…'}
           </p>
         </div>
       </div>

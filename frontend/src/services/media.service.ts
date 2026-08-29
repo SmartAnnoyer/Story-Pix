@@ -79,6 +79,11 @@ export const mediaService = {
     return data.data;
   },
 
+  async updateMedia(id: string, payload: { originalFileName: string }): Promise<MediaItem> {
+    const { data } = await apiClient.patch<ApiResponse<MediaItem>>(`/media/${id}`, payload);
+    return data.data;
+  },
+
   async deleteMedia(id: string): Promise<{ id: string; deleted: boolean }> {
     const { data } = await apiClient.delete<ApiResponse<{ id: string; deleted: boolean }>>(
       `/media/${id}`,
