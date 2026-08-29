@@ -7,7 +7,7 @@ export type ViewerLogEntry = {
   message: string;
 };
 
-const MAX_LOGS = 200;
+const MAX_LOGS = 500;
 const entries: ViewerLogEntry[] = [];
 const listeners = new Set<() => void>();
 let nextId = 1;

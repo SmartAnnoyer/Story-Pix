@@ -1,0 +1,115 @@
+.viewer-debug-console {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2147483000;
+  pointer-events: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+  line-height: 1.35;
+  color: #eef2ff;
+}
+
+.viewer-debug-console--collapsed {
+  left: auto;
+  right: max(8px, env(safe-area-inset-right));
+  bottom: max(8px, env(safe-area-inset-bottom));
+  width: auto;
+}
+
+.viewer-debug-console__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  background: rgba(8, 8, 14, 0.88);
+  color: #fff;
+  padding: 0.35rem 0.65rem;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.viewer-debug-console__panel {
+  display: flex;
+  flex-direction: column;
+  max-height: min(46vh, 360px);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(6, 6, 12, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.viewer-debug-console__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.viewer-debug-console__title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.viewer-debug-console__actions {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+.viewer-debug-console__btn {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  padding: 0.2rem 0.45rem;
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.viewer-debug-console__btn:active {
+  transform: scale(0.96);
+}
+
+.viewer-debug-console__list {
+  overflow: auto;
+  padding: 0.35rem 0.45rem 0.5rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.viewer-debug-console__line {
+  margin: 0 0 0.28rem;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.viewer-debug-console__line--error {
+  color: #ff8a8a;
+}
+
+.viewer-debug-console__line--warn {
+  color: #ffd27a;
+}
+
+.viewer-debug-console__line--info {
+  color: #e8ecff;
+}
+
+.viewer-debug-console__line--debug {
+  color: rgba(200, 210, 255, 0.72);
+}
+
+.viewer-debug-console__time {
+  color: rgba(255, 255, 255, 0.38);
+}

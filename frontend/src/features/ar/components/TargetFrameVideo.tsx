@@ -29,6 +29,7 @@ import {
   resolvePlayableVideoUrl,
 } from '../utils/video-prefetch';
 import { dumpArOverlayDebug } from '../utils/ar-overlay-debug';
+import { logViewerDiagnostics } from '../utils/viewer-debug-diagnostics';
 import { viewerLog } from '../utils/viewer-debug-log';
 import './TargetFrameVideo.css';
 
@@ -718,6 +719,28 @@ export const TargetFrameVideo = ({
       return;
     }
 
+    viewerLog('info', 'TargetFrameVideo active', {
+      title,
+      primaryUrl: primaryUrl?.slice(0, 120) ?? null,
+      fallbackUrl: fallbackUrl?.slice(0, 120) ?? null,
+      mode,
+      hasHost: Boolean(host),
+      hasEntity: Boolean(targetEntity),
+      overlayFrame,
+    });
+    logViewerDiagnostics(
+      'TargetFrameVideo active',
+      host,
+      {
+        title,
+        mode,
+        primaryUrl: primaryUrl?.slice(0, 120) ?? null,
+        fallbackUrl: fallbackUrl?.slice(0, 120) ?? null,
+        overlayFrame,
+      },
+      'info',
+    );
+
     let cancelled = false;
     setLoading(true);
     setNeedsTap(false);
@@ -725,10 +748,16 @@ export const TargetFrameVideo = ({
     setIsPlaying(false);
 
     const sources = buildSourceList(primaryUrl, fallbackUrl, preferDirectUrl);
+    viewerLog('info', 'TargetFrameVideo sources', {
+      sources: sources.map((src) => src.slice(0, 120)),
+    });
 
     void loadAndPlay(sources)
-      .catch(() => {
+      .catch((error) => {
         if (cancelled) return;
+        viewerLog('error', 'TargetFrameVideo loadAndPlay failed', {
+          message: error instanceof Error ? error.message : String(error),
+        });
         // Instant-or-nothing: never leave a silent late-start / audio-only path hanging.
         onErrorRef.current?.(
           'Video did not start instantly. Hold the photo steady in the frame and try again.',
@@ -741,7 +770,18 @@ export const TargetFrameVideo = ({
     return () => {
       cancelled = true;
     };
-  }, [active, primaryUrl, fallbackUrl, preferDirectUrl, loadAndPlay, host]);
+  }, [
+    active,
+    primaryUrl,
+    fallbackUrl,
+    preferDirectUrl,
+    loadAndPlay,
+    host,
+    mode,
+    title,
+    targetEntity,
+    overlayFrame,
+  ]);
 
   useEffect(() => {
     const video = videoRef.current;

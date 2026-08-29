@@ -1,4 +1,5 @@
 import { installPoseCapture } from './target-projection';
+import { viewerLog } from './viewer-debug-log';
 
 export type CameraFacing = 'environment' | 'user';
 
@@ -97,6 +98,11 @@ export const buildMindArScene = (
   host.appendChild(scene);
   host.classList.add('ar-scene-host--html-camera');
   bootstrapGuestCameraLayout(host);
+  viewerLog('info', 'MindAR scene mounted', {
+    targets: targetEntities.length,
+    host: { w: host.clientWidth, h: host.clientHeight },
+    mindUrl: options.mindUrl.slice(0, 80),
+  });
   scene.addEventListener('loaded', () => bootstrapGuestCameraLayout(host));
   scene.addEventListener('arReady', () => bootstrapGuestCameraLayout(host));
   window.requestAnimationFrame(() => {
@@ -137,6 +143,11 @@ export const bootstrapGuestCameraLayout = (host: HTMLElement): void => {
   patchMindArVideoResize(host);
   coverMindArCameraVideo(host);
   watchCoverLayout(host);
+  viewerLog('debug', 'bootstrapGuestCameraLayout', {
+    host: { w: host.clientWidth, h: host.clientHeight },
+    patched: Boolean(getMindArSystem(host)?._spResizePatched),
+    hasCameraVideo: Boolean(getCameraVideo(host)),
+  });
 };
 
 export const getCameraVideo = (host: HTMLElement): HTMLVideoElement | null => {
@@ -211,6 +222,10 @@ export const patchMindArVideoResize = (host: HTMLElement): void => {
       // a-camera may not exist yet
     }
     coverMindArCameraVideo(host);
+    viewerLog('debug', 'MindAR _resize patched → cover camera', {
+      host: { w: host.clientWidth, h: host.clientHeight },
+      video: Boolean(getCameraVideo(host)),
+    });
   };
   arSystem._spResizePatched = true;
 };

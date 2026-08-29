@@ -5,9 +5,11 @@ import { ViewerLayout } from '@/layouts/ViewerLayout';
 import { ViewerPage } from '@/pages/viewer/ViewerPage';
 import { ROUTES } from '@/routes/paths';
 import { startViewerWarmup } from '@/features/ar/utils/viewer-warmup';
+import { installViewerLogCapture } from '@/features/ar/utils/viewer-debug-log';
 import '@/styles/globals.css';
 
 document.documentElement.classList.add('viewer-route');
+installViewerLogCapture();
 
 // Kick off manifest + video prefetch before React mounts (saves 200–800ms)
 const earlySlug = location.pathname.match(/^\/viewer\/([^/?#]+)/)?.[1];

@@ -132,12 +132,23 @@ export const ViewerPage = () => {
     if (!warmup.manifest?.targets.length) return;
     if (needsTap) return;
 
-    viewerLog('info', 'Warmup ready — auto-opening camera');
+    viewerLog('info', 'Warmup ready — auto-opening camera', {
+      targets: warmup.manifest?.targets.length ?? 0,
+      mappings: warmup.manifest?.targets.map((target) => ({
+        name: target.targetName,
+        mind: target.targetIndex,
+        video: target.videoAvailable,
+        photoId: target.photoMediaId,
+      })),
+      mindReady: Boolean(warmup.mindBundle),
+    });
     void handleStart(false);
   }, [
     warmup.ready,
     warmup.error,
     warmup.manifest?.targets.length,
+    warmup.manifest?.targets,
+    warmup.mindBundle,
     started,
     starting,
     needsTap,

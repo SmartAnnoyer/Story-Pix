@@ -26,7 +26,6 @@ import {
   destroyMindArScene,
   ensureCameraPreviewVisible,
   flipMindArCamera,
-  getMindArSystem,
   isCameraPreviewLive,
   keepMindArCameraPlaying,
   releaseMappedVideoDecoder,
@@ -39,6 +38,7 @@ import { getTargetAspectRatio, installPoseCapture } from '../utils/target-projec
 import { mappingsForMindIndex, uniqueTrackingPhotos } from '../utils/manifest-photos';
 import { readMatchPercent, smoothMatchPercent } from '../utils/match-confidence';
 import { detachOverlayVideoPlane } from '../utils/overlay-plane';
+import { logViewerDiagnostics } from '../utils/viewer-debug-diagnostics';
 import { viewerLog } from '../utils/viewer-debug-log';
 import './ARViewer.css';
 
@@ -465,6 +465,20 @@ export const ARViewer = ({
             targetLostGraceRef.current.delete(index);
           });
 
+          viewerLog('info', 'beginPlayback', {
+            mindIndex,
+            target: nextTarget.targetName,
+            isSwitch,
+            videoAvailable: nextTarget.videoAvailable,
+            videoMediaId: nextTarget.videoMediaId,
+            primaryUrl: viewerService.getMappingVideoUrl(
+              albumSlug,
+              nextTarget.id,
+              nextTarget.videoMediaId,
+            ),
+            fallbackUrl: nextTarget.videoUrl,
+          });
+
           activeMindIndexRef.current = mindIndex;
           setActiveMindIndex(mindIndex);
           setTrackedEntity(targetEntities[mindIndex] ?? null);
@@ -490,15 +504,27 @@ export const ARViewer = ({
         };
 
         const confirmTargetMatch = (mindIndex: number) => {
-          if (!mounted) return;
+          if (!mounted) {
+            viewerLog('warn', 'confirmTargetMatch skipped — unmounted', { mindIndex });
+            return;
+          }
 
           if (!scanningEnabledRef.current || !isCameraPreviewLive(host)) {
+            viewerLog('warn', 'confirmTargetMatch blocked', {
+              mindIndex,
+              scanningEnabled: scanningEnabledRef.current,
+              cameraLive: isCameraPreviewLive(host),
+              status: statusRef.current,
+            });
             return;
           }
 
           const group = mappingsForMindIndex(targetsRef.current, mindIndex);
           const nextTarget = group.find((item) => item.videoAvailable) ?? group[0];
-          if (!nextTarget) return;
+          if (!nextTarget) {
+            viewerLog('warn', 'confirmTargetMatch — no target for mind index', { mindIndex });
+            return;
+          }
 
           const current = statusRef.current;
           const playing = current === 'match_found' || current === 'recognized';
@@ -552,6 +578,11 @@ export const ARViewer = ({
           }
 
           if (current !== 'scanning' && current !== 'move_closer') {
+            viewerLog('warn', 'confirmTargetMatch ignored — wrong status', {
+              mindIndex,
+              status: current,
+              target: nextTarget.targetName,
+            });
             return;
           }
 
@@ -566,6 +597,11 @@ export const ARViewer = ({
           setStatusDetail(null);
 
           if (!nextTarget.videoAvailable) {
+            viewerLog('error', 'confirmTargetMatch — video unavailable', {
+              mindIndex,
+              target: nextTarget.targetName,
+              id: nextTarget.id,
+            });
             setStatus('video_unavailable');
             setStatusDetail('This mapping has no playable video file.');
             void recordEventRef.current(ScanEventType.SCAN_FAILED, nextTarget);
@@ -573,6 +609,18 @@ export const ARViewer = ({
           }
 
           beginPlayback(mindIndex, nextTarget, false);
+          logViewerDiagnostics(
+            'beginPlayback',
+            host,
+            {
+              mindIndex,
+              target: nextTarget.targetName,
+              videoAvailable: nextTarget.videoAvailable,
+              videoMediaId: nextTarget.videoMediaId,
+              overlayFrame: nextTarget.overlayFrame,
+            },
+            'info',
+          );
         };
 
         const attachTargetListeners = () => {
@@ -610,9 +658,16 @@ export const ARViewer = ({
                 scanningEnabled: scanningEnabledRef.current,
                 status: statusRef.current,
               });
-              if (!mounted || !scanningEnabledRef.current) return;
+              if (!mounted || !scanningEnabledRef.current) {
+                viewerLog('warn', 'targetFound ignored — not scanning', {
+                  mindIndex,
+                  mounted,
+                  scanningEnabled: scanningEnabledRef.current,
+                });
+                return;
+              }
               if (!isCameraPreviewLive(host)) {
-                viewerLog('warn', 'targetFound ignored — camera not live');
+                viewerLog('warn', 'targetFound ignored — camera not live', { mindIndex });
                 return;
               }
               targetTrackedRef.current = true;
@@ -804,6 +859,15 @@ export const ARViewer = ({
             setStatus('scanning');
             setStatusDetail('Point at the printed photo — fill the frame.');
             viewerLog('info', 'scanning enabled — waiting for targetFound');
+            logViewerDiagnostics(
+              'scanning enabled',
+              containerRef.current,
+              {
+                status: 'scanning',
+                facingMode,
+              },
+              'info',
+            );
             startScanTimers();
           })();
         });
@@ -938,35 +1002,25 @@ export const ARViewer = ({
   }, [status, albumSlug, targets]);
 
   useEffect(() => {
-    if (status !== 'scanning' && status !== 'move_closer' && status !== 'loading') {
-      return undefined;
-    }
-
     const tick = () => {
       const host = containerRef.current;
-      const system = host ? getMindArSystem(host) : null;
-      const states = system?.controller?.trackingStates ?? [];
-      viewerLog('debug', 'scan heartbeat', {
+      logViewerDiagnostics('viewer diagnostics', host, {
         status,
         matchPercent: matchPercentRef.current,
-        cameraLive: host ? isCameraPreviewLive(host) : false,
-        videoCount: host?.querySelectorAll('video').length ?? 0,
         scanningEnabled: scanningEnabledRef.current,
         targetTracked: targetTrackedRef.current,
-        tracking: states.map((state, index) => ({
-          i: index,
-          showing: Boolean(state.showing),
-          isTracking: Boolean(state.isTracking),
-          trackCount: state.trackCount ?? 0,
-          trackMiss: state.trackMiss ?? 0,
-        })),
+        activeMindIndex: activeMindIndexRef.current,
+        activeTarget: activeTarget?.targetName ?? null,
+        activeVideo: activeTarget?.videoAvailable ?? false,
+        videoMode: videoModeRef.current,
+        mindBundle: Boolean(mindBundle),
       });
     };
 
     tick();
-    const timer = window.setInterval(tick, 2500);
+    const timer = window.setInterval(tick, 3000);
     return () => window.clearInterval(timer);
-  }, [status]);
+  }, [status, activeTarget?.targetName, activeTarget?.videoAvailable, mindBundle]);
 
   useEffect(() => {
     if (!mindBundle || status !== 'loading') return undefined;
