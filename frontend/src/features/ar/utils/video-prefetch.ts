@@ -5,6 +5,7 @@ import { viewerService } from '@/services/viewer.service';
 const prefetchedUrls = new Set<string>();
 const blobUrlBySource = new Map<string, string>();
 const pendingBySource = new Map<string, Promise<string | null>>();
+const MAX_BLOB_CACHE_BYTES = 20_000_000;
 
 const guessVideoMime = (url: string, headerType: string | null): string => {
   if (headerType && headerType.startsWith('video/')) return headerType;
@@ -29,6 +30,28 @@ const createHiddenVideo = (url: string) => {
   return video;
 };
 
+const fetchVideoBlob = (url: string): Promise<string | null> =>
+  fetch(url, { mode: 'cors', credentials: 'omit' })
+    .then(async (response) => {
+      if (!response.ok) return null;
+      const lengthHeader = response.headers.get('content-length');
+      const length = lengthHeader ? Number(lengthHeader) : NaN;
+      if (Number.isFinite(length) && length > MAX_BLOB_CACHE_BYTES) {
+        await response.body?.cancel().catch(() => undefined);
+        return null;
+      }
+      const blob = await response.blob();
+      if (blob.size > MAX_BLOB_CACHE_BYTES) return null;
+      const typed =
+        !blob.type || blob.type === 'application/octet-stream'
+          ? blob.slice(0, blob.size, guessVideoMime(url, response.headers.get('content-type')))
+          : blob;
+      const blobUrl = URL.createObjectURL(typed);
+      blobUrlBySource.set(url, blobUrl);
+      return blobUrl;
+    })
+    .catch(() => null);
+
 /** Start buffering a video without blocking the UI. Safe to call many times. */
 export const prefetchVideo = (url: string | null | undefined): void => {
   if (!url || prefetchedUrls.has(url)) return;
@@ -51,34 +74,24 @@ export const prefetchVideo = (url: string | null | undefined): void => {
     // ignore
   }
 
-  // Also warm HTTP cache / optional blob for small-enough responses later
   if (!pendingBySource.has(url)) {
-    const pending = fetch(url, { mode: 'cors', credentials: 'omit' })
-      .then(async (response) => {
-        if (!response.ok) return null;
-        // Only blob-cache smaller clips (< 12 MB) to avoid blowing mobile memory
-        const lengthHeader = response.headers.get('content-length');
-        const length = lengthHeader ? Number(lengthHeader) : NaN;
-        if (Number.isFinite(length) && length > 12_000_000) {
-          // Consume a bit of the stream so CDN/cache warms, then abort
-          await response.body?.cancel().catch(() => undefined);
-          return null;
-        }
-        const blob = await response.blob();
-        if (blob.size > 12_000_000) return null;
-        // Browsers often refuse to decode blobs typed as application/octet-stream.
-        const typed =
-          !blob.type || blob.type === 'application/octet-stream'
-            ? blob.slice(0, blob.size, guessVideoMime(url, response.headers.get('content-type')))
-            : blob;
-        const blobUrl = URL.createObjectURL(typed);
-        blobUrlBySource.set(url, blobUrl);
-        return blobUrl;
-      })
-      .catch(() => null);
-
-    pendingBySource.set(url, pending);
+    pendingBySource.set(url, fetchVideoBlob(url));
   }
+};
+
+/** Wait briefly for an in-flight or new blob prefetch — instant play when ready. */
+export const waitForVideoBlob = async (url: string, maxMs = 2_000): Promise<string | null> => {
+  const cached = blobUrlBySource.get(url);
+  if (cached) return cached;
+
+  prefetchVideo(url);
+  const pending = pendingBySource.get(url);
+  if (!pending) return null;
+
+  return Promise.race([
+    pending,
+    new Promise<null>((resolve) => window.setTimeout(() => resolve(null), maxMs)),
+  ]);
 };
 
 /** Fetch a same-origin blob URL so iOS can copy frames into WebGL. */
@@ -89,15 +102,8 @@ export const awaitSameOriginVideoUrl = async (
   const cached = blobUrlBySource.get(url);
   if (cached) return cached;
 
-  prefetchVideo(url);
-  const pending = pendingBySource.get(url);
-  if (pending) {
-    const raced = await Promise.race([
-      pending,
-      new Promise<null>((resolve) => window.setTimeout(() => resolve(null), timeoutMs)),
-    ]);
-    if (raced) return raced;
-  }
+  const raced = await waitForVideoBlob(url, timeoutMs);
+  if (raced) return raced;
 
   try {
     const controller = new AbortController();
@@ -129,25 +135,23 @@ export const getPrefetchedBlobUrl = (url: string | null | undefined): string | n
   return blobUrlBySource.get(url) ?? null;
 };
 
+export const isVideoBlobReady = (url: string | null | undefined): boolean =>
+  Boolean(url && blobUrlBySource.has(url));
+
 export const resolvePlayableVideoUrl = async (
   preferredUrl: string | null | undefined,
-  options?: { allowBlob?: boolean },
+  options?: { allowBlob?: boolean; blobWaitMs?: number },
 ): Promise<string | null> => {
   if (!preferredUrl) return null;
   const allowBlob = options?.allowBlob !== false;
+  const blobWaitMs = options?.blobWaitMs ?? 1_500;
 
   if (allowBlob) {
     const cached = blobUrlBySource.get(preferredUrl);
     if (cached) return cached;
 
-    const pending = pendingBySource.get(preferredUrl);
-    if (pending) {
-      const blobUrl = await Promise.race([
-        pending,
-        new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 80)),
-      ]);
-      if (blobUrl) return blobUrl;
-    }
+    const blobUrl = await waitForVideoBlob(preferredUrl, blobWaitMs);
+    if (blobUrl) return blobUrl;
   }
 
   return preferredUrl;
@@ -164,7 +168,6 @@ export const prefetchManifestVideos = (
   }>,
 ): void => {
   const seenPhotos = new Set<string>();
-  let warmed = 0;
 
   for (const target of targets) {
     if (target.videoAvailable === false) continue;
@@ -172,7 +175,5 @@ export const prefetchManifestVideos = (
     if (seenPhotos.has(photoKey)) continue;
     seenPhotos.add(photoKey);
     prefetchVideo(viewerService.getMappingVideoUrl(albumSlug, target.id, target.videoMediaId));
-    warmed += 1;
-    if (warmed >= 8) break;
   }
 };

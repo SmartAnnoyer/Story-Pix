@@ -32,7 +32,11 @@ import {
   restartMindArTracking,
   type CameraFacing,
 } from '../utils/mindar-scene';
-import { takeHeldCameraStream, releaseHeldCameraStream } from '../utils/camera-permission';
+import {
+  takeHeldCameraStream,
+  releaseHeldCameraStream,
+  stopPlaybackVideoImmediately,
+} from '../utils/camera-permission';
 import { prefetchManifestVideos, prefetchVideo } from '../utils/video-prefetch';
 import { getTargetAspectRatio, installPoseCapture } from '../utils/target-projection';
 import { mappingsForMindIndex, uniqueTrackingPhotos } from '../utils/manifest-photos';
@@ -60,11 +64,10 @@ const SCAN_HINT_DELAY_MS = 18_000;
 const SCAN_NO_MATCH_DELAY_MS = 30_000;
 const TARGET_FOUND_CONFIRM_MS = 0;
 const TARGET_SWITCH_CONFIRM_MS = 0;
-/** Leave the print — stop shortly; other indices finding cancels this. */
-const TARGET_LOST_GRACE_MS = 180;
-/** Keep overlay alive through brief tracking blips and iOS video startup. */
-const TARGET_LOST_PLAYING_GRACE_MS = 3_500;
-const TARGET_SWITCH_COOLDOWN_MS = 450;
+/** Brief grace when the print leaves frame — another targetFound cancels this immediately. */
+const TARGET_LOST_GRACE_MS = 120;
+/** Short hold while a clip is starting; frame switches halt playback instantly. */
+const TARGET_LOST_PLAYING_GRACE_MS = 900;
 
 const buildServerMindBundle = (albumSlug: string, manifest: ViewerManifest): MindBundle | null => {
   if (!manifest.mindFile) return null;
@@ -455,16 +458,30 @@ export const ARViewer = ({
         setSceneHost(host);
         viewerLog('info', 'a-scene mounted', { targetEntities: targetEntities.length });
 
+        const haltCurrentPlayback = (mindIndex: number | null) => {
+          stopPlaybackVideoImmediately();
+          if (mindIndex != null) {
+            detachOverlayVideoPlane(targetEntitiesRef.current[mindIndex] ?? null);
+          }
+          releaseMappedVideoDecoder(host);
+          setVideoReveal(false);
+        };
+
         const beginPlayback = (
           mindIndex: number,
           nextTarget: ViewerManifestTarget,
           isSwitch: boolean,
         ) => {
           targetLostGraceRef.current.forEach((timer, index) => {
-            if (index === mindIndex) return;
             window.clearTimeout(timer);
             targetLostGraceRef.current.delete(index);
           });
+          targetFoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+          targetFoundTimersRef.current.clear();
+
+          if (isSwitch && activeMindIndexRef.current !== null) {
+            haltCurrentPlayback(activeMindIndexRef.current);
+          }
 
           viewerLog('info', 'beginPlayback', {
             mindIndex,
@@ -497,9 +514,13 @@ export const ARViewer = ({
           setStatus('match_found');
           setVideoReveal(false);
           void recordEventRef.current(ScanEventType.SCAN_SUCCESS, nextTarget);
-          prefetchVideo(
-            viewerService.getMappingVideoUrl(albumSlug, nextTarget.id, nextTarget.videoMediaId),
-          );
+          const group = mappingsForMindIndex(targetsRef.current, mindIndex);
+          for (const mapping of group) {
+            if (!mapping.videoAvailable) continue;
+            prefetchVideo(
+              viewerService.getMappingVideoUrl(albumSlug, mapping.id, mapping.videoMediaId),
+            );
+          }
           // Instant: mount the player on the same tick as MindAR targetFound.
           setActiveTarget(nextTarget);
         };
@@ -548,15 +569,6 @@ export const ARViewer = ({
               return;
             }
 
-            const now = Date.now();
-            if (now - lastTargetSwitchAtRef.current < TARGET_SWITCH_COOLDOWN_MS) {
-              viewerLog('info', 'target switch deferred — cooldown', {
-                mindIndex,
-                active: activeIndex,
-              });
-              return;
-            }
-
             if (!nextTarget.videoAvailable) {
               viewerLog('warn', 'target switch skipped — no playable video', {
                 mindIndex,
@@ -565,7 +577,7 @@ export const ARViewer = ({
               return;
             }
 
-            lastTargetSwitchAtRef.current = now;
+            lastTargetSwitchAtRef.current = Date.now();
             viewerLog('info', 'switching playback to newly found photo', {
               from: activeIndex,
               to: mindIndex,
@@ -676,6 +688,19 @@ export const ARViewer = ({
               const pending = targetFoundTimersRef.current.get(mindIndex);
               if (pending) window.clearTimeout(pending);
 
+              const switchingAway =
+                playing &&
+                activeMindIndexRef.current !== null &&
+                activeMindIndexRef.current !== mindIndex;
+              if (switchingAway) {
+                stopPlaybackVideoImmediately();
+                detachOverlayVideoPlane(
+                  targetEntitiesRef.current[activeMindIndexRef.current!] ?? null,
+                );
+                releaseMappedVideoDecoder(host);
+                setVideoReveal(false);
+              }
+
               // Instant detection: start on the same event — no delayed confirm.
               if (TARGET_FOUND_CONFIRM_MS <= 0 && TARGET_SWITCH_CONFIRM_MS <= 0) {
                 confirmTargetMatch(mindIndex);
@@ -752,6 +777,7 @@ export const ARViewer = ({
                   mindIndex,
                   status: statusRef.current,
                 });
+                stopPlaybackVideoImmediately();
                 detachOverlayVideoPlane(targetEntitiesRef.current[mindIndex] ?? null);
                 setActiveTarget(null);
                 activeMindIndexRef.current = null;
@@ -948,12 +974,24 @@ export const ARViewer = ({
     manifest.mindFile?.targetDimensions,
   ]);
 
+  // Prefetch every mapped clip before and during scan — instant play on detect.
+  useEffect(() => {
+    if (
+      status !== 'scanning' &&
+      status !== 'move_closer' &&
+      status !== 'loading' &&
+      status !== 'preparing'
+    ) {
+      return;
+    }
+    prefetchManifestVideos(albumSlug, targets);
+  }, [status, albumSlug, targets]);
+
   useEffect(() => {
     if (status !== 'scanning' && status !== 'move_closer') return undefined;
-    prefetchManifestVideos(albumSlug, targets);
     setProgress((value) => Math.min(0.99, Math.max(value, 0.92 + scanSeconds * 0.002)));
     return undefined;
-  }, [scanSeconds, status, targets, albumSlug]);
+  }, [scanSeconds, status]);
 
   useEffect(() => {
     if (status === 'match_found' || status === 'recognized') {
@@ -993,14 +1031,6 @@ export const ARViewer = ({
     frameId = window.requestAnimationFrame(tick);
     return () => window.cancelAnimationFrame(frameId);
   }, [status]);
-
-  // Prefetch every mapped clip as soon as scanning starts — instant play on detect.
-  useEffect(() => {
-    if (status !== 'scanning' && status !== 'move_closer' && status !== 'loading') {
-      return;
-    }
-    prefetchManifestVideos(albumSlug, targets);
-  }, [status, albumSlug, targets]);
 
   useEffect(() => {
     const tick = () => {
@@ -1061,6 +1091,7 @@ export const ARViewer = ({
   };
 
   const stopVideoPlayback = useCallback(() => {
+    stopPlaybackVideoImmediately();
     setActiveTarget(null);
     setActiveMindIndex(null);
     setTrackedEntity(null);
@@ -1076,9 +1107,17 @@ export const ARViewer = ({
       if (siblingVideos.length < 2 || siblingIndex < 0) return;
       const next =
         siblingVideos[(siblingIndex + direction + siblingVideos.length) % siblingVideos.length];
-      if (next) setActiveTarget(next);
+      if (!next) return;
+      stopPlaybackVideoImmediately();
+      setVideoReveal(false);
+      if (activeMindIndexRef.current != null && sceneHost) {
+        detachOverlayVideoPlane(targetEntitiesRef.current[activeMindIndexRef.current] ?? null);
+        releaseMappedVideoDecoder(sceneHost);
+      }
+      prefetchVideo(viewerService.getMappingVideoUrl(albumSlug, next.id, next.videoMediaId));
+      setActiveTarget(next);
     },
-    [siblingIndex, siblingVideos],
+    [siblingIndex, siblingVideos, albumSlug, sceneHost],
   );
 
   const resumeScanningAfterVideo = useCallback(() => {

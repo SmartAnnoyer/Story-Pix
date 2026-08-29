@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { clampOverlayFrame, type OverlayFrame } from '../utils/overlay-frame';
-import { getPlaybackVideoElement } from '../utils/camera-permission';
+import { getPlaybackVideoElement, stopPlaybackVideoImmediately } from '../utils/camera-permission';
 import {
   ensureTransparentRenderer,
   hideIosTrackingCanvas,
@@ -28,6 +28,7 @@ import {
   getPrefetchedBlobUrl,
   prefetchVideo,
   resolvePlayableVideoUrl,
+  waitForVideoBlob,
 } from '../utils/video-prefetch';
 import { dumpArOverlayDebug } from '../utils/ar-overlay-debug';
 import { logViewerDiagnostics } from '../utils/viewer-debug-diagnostics';
@@ -66,8 +67,8 @@ interface TargetFrameVideoProps {
 }
 
 const LOAD_TIMEOUT_MS = 2_800;
-const IOS_LOAD_TIMEOUT_MS = 12_000;
-const IOS_BLOB_FALLBACK_TIMEOUT_MS = 18_000;
+const BLOB_WAIT_MS = 2_000;
+const IOS_LOAD_TIMEOUT_MS = 8_000;
 
 const isIOS = () => typeof navigator !== 'undefined' && /iP(hone|od|ad)/.test(navigator.userAgent);
 
@@ -177,6 +178,12 @@ export const TargetFrameVideo = ({
     onErrorRef.current = onError;
     onEndedRef.current = onEnded;
   }, [onPlay, onError, onEnded]);
+
+  useLayoutEffect(() => {
+    if (!active) return undefined;
+    stopPlaybackVideoImmediately();
+    return undefined;
+  }, [primaryUrl, active]);
 
   useLayoutEffect(() => {
     if (!active) return undefined;
@@ -732,46 +739,30 @@ export const TargetFrameVideo = ({
         try {
           viewerLog('debug', 'video resolving source', {
             iosHtmlCamera,
+            blobReady: Boolean(getPrefetchedBlobUrl(source)),
             src: source.slice(0, 120),
           });
 
           prefetchVideo(source);
 
-          if (iosHtmlCamera) {
-            const cachedBlob = getPrefetchedBlobUrl(source);
-            if (cachedBlob) {
-              await tryResolvedSource(cachedBlob, source, 'cached-blob');
-              return;
-            }
-
-            try {
-              await tryResolvedSource(source, source, 'direct');
-              return;
-            } catch (directError) {
-              lastError = directError;
-              viewerLog('warn', 'direct iOS video load failed — trying blob', {
-                message: directError instanceof Error ? directError.message : String(directError),
-                code: video.error?.code ?? null,
-              });
-              const blobUrl =
-                getPrefetchedBlobUrl(source) ??
-                (await awaitSameOriginVideoUrl(source, IOS_BLOB_FALLBACK_TIMEOUT_MS));
-              if (!blobUrl) {
-                throw directError;
-              }
-              await tryResolvedSource(blobUrl, source, 'blob');
-              return;
-            }
+          const cachedBlob = getPrefetchedBlobUrl(source);
+          const blobUrl =
+            cachedBlob ?? (await waitForVideoBlob(source, BLOB_WAIT_MS)) ?? cachedBlob;
+          if (blobUrl) {
+            await tryResolvedSource(blobUrl, source, cachedBlob ? 'cached-blob' : 'blob');
+            return;
           }
 
-          let blobUrl = getPrefetchedBlobUrl(source);
-          blobUrl =
-            blobUrl ??
-            (await awaitSameOriginVideoUrl(source, 2_500)) ??
-            getPrefetchedBlobUrl(source);
           const resolved =
-            blobUrl ?? (await resolvePlayableVideoUrl(source, { allowBlob: true })) ?? source;
-          await tryResolvedSource(resolved, source, blobUrl ? 'blob' : 'direct');
+            (await resolvePlayableVideoUrl(source, {
+              allowBlob: true,
+              blobWaitMs: 400,
+            })) ?? source;
+          await tryResolvedSource(
+            resolved,
+            source,
+            resolved.startsWith('blob:') ? 'blob' : 'direct',
+          );
           return;
         } catch (error) {
           if (video.videoWidth > 0 && !video.paused) {
@@ -787,6 +778,16 @@ export const TargetFrameVideo = ({
             code: video.error?.code ?? null,
             src: source.slice(0, 96),
           });
+
+          const fallbackBlob = await awaitSameOriginVideoUrl(source, IOS_LOAD_TIMEOUT_MS);
+          if (fallbackBlob) {
+            try {
+              await tryResolvedSource(fallbackBlob, source, 'blob-fallback');
+              return;
+            } catch (blobError) {
+              lastError = blobError;
+            }
+          }
         }
       }
 

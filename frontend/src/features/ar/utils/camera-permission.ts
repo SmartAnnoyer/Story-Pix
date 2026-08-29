@@ -10,6 +10,18 @@ let heldStream: MediaStream | null = null;
 let unlockedAudioContext: AudioContext | null = null;
 let playbackVideo: HTMLVideoElement | null = null;
 
+/** Pause and clear the shared mapped-video element immediately (frame switches). */
+export const stopPlaybackVideoImmediately = (): void => {
+  const video = playbackVideo;
+  if (!video) return;
+  video.pause();
+  video.currentTime = 0;
+  video.removeAttribute('src');
+  video.src = '';
+  video.srcObject = null;
+  video.load();
+};
+
 /** Same video element from Open camera tap through overlay playback (needed for unmuted iOS play). */
 export const getPlaybackVideoElement = (): HTMLVideoElement => {
   if (playbackVideo) return playbackVideo;
