@@ -315,8 +315,56 @@ export const isVideoBlobReady = (url: string | null | undefined): boolean =>
 
 export const isVideoDecoderPrimed = (url: string | null | undefined): boolean => {
   if (!url) return false;
+  if (isVideoBlobReady(url)) return true;
   const video = primedVideos.get(url);
-  return Boolean(video && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA);
+  return Boolean(
+    video &&
+    video.src.startsWith('blob:') &&
+    video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+    video.videoWidth > 0,
+  );
+};
+
+/** Blob URL from cache or a fully decoded hidden primed element. */
+export const getPrimedVideoBlobUrl = (url: string | null | undefined): string | null => {
+  if (!url) return null;
+  const cached = blobUrlBySource.get(url);
+  if (cached) return cached;
+  const video = primedVideos.get(url);
+  if (
+    video?.src.startsWith('blob:') &&
+    video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+    video.videoWidth > 0
+  ) {
+    blobUrlBySource.set(url, video.src);
+    return video.src;
+  }
+  return null;
+};
+
+/** Block until a same-origin blob is ready for overlay playback (required on iOS). */
+export const ensureVideoBlobForPlayback = async (
+  url: string,
+  timeoutMs = 20_000,
+): Promise<string | null> => {
+  const immediate = getPrimedVideoBlobUrl(url);
+  if (immediate) return immediate;
+
+  void primeVideoDecoder(url);
+  void primePlaybackElement(url);
+
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const blob = getPrimedVideoBlobUrl(url);
+    if (blob) return blob;
+
+    await Promise.race([
+      Promise.all([primeVideoDecoder(url), primePlaybackElement(url)]),
+      new Promise<void>((resolve) => window.setTimeout(resolve, 250)),
+    ]);
+  }
+
+  return getPrimedVideoBlobUrl(url) ?? (await fetchVideoBlob(url));
 };
 
 export const resolvePlayableVideoUrl = async (
@@ -331,9 +379,15 @@ export const resolvePlayableVideoUrl = async (
     const cached = blobUrlBySource.get(preferredUrl);
     if (cached) return cached;
 
+    const primedBlob = getPrimedVideoBlobUrl(preferredUrl);
+    if (primedBlob) return primedBlob;
+
     void primeVideoDecoder(preferredUrl);
     const blobUrl = await waitForVideoBlob(preferredUrl, blobWaitMs);
     if (blobUrl) return blobUrl;
+
+    const ensured = await ensureVideoBlobForPlayback(preferredUrl, blobWaitMs);
+    if (ensured) return ensured;
   }
 
   return preferredUrl;

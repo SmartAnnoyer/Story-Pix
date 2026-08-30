@@ -27,13 +27,14 @@ import {
 import {
   awaitSameOriginVideoUrl,
   getPrefetchedBlobUrl,
+  ensureVideoBlobForPlayback,
+  getPrimedVideoBlobUrl,
   isPlaybackElementPrimed,
   isVideoDecoderPrimed,
   prefetchVideo,
   primePlaybackElement,
   primeVideoDecoder,
   resolvePlayableVideoUrl,
-  waitForVideoBlob,
 } from '../utils/video-prefetch';
 import { dumpArOverlayDebug } from '../utils/ar-overlay-debug';
 import { logViewerDiagnostics } from '../utils/viewer-debug-diagnostics';
@@ -77,6 +78,14 @@ const BLOB_WAIT_MS = 6_000;
 const IOS_LOAD_TIMEOUT_MS = 8_000;
 
 const isIOS = () => typeof navigator !== 'undefined' && /iP(hone|od|ad)/.test(navigator.userAgent);
+
+const hideNativeVideoControls = (video: HTMLVideoElement) => {
+  video.controls = false;
+  video.removeAttribute('controls');
+  video.setAttribute('controlsList', 'nodownload nofullscreen noremoteplayback');
+  video.disablePictureInPicture = true;
+  video.setAttribute('disablepictureinpicture', '');
+};
 
 const buildSourceList = (
   primaryUrl: string | null,
@@ -223,6 +232,7 @@ export const TargetFrameVideo = ({
     video.setAttribute('webkit-playsinline', '');
     video.playsInline = true;
     video.controls = false;
+    hideNativeVideoControls(video);
     video.autoplay = true;
     if (isIOS()) {
       video.removeAttribute('crossorigin');
@@ -454,13 +464,19 @@ export const TargetFrameVideo = ({
       stage.style.height = `${next.height}px`;
       stage.style.transform = 'none';
       stage.style.transformOrigin = '0 0';
-      stage.style.opacity = '1';
-      stage.style.visibility = 'visible';
+      stage.style.opacity = '0';
+      stage.style.visibility = 'hidden';
       stage.style.zIndex = '10080';
       stage.style.background = 'transparent';
       stage.style.pointerEvents = 'none';
 
       mountVideoInStage();
+    };
+
+    const setStageVisible = (visible: boolean) => {
+      if (!stage) return;
+      stage.style.opacity = visible ? '1' : '0';
+      stage.style.visibility = visible ? 'visible' : 'hidden';
     };
 
     const applyQuad = (corners: Parameters<typeof quadToCssMatrix3d>[2]) => {
@@ -476,8 +492,8 @@ export const TargetFrameVideo = ({
       stage.style.height = `${srcSize}px`;
       stage.style.transformOrigin = '0 0';
       stage.style.transform = matrix;
-      stage.style.opacity = '1';
-      stage.style.visibility = 'visible';
+      stage.style.opacity = '0';
+      stage.style.visibility = 'hidden';
       stage.style.zIndex = '10080';
       stage.style.background = 'transparent';
       stage.style.pointerEvents = 'none';
@@ -588,13 +604,25 @@ export const TargetFrameVideo = ({
       const placed = layoutOverlay();
       tryAttachPlane();
       paintIosBlit();
-      if (placed && missFrames >= 0) {
+      const video = videoRef.current;
+      const hasPicture = Boolean(
+        video &&
+        video.videoWidth > 0 &&
+        video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+        !video.paused,
+      );
+      if (placed && hasPicture) {
+        setStageVisible(true);
+      } else if (placed) {
+        setStageVisible(false);
+      }
+      if (placed && hasPicture && missFrames >= 0) {
         missFrames = -1;
         overlayPlacedRef.current = true;
         tryNotifyPlaybackReady();
         viewerLog('info', 'mapped video on crop rectangle', {
           ios,
-          size: `${videoRef.current?.videoWidth ?? 0}x${videoRef.current?.videoHeight ?? 0}`,
+          size: `${video?.videoWidth ?? 0}x${video?.videoHeight ?? 0}`,
           rect: {
             w: Math.round(placed.width),
             h: Math.round(placed.height),
@@ -720,7 +748,7 @@ export const TargetFrameVideo = ({
       video.setAttribute('webkit-playsinline', '');
       video.playsInline = true;
       video.preload = 'auto';
-      video.controls = false;
+      hideNativeVideoControls(video);
       video.volume = 1;
       video.muted = true;
       soundOnRef.current = false;
@@ -775,6 +803,7 @@ export const TargetFrameVideo = ({
           video.videoWidth > 0;
         if (!alreadyReady) {
           applyVideoSrc(src, originalSource);
+          hideNativeVideoControls(video);
           await waitForVideoReady(video, timeoutMs);
         } else {
           video.currentTime = 0;
@@ -810,7 +839,7 @@ export const TargetFrameVideo = ({
           void primePlaybackElement(source);
           viewerLog('debug', 'video resolving source', {
             iosHtmlCamera,
-            blobReady: Boolean(getPrefetchedBlobUrl(source)),
+            blobReady: Boolean(getPrefetchedBlobUrl(source) ?? getPrimedVideoBlobUrl(source)),
             primed: isVideoDecoderPrimed(source),
             playbackPrimed: isPlaybackElementPrimed(source),
             src: source.slice(0, 120),
@@ -818,6 +847,7 @@ export const TargetFrameVideo = ({
 
           if (isPlaybackElementPrimed(source)) {
             setPlaybackUrl(source);
+            hideNativeVideoControls(video);
             video.currentTime = 0;
             const played = await tryPlay(soundOnRef.current);
             if (played || (!video.paused && video.videoWidth > 0)) {
@@ -834,23 +864,28 @@ export const TargetFrameVideo = ({
 
           prefetchVideo(source);
 
-          const primed = isVideoDecoderPrimed(source);
-          if (!getPrefetchedBlobUrl(source)) {
-            await waitForVideoBlob(source, primed ? 200 : BLOB_WAIT_MS);
-          }
-          if (!getPrefetchedBlobUrl(source) && !primed) {
-            await primeVideoDecoder(source);
-          }
+          const blobUrl = iosHtmlCamera
+            ? await ensureVideoBlobForPlayback(source, 20_000)
+            : (getPrimedVideoBlobUrl(source) ??
+              getPrefetchedBlobUrl(source) ??
+              (await ensureVideoBlobForPlayback(source, BLOB_WAIT_MS)));
 
-          const blobUrl = getPrefetchedBlobUrl(source);
           if (blobUrl) {
             await tryResolvedSource(
               blobUrl,
               source,
-              primed || isVideoDecoderPrimed(source) ? 'primed-blob' : 'blob',
-              primed || isVideoDecoderPrimed(source) ? PRIMED_LOAD_TIMEOUT_MS : loadTimeout,
+              isVideoDecoderPrimed(source) || isPlaybackElementPrimed(source)
+                ? 'primed-blob'
+                : 'blob',
+              isVideoDecoderPrimed(source) || isPlaybackElementPrimed(source)
+                ? PRIMED_LOAD_TIMEOUT_MS
+                : loadTimeout,
             );
             return;
+          }
+
+          if (iosHtmlCamera) {
+            throw new Error('iOS requires a buffered video blob before playback');
           }
 
           const resolved =

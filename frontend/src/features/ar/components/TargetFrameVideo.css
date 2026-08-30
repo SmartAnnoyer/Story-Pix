@@ -218,6 +218,18 @@
   background: transparent !important;
   transform: none;
   -webkit-transform: none;
+  pointer-events: none;
+}
+
+.ar-video-media video::-webkit-media-controls,
+.ar-video-media video::-webkit-media-controls-enclosure,
+.ar-video-media video::-webkit-media-controls-panel,
+.ar-video-media video::-webkit-media-controls-start-playback-button,
+.ar-video-media video::-webkit-media-controls-overlay-play-button {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  -webkit-appearance: none;
 }
 
 .ar-video-shell--tracked .ar-video-stage {

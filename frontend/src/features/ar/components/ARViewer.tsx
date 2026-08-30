@@ -41,6 +41,7 @@ import {
 import {
   prefetchManifestVideos,
   prefetchVideo,
+  ensureVideoBlobForPlayback,
   isPlaybackElementPrimed,
   primePlaybackElement,
   primeVideoDecoder,
@@ -74,7 +75,9 @@ const TARGET_FOUND_CONFIRM_MS = 0;
 const TARGET_SWITCH_CONFIRM_MS = 0;
 /** Brief grace when the print leaves frame — another targetFound cancels this immediately. */
 const TARGET_LOST_GRACE_MS = 120;
-/** Short hold while a clip is starting; frame switches halt playback instantly. */
+/** Keep tracking while the clip buffers onto the photo. */
+const TARGET_LOST_LOADING_GRACE_MS = 45_000;
+/** Short hold while a clip is playing; frame switches halt playback instantly. */
 const TARGET_LOST_PLAYING_GRACE_MS = 900;
 
 const buildServerMindBundle = (albumSlug: string, manifest: ViewerManifest): MindBundle | null => {
@@ -143,6 +146,7 @@ export const ARViewer = ({
   const [scanSeconds, setScanSeconds] = useState(0);
   const [matchPercent, setMatchPercent] = useState(0);
   const [videoReveal, setVideoReveal] = useState(false);
+  const videoRevealRef = useRef(false);
   const [soundOn, setSoundOn] = useState(false);
   const downloadActionRef = useRef<(() => void) | null>(null);
   const matchPercentRef = useRef(0);
@@ -178,6 +182,10 @@ export const ARViewer = ({
     }
     return isCameraPreviewLive(host);
   };
+
+  useEffect(() => {
+    videoRevealRef.current = videoReveal;
+  }, [videoReveal]);
 
   const targets = useMemo(
     () => [...manifest.targets].sort((a, b) => a.targetIndex - b.targetIndex),
@@ -556,8 +564,8 @@ export const ARViewer = ({
           void (async () => {
             if (!isPlaybackElementPrimed(playUrl)) {
               await Promise.race([
-                primePlaybackElement(playUrl),
-                new Promise<void>((resolve) => window.setTimeout(resolve, isSwitch ? 500 : 1_200)),
+                ensureVideoBlobForPlayback(playUrl, 25_000),
+                new Promise<void>((resolve) => window.setTimeout(resolve, isSwitch ? 800 : 2_500)),
               ]);
             }
             if (!mounted) return;
@@ -803,11 +811,13 @@ export const ARViewer = ({
               if (existingGrace) return;
 
               const graceMs =
-                activeMindIndexRef.current === mindIndex ||
-                statusRef.current === 'match_found' ||
-                statusRef.current === 'recognized'
-                  ? TARGET_LOST_PLAYING_GRACE_MS
-                  : TARGET_LOST_GRACE_MS;
+                statusRef.current === 'match_found' && !videoRevealRef.current
+                  ? TARGET_LOST_LOADING_GRACE_MS
+                  : activeMindIndexRef.current === mindIndex ||
+                      statusRef.current === 'match_found' ||
+                      statusRef.current === 'recognized'
+                    ? TARGET_LOST_PLAYING_GRACE_MS
+                    : TARGET_LOST_GRACE_MS;
 
               const grace = window.setTimeout(() => {
                 targetLostGraceRef.current.delete(mindIndex);
