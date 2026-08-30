@@ -26,6 +26,7 @@ import {
   destroyMindArScene,
   ensureCameraPreviewVisible,
   flipMindArCamera,
+  getMindArSystem,
   isCameraPreviewLive,
   keepMindArCameraPlaying,
   releaseMappedVideoDecoder,
@@ -37,7 +38,14 @@ import {
   releaseHeldCameraStream,
   stopPlaybackVideoImmediately,
 } from '../utils/camera-permission';
-import { prefetchManifestVideos, prefetchVideo } from '../utils/video-prefetch';
+import {
+  prefetchManifestVideos,
+  prefetchVideo,
+  isPlaybackElementPrimed,
+  primePlaybackElement,
+  primeVideoDecoder,
+  warmManifestVideosForPlayback,
+} from '../utils/video-prefetch';
 import { getTargetAspectRatio, installPoseCapture } from '../utils/target-projection';
 import { mappingsForMindIndex, uniqueTrackingPhotos } from '../utils/manifest-photos';
 import { readMatchPercent, smoothMatchPercent } from '../utils/match-confidence';
@@ -154,6 +162,7 @@ export const ARViewer = ({
     bootstrapGuestCameraLayout(host);
   }, []);
   const scanningEnabledRef = useRef(false);
+  const confirmTargetMatchRef = useRef<(mindIndex: number) => void>(() => undefined);
   const deviceInfo = useMemo(() => detectDeviceInfo(), []);
   const sessionId = useMemo(() => getViewerSessionId(), []);
 
@@ -228,6 +237,7 @@ export const ARViewer = ({
   }, [status]);
 
   const scanFocusPhase: ScanFocusPhase = useMemo(() => {
+    if (status === 'match_found' && !videoReveal) return 'locking';
     if (status === 'match_found') return 'found';
     if (status === 'scanning' || status === 'move_closer') {
       if (matchPercent >= 82) return 'locking';
@@ -235,7 +245,7 @@ export const ARViewer = ({
       return 'scanning';
     }
     return 'scanning';
-  }, [status, matchPercent]);
+  }, [status, matchPercent, videoReveal]);
 
   const clearScanTimers = useCallback(() => {
     if (scanHintTimeoutRef.current) window.clearTimeout(scanHintTimeoutRef.current);
@@ -472,6 +482,14 @@ export const ARViewer = ({
           nextTarget: ViewerManifestTarget,
           isSwitch: boolean,
         ) => {
+          if (
+            !isSwitch &&
+            activeMindIndexRef.current === mindIndex &&
+            (statusRef.current === 'match_found' || statusRef.current === 'recognized')
+          ) {
+            return;
+          }
+
           targetLostGraceRef.current.forEach((timer, index) => {
             window.clearTimeout(timer);
             targetLostGraceRef.current.delete(index);
@@ -482,6 +500,9 @@ export const ARViewer = ({
           if (isSwitch && activeMindIndexRef.current !== null) {
             haltCurrentPlayback(activeMindIndexRef.current);
           }
+
+          activeMindIndexRef.current = mindIndex;
+          statusRef.current = 'match_found';
 
           viewerLog('info', 'beginPlayback', {
             mindIndex,
@@ -497,7 +518,6 @@ export const ARViewer = ({
             fallbackUrl: nextTarget.videoUrl,
           });
 
-          activeMindIndexRef.current = mindIndex;
           setActiveMindIndex(mindIndex);
           setTrackedEntity(targetEntities[mindIndex] ?? null);
           setTargetAspectRatio(
@@ -510,19 +530,39 @@ export const ARViewer = ({
             setVideoMode('frame');
           }
           targetTrackedRef.current = true;
-          statusRef.current = 'match_found';
           setStatus('match_found');
           setVideoReveal(false);
           void recordEventRef.current(ScanEventType.SCAN_SUCCESS, nextTarget);
+
           const group = mappingsForMindIndex(targetsRef.current, mindIndex);
+          const playUrl = viewerService.getMappingVideoUrl(
+            albumSlug,
+            nextTarget.id,
+            nextTarget.videoMediaId,
+          );
+
           for (const mapping of group) {
             if (!mapping.videoAvailable) continue;
-            prefetchVideo(
-              viewerService.getMappingVideoUrl(albumSlug, mapping.id, mapping.videoMediaId),
+            const url = viewerService.getMappingVideoUrl(
+              albumSlug,
+              mapping.id,
+              mapping.videoMediaId,
             );
+            prefetchVideo(url);
+            void primeVideoDecoder(url);
+            void primePlaybackElement(url);
           }
-          // Instant: mount the player on the same tick as MindAR targetFound.
-          setActiveTarget(nextTarget);
+
+          void (async () => {
+            if (!isPlaybackElementPrimed(playUrl)) {
+              await Promise.race([
+                primePlaybackElement(playUrl),
+                new Promise<void>((resolve) => window.setTimeout(resolve, isSwitch ? 500 : 1_200)),
+              ]);
+            }
+            if (!mounted) return;
+            setActiveTarget(nextTarget);
+          })();
         };
 
         const confirmTargetMatch = (mindIndex: number) => {
@@ -636,6 +676,8 @@ export const ARViewer = ({
           );
         };
 
+        confirmTargetMatchRef.current = confirmTargetMatch;
+
         const attachTargetListeners = () => {
           if (listenersAttachedRef.current) return;
           listenersAttachedRef.current = true;
@@ -699,6 +741,17 @@ export const ARViewer = ({
                 );
                 releaseMappedVideoDecoder(host);
                 setVideoReveal(false);
+              }
+
+              const matchGroup = mappingsForMindIndex(targetsRef.current, mindIndex);
+              const matchTarget = matchGroup.find((item) => item.videoAvailable) ?? matchGroup[0];
+              if (matchTarget?.videoAvailable) {
+                const primeUrl = viewerService.getMappingVideoUrl(
+                  albumSlug,
+                  matchTarget.id,
+                  matchTarget.videoMediaId,
+                );
+                void primePlaybackElement(primeUrl);
               }
 
               // Instant detection: start on the same event — no delayed confirm.
@@ -988,6 +1041,10 @@ export const ARViewer = ({
   }, [status, albumSlug, targets]);
 
   useEffect(() => {
+    void warmManifestVideosForPlayback(albumSlug, targets);
+  }, [albumSlug, targets]);
+
+  useEffect(() => {
     if (status !== 'scanning' && status !== 'move_closer') return undefined;
     setProgress((value) => Math.min(0.99, Math.max(value, 0.92 + scanSeconds * 0.002)));
     return undefined;
@@ -1010,9 +1067,39 @@ export const ARViewer = ({
     let lastTs = 0;
 
     const tick = (ts: number) => {
-      if (ts - lastTs >= 80) {
+      if (ts - lastTs >= 32) {
         lastTs = ts;
         const host = containerRef.current;
+        if (
+          host &&
+          scanningEnabledRef.current &&
+          (status === 'scanning' || status === 'move_closer')
+        ) {
+          const states = (
+            getMindArSystem(host)?.controller as
+              | { trackingStates?: Array<{ showing?: boolean }> }
+              | undefined
+          )?.trackingStates;
+          if (states) {
+            for (let i = 0; i < states.length; i += 1) {
+              if (states[i]?.showing) {
+                const group = mappingsForMindIndex(targetsRef.current, i);
+                const earlyTarget = group.find((item) => item.videoAvailable) ?? group[0];
+                if (earlyTarget?.videoAvailable) {
+                  const primeUrl = viewerService.getMappingVideoUrl(
+                    albumSlug,
+                    earlyTarget.id,
+                    earlyTarget.videoMediaId,
+                  );
+                  void primePlaybackElement(primeUrl);
+                }
+                confirmTargetMatchRef.current(i);
+                break;
+              }
+            }
+          }
+        }
+
         const raw = readMatchPercent(host);
         // While confirming a targetFound, nudge toward a locked read.
         const boosted =
@@ -1115,6 +1202,9 @@ export const ARViewer = ({
         releaseMappedVideoDecoder(sceneHost);
       }
       prefetchVideo(viewerService.getMappingVideoUrl(albumSlug, next.id, next.videoMediaId));
+      const nextUrl = viewerService.getMappingVideoUrl(albumSlug, next.id, next.videoMediaId);
+      void primeVideoDecoder(nextUrl);
+      void primePlaybackElement(nextUrl);
       setActiveTarget(next);
     },
     [siblingIndex, siblingVideos, albumSlug, sceneHost],
@@ -1199,13 +1289,15 @@ export const ARViewer = ({
           canDownload={Boolean(
             activeTarget?.videoAvailable && (activeVideoUrl || activeVideoFallbackUrl),
           )}
+          showActions={videoReveal}
         />
       ) : null}
       <ScanFocusFrame
         visible={
           videoMode !== 'fullscreen' &&
-          !activeTarget &&
-          (status === 'scanning' || status === 'move_closer')
+          (status === 'scanning' ||
+            status === 'move_closer' ||
+            (status === 'match_found' && !videoReveal))
         }
         phase={scanFocusPhase}
       />

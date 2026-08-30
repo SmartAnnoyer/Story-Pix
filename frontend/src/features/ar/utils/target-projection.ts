@@ -142,7 +142,7 @@ const needsHtmlCameraResync = (host: HTMLElement): boolean => {
 };
 
 /** MindAR often runs _resize before the host has height, leaving fov=0 and a NaN projection. */
-const syncMindArCameraToHost = (host: HTMLElement): void => {
+export const syncMindArCameraToHost = (host: HTMLElement): void => {
   const htmlCamera = host.classList.contains('ar-scene-host--html-camera');
   const cameraReady = isUsableSceneCamera(host, getSceneCamera(host));
   if (!htmlCamera && cameraReady) return;

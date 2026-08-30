@@ -75,7 +75,14 @@
 }
 
 .ar-video-shell--loading .ar-video-controls {
-  opacity: 0.72;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ar-video-shell--tracked:not(.ar-video-shell--revealed) .ar-video-controls {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
 }
 
 .ar-video-nowplaying {

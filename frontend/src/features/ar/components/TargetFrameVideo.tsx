@@ -20,13 +20,18 @@ import {
   getOverlayQuadScreenCorners,
   getTargetScreenBounds,
   installPoseCapture,
+  syncMindArCameraToHost,
   isUsableOverlayBox,
   quadToCssMatrix3d,
 } from '../utils/target-projection';
 import {
   awaitSameOriginVideoUrl,
   getPrefetchedBlobUrl,
+  isPlaybackElementPrimed,
+  isVideoDecoderPrimed,
   prefetchVideo,
+  primePlaybackElement,
+  primeVideoDecoder,
   resolvePlayableVideoUrl,
   waitForVideoBlob,
 } from '../utils/video-prefetch';
@@ -67,7 +72,8 @@ interface TargetFrameVideoProps {
 }
 
 const LOAD_TIMEOUT_MS = 2_800;
-const BLOB_WAIT_MS = 2_000;
+const PRIMED_LOAD_TIMEOUT_MS = 500;
+const BLOB_WAIT_MS = 6_000;
 const IOS_LOAD_TIMEOUT_MS = 8_000;
 
 const isIOS = () => typeof navigator !== 'undefined' && /iP(hone|od|ad)/.test(navigator.userAgent);
@@ -165,6 +171,7 @@ export const TargetFrameVideo = ({
   const onErrorRef = useRef(onError);
   const onEndedRef = useRef(onEnded);
   const hasNotifiedPlayRef = useRef(false);
+  const overlayPlacedRef = useRef(false);
   const [needsTap, setNeedsTap] = useState(false);
   const [loading, setLoading] = useState(false);
   const [, setIsPlaying] = useState(false);
@@ -172,6 +179,7 @@ export const TargetFrameVideo = ({
   const soundOnRef = useRef(soundOnProp ?? false);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const lastTapAtRef = useRef(0);
+  const prevPrimaryUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     onPlayRef.current = onPlay;
@@ -179,9 +187,30 @@ export const TargetFrameVideo = ({
     onEndedRef.current = onEnded;
   }, [onPlay, onError, onEnded]);
 
+  const notifyPlay = useCallback(() => {
+    if (hasNotifiedPlayRef.current) return;
+    hasNotifiedPlayRef.current = true;
+    setIsPlaying(true);
+    onPlayRef.current?.();
+  }, []);
+
+  const tryNotifyPlaybackReady = useCallback(() => {
+    const video = videoRef.current;
+    if (!video || hasNotifiedPlayRef.current || !overlayPlacedRef.current) return;
+    if (video.videoWidth < 2 || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
+    if (video.paused) return;
+    notifyPlay();
+  }, [notifyPlay]);
+
   useLayoutEffect(() => {
-    if (!active) return undefined;
-    stopPlaybackVideoImmediately();
+    if (!active) {
+      prevPrimaryUrlRef.current = null;
+      return undefined;
+    }
+    if (prevPrimaryUrlRef.current && prevPrimaryUrlRef.current !== primaryUrl) {
+      stopPlaybackVideoImmediately();
+    }
+    prevPrimaryUrlRef.current = primaryUrl;
     return undefined;
   }, [primaryUrl, active]);
 
@@ -321,6 +350,13 @@ export const TargetFrameVideo = ({
     installPoseCapture(entity);
     ensureTransparentRenderer(host);
     hideIosTrackingCanvas(host);
+    syncMindArCameraToHost(host);
+
+    if (stage) {
+      stage.style.opacity = '0';
+      stage.style.visibility = 'hidden';
+      stage.style.pointerEvents = 'none';
+    }
 
     const parkDecoder = () => {
       const video = videoRef.current;
@@ -450,9 +486,24 @@ export const TargetFrameVideo = ({
     };
 
     const layoutOverlay = () => {
+      syncMindArCameraToHost(host);
+
       const tryAabb = () => {
         const box = getOverlayAabbViewport(host, entity, aspectRatio, frame);
         if (!box) return null;
+        applyBox(box);
+        return box;
+      };
+
+      const tryFullTargetFallback = () => {
+        if (missFrames < 6) return null;
+        const box = getOverlayAabbViewport(host, entity, aspectRatio, {
+          x: 0,
+          y: 0,
+          width: 1,
+          height: 1,
+        });
+        if (!box || box.width < 24 || box.height < 24) return null;
         applyBox(box);
         return box;
       };
@@ -479,6 +530,8 @@ export const TargetFrameVideo = ({
       }
       const box = tryAabb();
       if (box) return box;
+      const fallback = tryFullTargetFallback();
+      if (fallback) return fallback;
       if (lastBox && isUsableOverlayBox(lastBox, host)) {
         applyBox(lastBox);
         return lastBox;
@@ -537,6 +590,8 @@ export const TargetFrameVideo = ({
       paintIosBlit();
       if (placed && missFrames >= 0) {
         missFrames = -1;
+        overlayPlacedRef.current = true;
+        tryNotifyPlaybackReady();
         viewerLog('info', 'mapped video on crop rectangle', {
           ios,
           size: `${videoRef.current?.videoWidth ?? 0}x${videoRef.current?.videoHeight ?? 0}`,
@@ -571,11 +626,12 @@ export const TargetFrameVideo = ({
 
     return () => {
       cancelled = true;
+      overlayPlacedRef.current = false;
       blitCanvas?.remove();
       detachOverlayVideoPlane(entity);
       keepMindArCameraPlaying(host);
     };
-  }, [active, mode, host, targetEntity, aspectRatio, overlayFrame]);
+  }, [active, mode, host, targetEntity, aspectRatio, overlayFrame, tryNotifyPlaybackReady]);
 
   useEffect(() => {
     if (mode !== 'fullscreen' || !stageRef.current) return;
@@ -598,13 +654,6 @@ export const TargetFrameVideo = ({
     onSoundOnChange?.(true);
     return true;
   }, [onSoundOnChange]);
-
-  const notifyPlay = useCallback(() => {
-    if (hasNotifiedPlayRef.current) return;
-    hasNotifiedPlayRef.current = true;
-    setIsPlaying(true);
-    onPlayRef.current?.();
-  }, []);
 
   const tryPlay = useCallback(
     async (withSound = false) => {
@@ -654,10 +703,10 @@ export const TargetFrameVideo = ({
       }
       setNeedsTap(false);
       setIsPlaying(true);
-      notifyPlay();
+      tryNotifyPlaybackReady();
       return true;
     },
-    [notifyPlay, host],
+    [tryNotifyPlaybackReady, host],
   );
 
   const loadAndPlay = useCallback(
@@ -696,11 +745,23 @@ export const TargetFrameVideo = ({
           video.setAttribute('crossorigin', 'anonymous');
         }
         setPlaybackUrl(src.startsWith('blob:') ? originalSource : src);
+        if (
+          video.src === src &&
+          video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+          video.videoWidth > 0
+        ) {
+          return;
+        }
         video.src = src;
         video.load();
       };
 
-      const tryResolvedSource = async (src: string, originalSource: string, label: string) => {
+      const tryResolvedSource = async (
+        src: string,
+        originalSource: string,
+        label: string,
+        timeoutMs = loadTimeout,
+      ) => {
         viewerLog('debug', 'video trying source', {
           label,
           blob: src.startsWith('blob:'),
@@ -708,11 +769,19 @@ export const TargetFrameVideo = ({
           iosHtmlCamera,
           src: src.slice(0, 120),
         });
-        applyVideoSrc(src, originalSource);
-        await waitForVideoReady(video, loadTimeout);
+        const alreadyReady =
+          video.src === src &&
+          video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+          video.videoWidth > 0;
+        if (!alreadyReady) {
+          applyVideoSrc(src, originalSource);
+          await waitForVideoReady(video, timeoutMs);
+        } else {
+          video.currentTime = 0;
+        }
         const played = await tryPlay(soundOnRef.current);
-        if (played || (video.videoWidth > 0 && !video.paused) || Number.isFinite(video.duration)) {
-          if (!played) notifyPlay();
+        if (played || (!video.paused && video.videoWidth > 0)) {
+          tryNotifyPlaybackReady();
           window.setTimeout(() => {
             const rect = video.getBoundingClientRect();
             viewerLog('info', 'video play ok', {
@@ -737,19 +806,50 @@ export const TargetFrameVideo = ({
 
       for (const source of uniqueSources) {
         try {
+          void primeVideoDecoder(source);
+          void primePlaybackElement(source);
           viewerLog('debug', 'video resolving source', {
             iosHtmlCamera,
             blobReady: Boolean(getPrefetchedBlobUrl(source)),
+            primed: isVideoDecoderPrimed(source),
+            playbackPrimed: isPlaybackElementPrimed(source),
             src: source.slice(0, 120),
           });
 
+          if (isPlaybackElementPrimed(source)) {
+            setPlaybackUrl(source);
+            video.currentTime = 0;
+            const played = await tryPlay(soundOnRef.current);
+            if (played || (!video.paused && video.videoWidth > 0)) {
+              tryNotifyPlaybackReady();
+              viewerLog('info', 'video play ok', {
+                label: 'playback-primed-instant',
+                width: video.videoWidth,
+                height: video.videoHeight,
+                paused: video.paused,
+              });
+              return;
+            }
+          }
+
           prefetchVideo(source);
 
-          const cachedBlob = getPrefetchedBlobUrl(source);
-          const blobUrl =
-            cachedBlob ?? (await waitForVideoBlob(source, BLOB_WAIT_MS)) ?? cachedBlob;
+          const primed = isVideoDecoderPrimed(source);
+          if (!getPrefetchedBlobUrl(source)) {
+            await waitForVideoBlob(source, primed ? 200 : BLOB_WAIT_MS);
+          }
+          if (!getPrefetchedBlobUrl(source) && !primed) {
+            await primeVideoDecoder(source);
+          }
+
+          const blobUrl = getPrefetchedBlobUrl(source);
           if (blobUrl) {
-            await tryResolvedSource(blobUrl, source, cachedBlob ? 'cached-blob' : 'blob');
+            await tryResolvedSource(
+              blobUrl,
+              source,
+              primed || isVideoDecoderPrimed(source) ? 'primed-blob' : 'blob',
+              primed || isVideoDecoderPrimed(source) ? PRIMED_LOAD_TIMEOUT_MS : loadTimeout,
+            );
             return;
           }
 
@@ -769,7 +869,7 @@ export const TargetFrameVideo = ({
             viewerLog('warn', 'video error ignored — clip already playing', {
               message: error instanceof Error ? error.message : String(error),
             });
-            notifyPlay();
+            tryNotifyPlaybackReady();
             return;
           }
           lastError = error;
@@ -793,7 +893,7 @@ export const TargetFrameVideo = ({
 
       throw lastError ?? new Error('Video did not start');
     },
-    [tryPlay, notifyPlay, host],
+    [tryPlay, tryNotifyPlaybackReady, host],
   );
 
   useEffect(() => {
@@ -802,6 +902,7 @@ export const TargetFrameVideo = ({
 
     if (!active) {
       hasNotifiedPlayRef.current = false;
+      overlayPlacedRef.current = false;
       setNeedsTap(false);
       setLoading(false);
       setIsPlaying(false);
@@ -984,7 +1085,7 @@ export const TargetFrameVideo = ({
   if (!active || typeof document === 'undefined') return null;
 
   const showFullscreen = mode === 'fullscreen';
-  const showControlsBar = showInlineControls || Boolean(onClose);
+  const showControlsBar = reveal && (showInlineControls || Boolean(onClose));
 
   const controls = showControlsBar ? (
     <div
