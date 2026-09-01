@@ -9,7 +9,8 @@ import {
 } from './mindar-loader';
 import { readCachedManifest, writeCachedManifest } from './viewer-manifest-cache';
 import { uniqueTrackingPhotos } from './manifest-photos';
-import { prefetchManifestVideos, warmManifestVideosForPlayback } from './video-prefetch';
+import { prefetchManifestVideos } from './video-prefetch';
+import { prefetchMindFileBlob } from './mind-file-cache';
 import { isBrokenCdnUrl, withViewerMediaProxies } from './viewer-media-proxy';
 
 export type WarmupStage = 'manifest' | 'scripts' | 'targets' | 'ready' | 'error';
@@ -60,7 +61,7 @@ const prefetchImage = (url: string): void => {
 };
 
 const prefetchMindFile = (url: string): void => {
-  void fetch(url, { mode: 'cors', credentials: 'omit' }).catch(() => undefined);
+  prefetchMindFileBlob(url);
 };
 
 const clampProgress = (value: number) => Math.min(1, Math.max(0, value > 1 ? value / 100 : value));
@@ -92,11 +93,6 @@ const prefetchAlbumAssets = (
   const uniquePhotos = uniqueTrackingPhotos(sortedTargets);
 
   prefetchManifestVideos(albumSlug, uniquePhotos);
-  void warmManifestVideosForPlayback(albumSlug, uniquePhotos).then((primed) => {
-    if (primed > 0) {
-      // Warmed decoders — match → play should be instant.
-    }
-  });
 
   if (mindUrl && !isBrokenCdnUrl(mindUrl)) prefetchMindFile(mindUrl);
 

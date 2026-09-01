@@ -53,6 +53,7 @@ import { readMatchPercent, smoothMatchPercent } from '../utils/match-confidence'
 import { detachOverlayVideoPlane } from '../utils/overlay-plane';
 import { logViewerDiagnostics } from '../utils/viewer-debug-diagnostics';
 import { viewerLog } from '../utils/viewer-debug-log';
+import { resolveMindUrlForScene } from '../utils/mind-file-cache';
 import './ARViewer.css';
 
 interface ARViewerProps {
@@ -95,20 +96,6 @@ const buildServerMindBundle = (albumSlug: string, manifest: ViewerManifest): Min
     url: viewerService.getMindFileUrl(albumSlug, manifest.mindFile.hash),
     cacheKey,
   };
-};
-
-const resolveMindUrlForScene = async (url: string): Promise<{ url: string; revoke: boolean }> => {
-  if (url.startsWith('blob:')) {
-    return { url, revoke: false };
-  }
-
-  const response = await fetch(url, { mode: 'cors', credentials: 'omit' });
-  if (!response.ok) {
-    throw new Error(`Could not download AR scan file (${response.status})`);
-  }
-
-  const blob = await response.blob();
-  return { url: URL.createObjectURL(blob), revoke: true };
 };
 
 export const ARViewer = ({
@@ -460,7 +447,7 @@ export const ARViewer = ({
           mindBlobUrlToRevoke = resolvedMind.url;
         }
         viewerLog('info', 'mind file resolved for scene', {
-          blob: resolvedMind.revoke,
+          blob: resolvedMind.url.startsWith('blob:'),
           url: resolvedMind.url.slice(0, 64),
         });
 
@@ -984,6 +971,12 @@ export const ARViewer = ({
               'info',
             );
             startScanTimers();
+            if (!prefetchedOnWarmRef.current) {
+              prefetchedOnWarmRef.current = true;
+              void warmManifestVideosForPlayback(albumSlug, targetsRef.current, {
+                perVideoTimeoutMs: 30_000,
+              });
+            }
           })();
         });
 
@@ -1074,10 +1067,6 @@ export const ARViewer = ({
     }
     prefetchManifestVideos(albumSlug, targets);
   }, [status, albumSlug, targets]);
-
-  useEffect(() => {
-    void warmManifestVideosForPlayback(albumSlug, targets);
-  }, [albumSlug, targets]);
 
   useEffect(() => {
     if (status !== 'scanning' && status !== 'move_closer') return undefined;

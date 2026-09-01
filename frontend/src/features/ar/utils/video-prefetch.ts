@@ -150,7 +150,7 @@ const startBlobFetch = (url: string, priority = false): Promise<string | null> =
   return promise;
 };
 
-/** Start buffering a video without blocking the UI. Safe to call many times. */
+/** Start hinting the browser about a video URL — does not download the full blob. */
 export const prefetchVideo = (url: string | null | undefined): void => {
   if (!url || prefetchedUrls.has(url)) return;
   prefetchedUrls.add(url);
@@ -165,21 +165,6 @@ export const prefetchVideo = (url: string | null | undefined): void => {
   } catch {
     // ignore
   }
-
-  let hidden: HTMLVideoElement | null = null;
-  try {
-    hidden = createHiddenPrimedVideo();
-    primedVideos.set(url, hidden);
-  } catch {
-    // ignore
-  }
-
-  void startBlobFetch(url).then((blobUrl) => {
-    if (blobUrl && hidden) {
-      hidden.src = blobUrl;
-      hidden.load();
-    }
-  });
 };
 
 /** Bump a detected target to the front of the blob download queue. */
@@ -270,6 +255,7 @@ export const warmManifestVideosForPlayback = (
     videoAvailable?: boolean;
     photoMediaId?: string;
   }>,
+  options?: { perVideoTimeoutMs?: number },
 ): Promise<number> => {
   const seen = new Set<string>();
   const urls: string[] = [];
@@ -282,16 +268,20 @@ export const warmManifestVideosForPlayback = (
     urls.push(viewerService.getMappingVideoUrl(albumSlug, target.id, target.videoMediaId));
   }
 
+  const perVideoTimeoutMs = options?.perVideoTimeoutMs ?? 30_000;
+
   return (async () => {
     let primed = 0;
     for (const url of urls) {
-      const blob = await ensureVideoBlobForPlayback(url, 90_000);
+      const blob = await ensureVideoBlobForPlayback(url, perVideoTimeoutMs);
       if (blob) {
         primed += 1;
         void primeVideoDecoder(url);
       }
     }
-    viewerLog('info', 'manifest video warmup complete', { primed, total: urls.length });
+    if (urls.length > 0) {
+      viewerLog('info', 'manifest video warmup complete', { primed, total: urls.length });
+    }
     return primed;
   })();
 };
@@ -302,8 +292,7 @@ export const waitForVideoBlob = async (url: string, maxMs = 2_000): Promise<stri
   if (cached) return cached;
 
   prefetchVideo(url);
-  const pending = pendingBySource.get(url);
-  if (!pending) return null;
+  const pending = pendingBySource.get(url) ?? startBlobFetch(url);
 
   return Promise.race([
     pending,
