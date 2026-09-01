@@ -1,10 +1,4 @@
-import {
-  ExceptionFilter,
-  Catch,
-  ArgumentsHost,
-  HttpException,
-  HttpStatus,
-} from '@nestjs/common';
+import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { LoggerService } from '../shared/services/logger.service';
 import { ApiErrorResponse } from '../common/interfaces';
@@ -43,7 +37,25 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     response.status(status).json(errorResponse);
   }
 
+  private isPayloadTooLarge(exception: unknown): boolean {
+    if (!exception || typeof exception !== 'object') return false;
+    const err = exception as { type?: string; status?: number; statusCode?: number };
+    return (
+      err.type === 'entity.too.large' ||
+      err.status === HttpStatus.PAYLOAD_TOO_LARGE ||
+      err.statusCode === HttpStatus.PAYLOAD_TOO_LARGE
+    );
+  }
+
   private resolveException(exception: unknown) {
+    if (this.isPayloadTooLarge(exception)) {
+      return {
+        status: HttpStatus.PAYLOAD_TOO_LARGE,
+        code: 'PAYLOAD_TOO_LARGE',
+        message: 'Request body is too large',
+      };
+    }
+
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const exceptionResponse = exception.getResponse();

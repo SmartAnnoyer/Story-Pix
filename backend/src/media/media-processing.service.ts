@@ -150,17 +150,24 @@ export class MediaProcessingService extends IMediaProcessor {
     const poster = decodeThumbnailBase64(thumbnailBase64);
     if (!poster) return null;
 
-    const thumbKey = buildThumbnailObjectKey(r2ObjectKey);
-    const thumbBuffer = await sharp(poster)
-      .rotate()
-      .resize(THUMB_MAX_EDGE, THUMB_MAX_EDGE, {
-        fit: 'inside',
-        withoutEnlargement: true,
-      })
-      .jpeg({ quality: THUMB_JPEG_QUALITY, mozjpeg: true })
-      .toBuffer();
+    try {
+      const thumbKey = buildThumbnailObjectKey(r2ObjectKey);
+      const thumbBuffer = await sharp(poster)
+        .rotate()
+        .resize(THUMB_MAX_EDGE, THUMB_MAX_EDGE, {
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .jpeg({ quality: THUMB_JPEG_QUALITY, mozjpeg: true })
+        .toBuffer();
 
-    await this.storageService.putObjectBuffer(thumbKey, thumbBuffer, 'image/jpeg');
-    return this.storageService.getPublicUrl(thumbKey);
+      await this.storageService.putObjectBuffer(thumbKey, thumbBuffer, 'image/jpeg');
+      return this.storageService.getPublicUrl(thumbKey);
+    } catch (error) {
+      this.logger.error(
+        `Failed to save video poster for ${r2ObjectKey}: ${(error as Error).message}`,
+      );
+      return null;
+    }
   }
 }

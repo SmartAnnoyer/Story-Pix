@@ -112,11 +112,23 @@ const fetchVideoBlobOnce = async (url: string): Promise<string | null> => {
     const lengthHeader = response.headers.get('content-length');
     const length = lengthHeader ? Number(lengthHeader) : NaN;
     if (Number.isFinite(length) && length > MAX_BLOB_CACHE_BYTES) {
+      viewerLog('warn', 'video too large for blob cache', {
+        bytes: length,
+        maxBytes: MAX_BLOB_CACHE_BYTES,
+        url: url.slice(0, 96),
+      });
       await response.body?.cancel().catch(() => undefined);
       return null;
     }
     const blob = await response.blob();
-    if (blob.size > MAX_BLOB_CACHE_BYTES) return null;
+    if (blob.size > MAX_BLOB_CACHE_BYTES) {
+      viewerLog('warn', 'video too large for blob cache', {
+        bytes: blob.size,
+        maxBytes: MAX_BLOB_CACHE_BYTES,
+        url: url.slice(0, 96),
+      });
+      return null;
+    }
     const typed =
       !blob.type || blob.type === 'application/octet-stream'
         ? blob.slice(0, blob.size, guessVideoMime(url, response.headers.get('content-type')))
@@ -361,7 +373,7 @@ export const ensureVideoBlobForPlayback = (
     ]);
     const blob = getPrimedVideoBlobUrl(url) ?? raced;
     if (!blob) {
-      viewerLog('warn', 'video blob ensure timed out', { timeoutMs, url: url.slice(0, 96) });
+      viewerLog('warn', 'video blob not ready', { timeoutMs, url: url.slice(0, 96) });
     }
     return blob;
   })().finally(() => {

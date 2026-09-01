@@ -4,6 +4,23 @@ export type VideoMetadata = {
   duration: number;
 };
 
+const THUMB_MAX_EDGE = 480;
+const THUMB_JPEG_QUALITY = 0.82;
+
+export const scaleToMaxEdge = (
+  width: number,
+  height: number,
+  maxEdge = THUMB_MAX_EDGE,
+): { width: number; height: number } => {
+  const longest = Math.max(width, height);
+  if (longest <= maxEdge) return { width, height };
+  const scale = maxEdge / longest;
+  return {
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale)),
+  };
+};
+
 export const readImageDimensions = (file: File): Promise<{ width: number; height: number }> =>
   new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
@@ -75,12 +92,13 @@ export const captureVideoFrameToBlob = async (
     throw new Error('Video frame is not ready');
   }
 
+  const scaled = scaleToMaxEdge(width, height);
   const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
+  canvas.width = scaled.width;
+  canvas.height = scaled.height;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas unavailable');
-  ctx.drawImage(video, 0, 0, width, height);
+  ctx.drawImage(video, 0, 0, scaled.width, scaled.height);
 
   return new Promise((resolve, reject) => {
     canvas.toBlob(
@@ -89,7 +107,7 @@ export const captureVideoFrameToBlob = async (
         else reject(new Error('Could not capture frame'));
       },
       'image/jpeg',
-      0.88,
+      THUMB_JPEG_QUALITY,
     );
   });
 };

@@ -1,7 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { RequestMethod, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ExpressAdapter } from '@nestjs/platform-express';
+import { ExpressAdapter, NestExpressApplication } from '@nestjs/platform-express';
 import express from 'express';
 import * as http from 'http';
 import helmet from 'helmet';
@@ -61,11 +61,19 @@ async function bootstrap() {
   await listenHttpServer(httpServer, port);
   console.log(`[Bootstrap] Listening on 0.0.0.0:${port} (initializing…)`);
 
-  const app = await NestFactory.create(AppModule, new ExpressAdapter(expressApp), {
-    bufferLogs: true,
-    rawBody: true,
-    cors: nestCorsOptions,
-  });
+  const app = await NestFactory.create<NestExpressApplication>(
+    AppModule,
+    new ExpressAdapter(expressApp),
+    {
+      bufferLogs: true,
+      rawBody: true,
+      cors: nestCorsOptions,
+    },
+  );
+
+  // Cover-frame uploads send base64 JPEGs; default 100kb body limit returns a generic 500.
+  app.useBodyParser('json', { limit: '10mb' });
+  app.useBodyParser('urlencoded', { extended: true, limit: '10mb' });
 
   const configService = app.get(ConfigService);
   const logger = await app.resolve(LoggerService);
@@ -97,7 +105,7 @@ async function bootstrap() {
 }
 
 bootstrap().catch((error: unknown) => {
-  const message = error instanceof Error ? error.stack ?? error.message : String(error);
+  const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
   console.error(`[Bootstrap] Failed to start: ${message}`);
   process.exit(1);
 });
