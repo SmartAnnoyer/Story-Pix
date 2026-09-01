@@ -41,9 +41,9 @@ import {
 import {
   prefetchManifestVideos,
   prefetchVideo,
+  boostVideoBlobPriority,
   ensureVideoBlobForPlayback,
-  isPlaybackElementPrimed,
-  primePlaybackElement,
+  isVideoBlobReady,
   primeVideoDecoder,
   warmManifestVideosForPlayback,
 } from '../utils/video-prefetch';
@@ -542,33 +542,43 @@ export const ARViewer = ({
           setVideoReveal(false);
           void recordEventRef.current(ScanEventType.SCAN_SUCCESS, nextTarget);
 
-          const group = mappingsForMindIndex(targetsRef.current, mindIndex);
           const playUrl = viewerService.getMappingVideoUrl(
             albumSlug,
             nextTarget.id,
             nextTarget.videoMediaId,
           );
 
-          for (const mapping of group) {
-            if (!mapping.videoAvailable) continue;
-            const url = viewerService.getMappingVideoUrl(
-              albumSlug,
-              mapping.id,
-              mapping.videoMediaId,
-            );
-            prefetchVideo(url);
-            void primeVideoDecoder(url);
-            void primePlaybackElement(url);
-          }
+          prefetchVideo(playUrl);
+          boostVideoBlobPriority(playUrl);
+          void primeVideoDecoder(playUrl);
 
           void (async () => {
-            if (!isPlaybackElementPrimed(playUrl)) {
-              await Promise.race([
-                ensureVideoBlobForPlayback(playUrl, 25_000),
-                new Promise<void>((resolve) => window.setTimeout(resolve, isSwitch ? 800 : 2_500)),
-              ]);
-            }
+            const blobUrl = await ensureVideoBlobForPlayback(playUrl, isSwitch ? 30_000 : 45_000);
             if (!mounted) return;
+
+            if (!blobUrl) {
+              viewerLog('error', 'video blob not ready for playback', {
+                playUrl: playUrl.slice(0, 120),
+                target: nextTarget.targetName,
+                mindIndex,
+              });
+              haltCurrentPlayback(mindIndex);
+              activeMindIndexRef.current = null;
+              setActiveMindIndex(null);
+              setTrackedEntity(null);
+              statusRef.current = 'scanning';
+              setStatus('scanning');
+              setStatusDetail('Video is still loading. Hold the photo steady and try again.');
+              setProgress(0.92);
+              setVideoReveal(false);
+              return;
+            }
+
+            viewerLog('info', 'video blob ready — mounting player', {
+              target: nextTarget.targetName,
+              mindIndex,
+              bytesReady: isVideoBlobReady(playUrl),
+            });
             setActiveTarget(nextTarget);
           })();
         };
@@ -620,6 +630,21 @@ export const ARViewer = ({
             if (!nextTarget.videoAvailable) {
               viewerLog('warn', 'target switch skipped — no playable video', {
                 mindIndex,
+                target: nextTarget.targetName,
+              });
+              return;
+            }
+
+            if (!videoRevealRef.current) {
+              const candidateUrl = viewerService.getMappingVideoUrl(
+                albumSlug,
+                nextTarget.id,
+                nextTarget.videoMediaId,
+              );
+              boostVideoBlobPriority(candidateUrl);
+              viewerLog('info', 'target switch deferred — video still loading onto photo', {
+                from: activeIndex,
+                candidate: mindIndex,
                 target: nextTarget.targetName,
               });
               return;
@@ -759,7 +784,7 @@ export const ARViewer = ({
                   matchTarget.id,
                   matchTarget.videoMediaId,
                 );
-                void primePlaybackElement(primeUrl);
+                boostVideoBlobPriority(primeUrl);
               }
 
               // Instant detection: start on the same event — no delayed confirm.
@@ -1101,7 +1126,7 @@ export const ARViewer = ({
                     earlyTarget.id,
                     earlyTarget.videoMediaId,
                   );
-                  void primePlaybackElement(primeUrl);
+                  boostVideoBlobPriority(primeUrl);
                 }
                 confirmTargetMatchRef.current(i);
                 break;
@@ -1213,9 +1238,13 @@ export const ARViewer = ({
       }
       prefetchVideo(viewerService.getMappingVideoUrl(albumSlug, next.id, next.videoMediaId));
       const nextUrl = viewerService.getMappingVideoUrl(albumSlug, next.id, next.videoMediaId);
-      void primeVideoDecoder(nextUrl);
-      void primePlaybackElement(nextUrl);
-      setActiveTarget(next);
+      boostVideoBlobPriority(nextUrl);
+      void (async () => {
+        const blobUrl = await ensureVideoBlobForPlayback(nextUrl, 30_000);
+        if (!blobUrl) return;
+        void primeVideoDecoder(nextUrl);
+        setActiveTarget(next);
+      })();
     },
     [siblingIndex, siblingVideos, albumSlug, sceneHost],
   );

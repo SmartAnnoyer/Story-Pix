@@ -27,12 +27,12 @@ import {
 import {
   awaitSameOriginVideoUrl,
   getPrefetchedBlobUrl,
+  boostVideoBlobPriority,
   ensureVideoBlobForPlayback,
   getPrimedVideoBlobUrl,
   isPlaybackElementPrimed,
   isVideoDecoderPrimed,
   prefetchVideo,
-  primePlaybackElement,
   primeVideoDecoder,
   resolvePlayableVideoUrl,
 } from '../utils/video-prefetch';
@@ -836,7 +836,7 @@ export const TargetFrameVideo = ({
       for (const source of uniqueSources) {
         try {
           void primeVideoDecoder(source);
-          void primePlaybackElement(source);
+          boostVideoBlobPriority(source);
           viewerLog('debug', 'video resolving source', {
             iosHtmlCamera,
             blobReady: Boolean(getPrefetchedBlobUrl(source) ?? getPrimedVideoBlobUrl(source)),

@@ -1,5 +1,6 @@
 import { viewerService } from '@/services/viewer.service';
 import { getPlaybackVideoElement } from './camera-permission';
+import { viewerLog } from './viewer-debug-log';
 
 /** Prefetch mapping videos so match → play is near-instant. */
 
@@ -8,8 +9,13 @@ const blobUrlBySource = new Map<string, string>();
 const pendingBySource = new Map<string, Promise<string | null>>();
 const decoderPrimeBySource = new Map<string, Promise<boolean>>();
 const playbackPrimeBySource = new Map<string, Promise<boolean>>();
+const ensureBlobBySource = new Map<string, Promise<string | null>>();
 const primedVideos = new Map<string, HTMLVideoElement>();
 const MAX_BLOB_CACHE_BYTES = 25_000_000;
+const MAX_CONCURRENT_BLOB_FETCHES = 2;
+
+let activeBlobFetches = 0;
+const blobFetchQueue: Array<() => void> = [];
 
 const guessVideoMime = (url: string, headerType: string | null): string => {
   if (headerType && headerType.startsWith('video/')) return headerType;
@@ -22,14 +28,14 @@ const guessVideoMime = (url: string, headerType: string | null): string => {
 
 const waitVideoCanPlay = (video: HTMLVideoElement, timeoutMs: number): Promise<boolean> =>
   new Promise((resolve) => {
-    if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+    if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0) {
       resolve(true);
       return;
     }
 
     const timeout = window.setTimeout(() => {
       cleanup();
-      resolve(video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA);
+      resolve(video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0);
     }, timeoutMs);
 
     const onReady = () => {
@@ -67,45 +73,81 @@ const createHiddenPrimedVideo = (): HTMLVideoElement => {
   return video;
 };
 
-const fetchVideoBlob = (url: string): Promise<string | null> =>
-  fetch(url, { mode: 'cors', credentials: 'omit' })
-    .then(async (response) => {
-      if (!response.ok) return null;
-      const lengthHeader = response.headers.get('content-length');
-      const length = lengthHeader ? Number(lengthHeader) : NaN;
-      if (Number.isFinite(length) && length > MAX_BLOB_CACHE_BYTES) {
-        await response.body?.cancel().catch(() => undefined);
-        return null;
-      }
-      const blob = await response.blob();
-      if (blob.size > MAX_BLOB_CACHE_BYTES) return null;
-      const typed =
-        !blob.type || blob.type === 'application/octet-stream'
-          ? blob.slice(0, blob.size, guessVideoMime(url, response.headers.get('content-type')))
-          : blob;
-      const blobUrl = URL.createObjectURL(typed);
-      blobUrlBySource.set(url, blobUrl);
-      return blobUrl;
-    })
-    .catch(() => null);
-
-const wireHiddenVideoToBlob = (url: string, video: HTMLVideoElement) => {
-  const applyBlob = (blobUrl: string | null) => {
-    if (!blobUrl || video.src === blobUrl) return;
-    video.src = blobUrl;
-    video.load();
-  };
-
-  const cached = blobUrlBySource.get(url);
-  if (cached) {
-    applyBlob(cached);
-    return;
+const fetchVideoBlobOnce = async (url: string): Promise<string | null> => {
+  try {
+    const response = await fetch(url, { mode: 'cors', credentials: 'omit' });
+    if (!response.ok) {
+      viewerLog('warn', 'video blob fetch failed', {
+        status: response.status,
+        url: url.slice(0, 96),
+      });
+      return null;
+    }
+    const lengthHeader = response.headers.get('content-length');
+    const length = lengthHeader ? Number(lengthHeader) : NaN;
+    if (Number.isFinite(length) && length > MAX_BLOB_CACHE_BYTES) {
+      await response.body?.cancel().catch(() => undefined);
+      return null;
+    }
+    const blob = await response.blob();
+    if (blob.size > MAX_BLOB_CACHE_BYTES) return null;
+    const typed =
+      !blob.type || blob.type === 'application/octet-stream'
+        ? blob.slice(0, blob.size, guessVideoMime(url, response.headers.get('content-type')))
+        : blob;
+    const blobUrl = URL.createObjectURL(typed);
+    blobUrlBySource.set(url, blobUrl);
+    viewerLog('info', 'video blob cached', {
+      bytes: blob.size,
+      url: url.slice(0, 96),
+    });
+    return blobUrl;
+  } catch (error) {
+    viewerLog('warn', 'video blob fetch error', {
+      message: error instanceof Error ? error.message : String(error),
+      url: url.slice(0, 96),
+    });
+    return null;
   }
+};
+
+const pumpBlobFetchQueue = () => {
+  while (activeBlobFetches < MAX_CONCURRENT_BLOB_FETCHES && blobFetchQueue.length > 0) {
+    const next = blobFetchQueue.shift();
+    next?.();
+  }
+};
+
+/** Queue network fetches so multi-target albums do not starve mobile bandwidth. */
+const startBlobFetch = (url: string, priority = false): Promise<string | null> => {
+  const cached = blobUrlBySource.get(url);
+  if (cached) return Promise.resolve(cached);
 
   const pending = pendingBySource.get(url);
-  if (pending) {
-    void pending.then(applyBlob);
-  }
+  if (pending) return pending;
+
+  const promise = new Promise<string | null>((resolve) => {
+    const run = () => {
+      activeBlobFetches += 1;
+      void fetchVideoBlobOnce(url)
+        .then(resolve)
+        .finally(() => {
+          activeBlobFetches -= 1;
+          pumpBlobFetchQueue();
+        });
+    };
+
+    if (activeBlobFetches < MAX_CONCURRENT_BLOB_FETCHES) {
+      run();
+    } else if (priority) {
+      blobFetchQueue.unshift(run);
+    } else {
+      blobFetchQueue.push(run);
+    }
+  });
+
+  pendingBySource.set(url, promise);
+  return promise;
 };
 
 /** Start buffering a video without blocking the UI. Safe to call many times. */
@@ -127,25 +169,24 @@ export const prefetchVideo = (url: string | null | undefined): void => {
   let hidden: HTMLVideoElement | null = null;
   try {
     hidden = createHiddenPrimedVideo();
-    hidden.src = url;
-    hidden.load();
     primedVideos.set(url, hidden);
   } catch {
     // ignore
   }
 
-  if (!pendingBySource.has(url)) {
-    const pending = fetchVideoBlob(url).then((blobUrl) => {
-      if (blobUrl && hidden) {
-        hidden.src = blobUrl;
-        hidden.load();
-      }
-      return blobUrl;
-    });
-    pendingBySource.set(url, pending);
-  } else if (hidden) {
-    wireHiddenVideoToBlob(url, hidden);
-  }
+  void startBlobFetch(url).then((blobUrl) => {
+    if (blobUrl && hidden) {
+      hidden.src = blobUrl;
+      hidden.load();
+    }
+  });
+};
+
+/** Bump a detected target to the front of the blob download queue. */
+export const boostVideoBlobPriority = (url: string | null | undefined): void => {
+  if (!url || blobUrlBySource.has(url)) return;
+  prefetchVideo(url);
+  void startBlobFetch(url, true);
 };
 
 /** Decode clip into a hidden element so match → play reuses warmed media. */
@@ -157,8 +198,8 @@ export const primeVideoDecoder = (url: string): Promise<boolean> => {
     prefetchVideo(url);
     const blobUrl =
       getPrefetchedBlobUrl(url) ??
-      (await waitForVideoBlob(url, 45_000)) ??
-      (await fetchVideoBlob(url));
+      (await startBlobFetch(url, true)) ??
+      (await waitForVideoBlob(url, 45_000));
     if (!blobUrl) return false;
 
     let video = primedVideos.get(url);
@@ -173,7 +214,7 @@ export const primeVideoDecoder = (url: string): Promise<boolean> => {
     }
 
     const ready = await waitVideoCanPlay(video, 20_000);
-    return ready && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
+    return ready && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0;
   })();
 
   decoderPrimeBySource.set(url, promise);
@@ -186,11 +227,7 @@ export const primePlaybackElement = (url: string): Promise<boolean> => {
   if (existing) return existing;
 
   const promise = (async () => {
-    prefetchVideo(url);
-    const blobUrl =
-      getPrefetchedBlobUrl(url) ??
-      (await waitForVideoBlob(url, 45_000)) ??
-      (await fetchVideoBlob(url));
+    const blobUrl = await ensureVideoBlobForPlayback(url, 25_000);
     if (!blobUrl) return false;
 
     const video = getPlaybackVideoElement();
@@ -206,7 +243,7 @@ export const primePlaybackElement = (url: string): Promise<boolean> => {
     video.src = blobUrl;
     video.load();
     const ready = await waitVideoCanPlay(video, 20_000);
-    return ready && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
+    return ready && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0;
   })();
 
   playbackPrimeBySource.set(url, promise);
@@ -235,23 +272,28 @@ export const warmManifestVideosForPlayback = (
   }>,
 ): Promise<number> => {
   const seen = new Set<string>();
-  const jobs: Promise<boolean>[] = [];
+  const urls: string[] = [];
 
   for (const target of targets) {
     if (target.videoAvailable === false) continue;
     const key = target.photoMediaId ?? `mapping:${target.id}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    const url = viewerService.getMappingVideoUrl(albumSlug, target.id, target.videoMediaId);
-    jobs.push(
-      primeVideoDecoder(url).then((ready) => {
-        if (ready) void primePlaybackElement(url);
-        return ready;
-      }),
-    );
+    urls.push(viewerService.getMappingVideoUrl(albumSlug, target.id, target.videoMediaId));
   }
 
-  return Promise.all(jobs).then((results) => results.filter(Boolean).length);
+  return (async () => {
+    let primed = 0;
+    for (const url of urls) {
+      const blob = await ensureVideoBlobForPlayback(url, 90_000);
+      if (blob) {
+        primed += 1;
+        void primeVideoDecoder(url);
+      }
+    }
+    viewerLog('info', 'manifest video warmup complete', { primed, total: urls.length });
+    return primed;
+  })();
 };
 
 /** Wait briefly for an in-flight or new blob prefetch — instant play when ready. */
@@ -280,28 +322,7 @@ export const awaitSameOriginVideoUrl = async (
   const raced = await waitForVideoBlob(url, timeoutMs);
   if (raced) return raced;
 
-  try {
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => controller.abort(), timeoutMs);
-    const response = await fetch(url, {
-      mode: 'cors',
-      credentials: 'omit',
-      signal: controller.signal,
-    });
-    window.clearTimeout(timer);
-    if (!response.ok) return null;
-    const blob = await response.blob();
-    if (blob.size < 64 || blob.size > 40_000_000) return null;
-    const typed =
-      !blob.type || blob.type === 'application/octet-stream'
-        ? blob.slice(0, blob.size, guessVideoMime(url, response.headers.get('content-type')))
-        : blob;
-    const blobUrl = URL.createObjectURL(typed);
-    blobUrlBySource.set(url, blobUrl);
-    return blobUrl;
-  } catch {
-    return null;
-  }
+  return ensureVideoBlobForPlayback(url, timeoutMs);
 };
 
 /** Prefer a fully cached blob URL when available (instant start). */
@@ -343,28 +364,40 @@ export const getPrimedVideoBlobUrl = (url: string | null | undefined): string | 
 };
 
 /** Block until a same-origin blob is ready for overlay playback (required on iOS). */
-export const ensureVideoBlobForPlayback = async (
+export const ensureVideoBlobForPlayback = (
   url: string,
   timeoutMs = 20_000,
 ): Promise<string | null> => {
   const immediate = getPrimedVideoBlobUrl(url);
-  if (immediate) return immediate;
+  if (immediate) return Promise.resolve(immediate);
 
-  void primeVideoDecoder(url);
-  void primePlaybackElement(url);
+  const inflight = ensureBlobBySource.get(url);
+  if (inflight) return inflight;
 
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const blob = getPrimedVideoBlobUrl(url);
-    if (blob) return blob;
+  const promise = (async () => {
+    boostVideoBlobPriority(url);
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const blob = getPrimedVideoBlobUrl(url);
+      if (blob) return blob;
 
-    await Promise.race([
-      Promise.all([primeVideoDecoder(url), primePlaybackElement(url)]),
-      new Promise<void>((resolve) => window.setTimeout(resolve, 250)),
-    ]);
-  }
+      await Promise.race([
+        startBlobFetch(url, true),
+        new Promise<void>((resolve) => window.setTimeout(resolve, 300)),
+      ]);
+    }
 
-  return getPrimedVideoBlobUrl(url) ?? (await fetchVideoBlob(url));
+    const finalBlob = getPrimedVideoBlobUrl(url) ?? (await startBlobFetch(url, true));
+    if (!finalBlob) {
+      viewerLog('warn', 'video blob ensure timed out', { timeoutMs, url: url.slice(0, 96) });
+    }
+    return finalBlob;
+  })().finally(() => {
+    ensureBlobBySource.delete(url);
+  });
+
+  ensureBlobBySource.set(url, promise);
+  return promise;
 };
 
 export const resolvePlayableVideoUrl = async (
@@ -382,7 +415,6 @@ export const resolvePlayableVideoUrl = async (
     const primedBlob = getPrimedVideoBlobUrl(preferredUrl);
     if (primedBlob) return primedBlob;
 
-    void primeVideoDecoder(preferredUrl);
     const blobUrl = await waitForVideoBlob(preferredUrl, blobWaitMs);
     if (blobUrl) return blobUrl;
 
@@ -412,6 +444,5 @@ export const prefetchManifestVideos = (
     seenPhotos.add(photoKey);
     const url = viewerService.getMappingVideoUrl(albumSlug, target.id, target.videoMediaId);
     prefetchVideo(url);
-    void primeVideoDecoder(url);
   }
 };
