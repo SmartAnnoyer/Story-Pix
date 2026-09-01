@@ -11,8 +11,10 @@ const decoderPrimeBySource = new Map<string, Promise<boolean>>();
 const playbackPrimeBySource = new Map<string, Promise<boolean>>();
 const ensureBlobBySource = new Map<string, Promise<string | null>>();
 const primedVideos = new Map<string, HTMLVideoElement>();
+const blobCacheOrder: string[] = [];
 const MAX_BLOB_CACHE_BYTES = 25_000_000;
-const MAX_CONCURRENT_BLOB_FETCHES = 2;
+const MAX_BLOB_CACHE_ENTRIES = 2;
+const MAX_CONCURRENT_BLOB_FETCHES = 1;
 
 let activeBlobFetches = 0;
 const blobFetchQueue: Array<() => void> = [];
@@ -73,6 +75,30 @@ const createHiddenPrimedVideo = (): HTMLVideoElement => {
   return video;
 };
 
+const touchBlobCache = (url: string) => {
+  const index = blobCacheOrder.indexOf(url);
+  if (index >= 0) blobCacheOrder.splice(index, 1);
+  blobCacheOrder.push(url);
+};
+
+const evictBlobCacheIfNeeded = (keepUrl?: string) => {
+  while (blobCacheOrder.length >= MAX_BLOB_CACHE_ENTRIES) {
+    const oldest = blobCacheOrder.shift();
+    if (!oldest || oldest === keepUrl) continue;
+    const blobUrl = blobUrlBySource.get(oldest);
+    blobUrlBySource.delete(oldest);
+    if (blobUrl) URL.revokeObjectURL(blobUrl);
+    const hidden = primedVideos.get(oldest);
+    if (hidden) {
+      hidden.pause();
+      hidden.removeAttribute('src');
+      hidden.src = '';
+      hidden.remove();
+      primedVideos.delete(oldest);
+    }
+  }
+};
+
 const fetchVideoBlobOnce = async (url: string): Promise<string | null> => {
   try {
     const response = await fetch(url, { mode: 'cors', credentials: 'omit' });
@@ -95,8 +121,10 @@ const fetchVideoBlobOnce = async (url: string): Promise<string | null> => {
       !blob.type || blob.type === 'application/octet-stream'
         ? blob.slice(0, blob.size, guessVideoMime(url, response.headers.get('content-type')))
         : blob;
+    evictBlobCacheIfNeeded(url);
     const blobUrl = URL.createObjectURL(typed);
     blobUrlBySource.set(url, blobUrl);
+    touchBlobCache(url);
     viewerLog('info', 'video blob cached', {
       bytes: blob.size,
       url: url.slice(0, 96),
@@ -247,45 +275,6 @@ export const isPlaybackElementPrimed = (url: string | null | undefined): boolean
   );
 };
 
-export const warmManifestVideosForPlayback = (
-  albumSlug: string,
-  targets: Array<{
-    id: string;
-    videoMediaId: string;
-    videoAvailable?: boolean;
-    photoMediaId?: string;
-  }>,
-  options?: { perVideoTimeoutMs?: number },
-): Promise<number> => {
-  const seen = new Set<string>();
-  const urls: string[] = [];
-
-  for (const target of targets) {
-    if (target.videoAvailable === false) continue;
-    const key = target.photoMediaId ?? `mapping:${target.id}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    urls.push(viewerService.getMappingVideoUrl(albumSlug, target.id, target.videoMediaId));
-  }
-
-  const perVideoTimeoutMs = options?.perVideoTimeoutMs ?? 30_000;
-
-  return (async () => {
-    let primed = 0;
-    for (const url of urls) {
-      const blob = await ensureVideoBlobForPlayback(url, perVideoTimeoutMs);
-      if (blob) {
-        primed += 1;
-        void primeVideoDecoder(url);
-      }
-    }
-    if (urls.length > 0) {
-      viewerLog('info', 'manifest video warmup complete', { primed, total: urls.length });
-    }
-    return primed;
-  })();
-};
-
 /** Wait briefly for an in-flight or new blob prefetch — instant play when ready. */
 export const waitForVideoBlob = async (url: string, maxMs = 2_000): Promise<string | null> => {
   const cached = blobUrlBySource.get(url);
@@ -365,22 +354,16 @@ export const ensureVideoBlobForPlayback = (
 
   const promise = (async () => {
     boostVideoBlobPriority(url);
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      const blob = getPrimedVideoBlobUrl(url);
-      if (blob) return blob;
-
-      await Promise.race([
-        startBlobFetch(url, true),
-        new Promise<void>((resolve) => window.setTimeout(resolve, 300)),
-      ]);
-    }
-
-    const finalBlob = getPrimedVideoBlobUrl(url) ?? (await startBlobFetch(url, true));
-    if (!finalBlob) {
+    const pending = startBlobFetch(url, true);
+    const raced = await Promise.race([
+      pending,
+      new Promise<null>((resolve) => window.setTimeout(() => resolve(null), timeoutMs)),
+    ]);
+    const blob = getPrimedVideoBlobUrl(url) ?? raced;
+    if (!blob) {
       viewerLog('warn', 'video blob ensure timed out', { timeoutMs, url: url.slice(0, 96) });
     }
-    return finalBlob;
+    return blob;
   })().finally(() => {
     ensureBlobBySource.delete(url);
   });

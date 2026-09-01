@@ -9,7 +9,6 @@ import {
 } from './mindar-loader';
 import { readCachedManifest, writeCachedManifest } from './viewer-manifest-cache';
 import { uniqueTrackingPhotos } from './manifest-photos';
-import { prefetchManifestVideos } from './video-prefetch';
 import { prefetchMindFileBlob } from './mind-file-cache';
 import { isBrokenCdnUrl, withViewerMediaProxies } from './viewer-media-proxy';
 
@@ -84,15 +83,9 @@ const cacheMindBundle = (
   );
 };
 
-const prefetchAlbumAssets = (
-  albumSlug: string,
-  manifest: ViewerManifest,
-  mindUrl?: string | null,
-) => {
+const prefetchAlbumAssets = (manifest: ViewerManifest, mindUrl?: string | null) => {
   const sortedTargets = [...manifest.targets].sort((a, b) => a.targetIndex - b.targetIndex);
   const uniquePhotos = uniqueTrackingPhotos(sortedTargets);
-
-  prefetchManifestVideos(albumSlug, uniquePhotos);
 
   if (mindUrl && !isBrokenCdnUrl(mindUrl)) prefetchMindFile(mindUrl);
 
@@ -100,7 +93,7 @@ const prefetchAlbumAssets = (
     prefetchImage(manifest.album.coverImage);
   }
 
-  for (const target of uniquePhotos) {
+  for (const target of uniquePhotos.slice(0, 3)) {
     const preview = target.photoThumbnailUrl ?? target.photoUrl;
     if (preview && !isBrokenCdnUrl(preview)) prefetchImage(preview);
   }
@@ -157,7 +150,7 @@ const runWarmup = async (
   // Instant path: cached manifest + server mind file → ready immediately
   if (cachedManifest?.targets.length && cachedManifest.mindFile) {
     const { mindBundle } = buildMindBundle(albumSlug, cachedManifest);
-    prefetchAlbumAssets(albumSlug, cachedManifest, mindBundle?.url ?? null);
+    prefetchAlbumAssets(cachedManifest, mindBundle?.url ?? null);
     void loadArScripts().catch(() => undefined);
 
     state = {
@@ -193,7 +186,7 @@ const runWarmup = async (
       mindBundle: serverMind,
     } = buildMindBundle(albumSlug, manifest);
 
-    prefetchAlbumAssets(albumSlug, manifest, serverMind?.url);
+    prefetchAlbumAssets(manifest, serverMind?.url);
 
     // Fast path: server .mind already built — do NOT wait for AR scripts
     if (serverMind) {
@@ -316,6 +309,6 @@ export const bootstrapViewerRoute = (albumSlug: string): void => {
   const cached = readCachedManifest(albumSlug);
   if (cached?.mindFile) {
     const { mindBundle } = buildMindBundle(albumSlug, cached);
-    prefetchAlbumAssets(albumSlug, cached, mindBundle?.url ?? null);
+    prefetchAlbumAssets(cached, mindBundle?.url ?? null);
   }
 };

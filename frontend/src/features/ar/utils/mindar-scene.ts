@@ -136,13 +136,15 @@ export const ensureSceneHostFillViewport = (host: HTMLElement): void => {
   host.style.setProperty('overflow', 'hidden', 'important');
 };
 
-/** Patch MindAR resize + full-screen camera as early as possible (before first _resize). */
+/** Light layout before the scene exists — avoid observers until camera video is present. */
 export const bootstrapGuestCameraLayout = (host: HTMLElement): void => {
   ensureSceneHostFillViewport(host);
-  hideTrackingCanvas(host);
-  patchMindArVideoResize(host);
-  coverMindArCameraVideo(host);
-  watchCoverLayout(host);
+  if (host.querySelector('a-scene') || getCameraVideo(host)) {
+    hideTrackingCanvas(host);
+    patchMindArVideoResize(host);
+    coverMindArCameraVideo(host);
+    watchCoverLayout(host);
+  }
   viewerLog('debug', 'bootstrapGuestCameraLayout', {
     host: { w: host.clientWidth, h: host.clientHeight },
     patched: Boolean(getMindArSystem(host)?._spResizePatched),
@@ -214,6 +216,7 @@ export const patchMindArVideoResize = (host: HTMLElement): void => {
   const arSystem = getMindArSystem(host);
   if (!arSystem?._resize || arSystem._spResizePatched) return;
 
+  let lastResizeLogAt = 0;
   arSystem._spOriginalResize = arSystem._resize.bind(arSystem);
   arSystem._resize = () => {
     try {
@@ -222,10 +225,14 @@ export const patchMindArVideoResize = (host: HTMLElement): void => {
       // a-camera may not exist yet
     }
     coverMindArCameraVideo(host);
-    viewerLog('debug', 'MindAR _resize patched → cover camera', {
-      host: { w: host.clientWidth, h: host.clientHeight },
-      video: Boolean(getCameraVideo(host)),
-    });
+    const now = Date.now();
+    if (now - lastResizeLogAt > 2_000) {
+      lastResizeLogAt = now;
+      viewerLog('debug', 'MindAR _resize patched → cover camera', {
+        host: { w: host.clientWidth, h: host.clientHeight },
+        video: Boolean(getCameraVideo(host)),
+      });
+    }
   };
   arSystem._spResizePatched = true;
 };

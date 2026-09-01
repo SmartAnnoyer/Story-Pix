@@ -134,12 +134,7 @@ export const ViewerPage = () => {
 
     viewerLog('info', 'Warmup ready — auto-opening camera', {
       targets: warmup.manifest?.targets.length ?? 0,
-      mappings: warmup.manifest?.targets.map((target) => ({
-        name: target.targetName,
-        mind: target.targetIndex,
-        video: target.videoAvailable,
-        photoId: target.photoMediaId,
-      })),
+      uniquePhotos: new Set(warmup.manifest?.targets.map((t) => t.photoMediaId) ?? []).size,
       mindReady: Boolean(warmup.mindBundle),
     });
     void handleStart(false);
@@ -147,7 +142,6 @@ export const ViewerPage = () => {
     warmup.ready,
     warmup.error,
     warmup.manifest?.targets.length,
-    warmup.manifest?.targets,
     warmup.mindBundle,
     started,
     starting,

@@ -39,13 +39,11 @@ import {
   stopPlaybackVideoImmediately,
 } from '../utils/camera-permission';
 import {
-  prefetchManifestVideos,
   prefetchVideo,
   boostVideoBlobPriority,
   ensureVideoBlobForPlayback,
   isVideoBlobReady,
   primeVideoDecoder,
-  warmManifestVideosForPlayback,
 } from '../utils/video-prefetch';
 import { getTargetAspectRatio, installPoseCapture } from '../utils/target-projection';
 import { mappingsForMindIndex, uniqueTrackingPhotos } from '../utils/manifest-photos';
@@ -971,12 +969,6 @@ export const ARViewer = ({
               'info',
             );
             startScanTimers();
-            if (!prefetchedOnWarmRef.current) {
-              prefetchedOnWarmRef.current = true;
-              void warmManifestVideosForPlayback(albumSlug, targetsRef.current, {
-                perVideoTimeoutMs: 30_000,
-              });
-            }
           })();
         });
 
@@ -1055,19 +1047,6 @@ export const ARViewer = ({
     manifest.mindFile?.targetDimensions,
   ]);
 
-  // Prefetch every mapped clip before and during scan — instant play on detect.
-  useEffect(() => {
-    if (
-      status !== 'scanning' &&
-      status !== 'move_closer' &&
-      status !== 'loading' &&
-      status !== 'preparing'
-    ) {
-      return;
-    }
-    prefetchManifestVideos(albumSlug, targets);
-  }, [status, albumSlug, targets]);
-
   useEffect(() => {
     if (status !== 'scanning' && status !== 'move_closer') return undefined;
     setProgress((value) => Math.min(0.99, Math.max(value, 0.92 + scanSeconds * 0.002)));
@@ -1081,7 +1060,7 @@ export const ARViewer = ({
       return undefined;
     }
 
-    if (status !== 'scanning' && status !== 'move_closer' && status !== 'loading') {
+    if (status !== 'scanning' && status !== 'move_closer') {
       matchPercentRef.current = 0;
       setMatchPercent(0);
       return undefined;
