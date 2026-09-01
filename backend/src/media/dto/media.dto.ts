@@ -58,6 +58,19 @@ export class ConfirmUploadDto {
   @ValidateNested()
   @Type(() => OverlayFrameDto)
   overlayFrame?: OverlayFrameDto;
+
+  /** JPEG/PNG poster frame captured client-side (data URL or raw base64). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(2_000_000)
+  thumbnailBase64?: string;
+}
+
+export class SetMediaThumbnailDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(2_000_000)
+  thumbnailBase64!: string;
 }
 
 export class UpdateMediaDto {

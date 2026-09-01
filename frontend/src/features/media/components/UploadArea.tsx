@@ -4,11 +4,13 @@ import { Button, Space, Upload, message } from 'antd';
 import { mediaService } from '@/services/media.service';
 import { useUploadStore } from '@/store/upload.store';
 import { MediaType } from '@/types/media.types';
-import type { OverlayFrame } from '@/types/media.types';
+import type { ConfirmUploadPayload, OverlayFrame } from '@/types/media.types';
 import { getErrorMessage } from '@/api/client';
+import { readImageDimensions } from '@/features/media/utils/video-frame-capture';
 import { PhotoCaptureModal } from './PhotoCaptureModal';
 import { PhotoCropModal } from './PhotoCropModal';
 import { PhotoFrameSelectModal } from './PhotoFrameSelectModal';
+import { VideoThumbnailSelectModal } from './VideoThumbnailSelectModal';
 
 const { Dragger } = Upload;
 
@@ -30,9 +32,11 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
   const [cropFileName, setCropFileName] = useState('photo.jpg');
   const [pendingPhoto, setPendingPhoto] = useState<File | null>(null);
   const [frameSrc, setFrameSrc] = useState<string | null>(null);
+  const [pendingVideo, setPendingVideo] = useState<File | null>(null);
+  const [videoThumbOpen, setVideoThumbOpen] = useState(false);
 
   const processFile = useCallback(
-    async (file: File, overlayFrame?: OverlayFrame) => {
+    async (file: File, confirmPayload?: ConfirmUploadPayload) => {
       const taskId = crypto.randomUUID();
       addTask({
         id: taskId,
@@ -59,10 +63,7 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
         );
 
         updateTask(taskId, { status: 'confirming', progress: 95 });
-        await mediaService.confirmUpload(
-          initiated.media.id,
-          overlayFrame ? { overlayFrame } : undefined,
-        );
+        await mediaService.confirmUpload(initiated.media.id, confirmPayload);
         updateTask(taskId, { status: 'done', progress: 100 });
         onComplete?.();
       } catch (error) {
@@ -97,6 +98,16 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
     if (frameSrc) URL.revokeObjectURL(frameSrc);
     setFrameSrc(null);
     setPendingPhoto(null);
+  };
+
+  const openVideoThumbnail = (file: File) => {
+    setPendingVideo(file);
+    setVideoThumbOpen(true);
+  };
+
+  const closeVideoThumbnail = () => {
+    setVideoThumbOpen(false);
+    setPendingVideo(null);
   };
 
   if (mediaType === MediaType.PHOTO) {
@@ -174,10 +185,19 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
           open={Boolean(pendingPhoto && frameSrc)}
           imageSrc={frameSrc}
           onCancel={closeFrameSelect}
-          onConfirm={(overlayFrame) => {
+          onConfirm={(overlayFrame: OverlayFrame) => {
             const file = pendingPhoto;
             closeFrameSelect();
-            if (file) void processFile(file, overlayFrame);
+            if (!file) return;
+            void readImageDimensions(file)
+              .then((dimensions) =>
+                processFile(file, {
+                  overlayFrame,
+                  width: dimensions.width,
+                  height: dimensions.height,
+                }),
+              )
+              .catch(() => processFile(file, { overlayFrame }));
           }}
         />
       </div>
@@ -185,21 +205,34 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
   }
 
   return (
-    <Dragger
-      multiple
-      disabled={disabled}
-      accept={VIDEO_ACCEPT}
-      showUploadList={false}
-      beforeUpload={(file) => {
-        void processFile(file);
-        return false;
-      }}
-    >
-      <p className="ant-upload-drag-icon">
-        <InboxOutlined />
-      </p>
-      <p className="ant-upload-text">Click or drag videos to upload</p>
-      <p className="ant-upload-hint">MP4, MOV — multiple files supported</p>
-    </Dragger>
+    <>
+      <Dragger
+        multiple
+        disabled={disabled}
+        accept={VIDEO_ACCEPT}
+        showUploadList={false}
+        beforeUpload={(file) => {
+          openVideoThumbnail(file);
+          return false;
+        }}
+      >
+        <p className="ant-upload-drag-icon">
+          <InboxOutlined />
+        </p>
+        <p className="ant-upload-text">Click or drag videos to upload</p>
+        <p className="ant-upload-hint">MP4, MOV — pick a cover frame before upload completes</p>
+      </Dragger>
+
+      <VideoThumbnailSelectModal
+        open={videoThumbOpen}
+        file={pendingVideo}
+        onCancel={closeVideoThumbnail}
+        onConfirm={(payload) => {
+          const file = pendingVideo;
+          closeVideoThumbnail();
+          if (file) void processFile(file, payload);
+        }}
+      />
+    </>
   );
 };

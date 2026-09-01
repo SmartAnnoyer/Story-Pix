@@ -158,6 +158,31 @@
   padding: 0.25rem;
 }
 
+.mapping-media-thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  overflow: hidden;
+  object-fit: cover;
+  background: #f3f4f6;
+}
+
+.video-thumb-picker {
+  display: flex;
+  justify-content: center;
+  background: #000;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.video-thumb-picker__preview {
+  display: block;
+  max-width: 100%;
+  max-height: 360px;
+  width: auto;
+  height: auto;
+}
+
 .mapping-picker-tile__placeholder {
   display: flex;
   height: 100%;

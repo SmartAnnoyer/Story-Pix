@@ -20,6 +20,7 @@ import {
   ConfirmUploadDto,
   InitiateUploadDto,
   QueryMediaDto,
+  SetMediaThumbnailDto,
   UpdateMediaDto,
 } from './dto/media.dto';
 
@@ -101,6 +102,16 @@ export class MediaController {
     res.setHeader('Content-Type', contentType);
     res.setHeader('Cache-Control', 'private, max-age=300');
     res.send(buffer);
+  }
+
+  @Patch(':id/thumbnail')
+  @RequirePermissions('media:write')
+  setThumbnail(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: SetMediaThumbnailDto,
+  ) {
+    return this.mediaService.setMediaThumbnail(this.assertStudioId(user), id, dto.thumbnailBase64);
   }
 
   @Get(':id')

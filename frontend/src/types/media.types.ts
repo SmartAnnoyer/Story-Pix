@@ -83,6 +83,14 @@ export interface MediaQueryParams {
   sortOrder?: 'asc' | 'desc';
 }
 
+export interface ConfirmUploadPayload {
+  overlayFrame?: OverlayFrame;
+  width?: number;
+  height?: number;
+  duration?: number;
+  thumbnailBase64?: string;
+}
+
 export interface UploadTask {
   id: string;
   file: File;

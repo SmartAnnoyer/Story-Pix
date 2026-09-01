@@ -23,12 +23,8 @@ export const MediaCard = ({ item, onClick }: MediaCardProps) => {
 
   return (
     <Card hoverable={Boolean(onClick)} className="overflow-hidden" onClick={onClick}>
-      <div className="relative mb-3 aspect-square overflow-hidden rounded-md bg-gray-100">
-        <StudioMediaThumbnail
-          item={item}
-          className="h-full w-full object-cover"
-          variant={isVideo ? 'thumbnail' : 'thumbnail'}
-        />
+      <div className="studio-media-thumb relative mb-3 aspect-square overflow-hidden rounded-md">
+        <StudioMediaThumbnail item={item} className="absolute inset-0 h-full w-full" />
         {isVideo && item.duration != null ? (
           <Tag className="absolute bottom-2 right-2 m-0">{formatDuration(item.duration)}</Tag>
         ) : null}

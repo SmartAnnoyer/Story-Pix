@@ -80,7 +80,7 @@ export const MappingPickerTile = ({
         if (photoId) onPhotoDrop(photoId);
       }}
     >
-      <div className="mapping-picker-tile__thumb">
+      <div className="mapping-picker-tile__thumb studio-media-thumb">
         <StudioMediaThumbnail
           item={item}
           className="mapping-picker-tile__image"

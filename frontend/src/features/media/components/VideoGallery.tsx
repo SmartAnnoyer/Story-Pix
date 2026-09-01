@@ -8,9 +8,10 @@ interface VideoGalleryProps {
   items: MediaItem[];
   loading?: boolean;
   onDelete?: (id: string) => void;
+  onMediaUpdated?: () => void;
 }
 
-export const VideoGallery = ({ items, loading, onDelete }: VideoGalleryProps) => {
+export const VideoGallery = ({ items, loading, onDelete, onMediaUpdated }: VideoGalleryProps) => {
   const [preview, setPreview] = useState<MediaItem | null>(null);
 
   if (!loading && !items.length) {
@@ -31,6 +32,9 @@ export const VideoGallery = ({ items, loading, onDelete }: VideoGalleryProps) =>
         open={Boolean(preview)}
         onClose={() => setPreview(null)}
         onDelete={onDelete}
+        onUpdated={() => {
+          onMediaUpdated?.();
+        }}
       />
     </>
   );

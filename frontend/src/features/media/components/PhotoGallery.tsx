@@ -9,9 +9,10 @@ interface PhotoGalleryProps {
   items: MediaItem[];
   loading?: boolean;
   onDelete?: (id: string) => void;
+  onMediaUpdated?: () => void;
 }
 
-export const PhotoGallery = ({ items, loading, onDelete }: PhotoGalleryProps) => {
+export const PhotoGallery = ({ items, loading, onDelete, onMediaUpdated }: PhotoGalleryProps) => {
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [search, setSearch] = useState('');
   const [preview, setPreview] = useState<MediaItem | null>(null);
@@ -67,6 +68,9 @@ export const PhotoGallery = ({ items, loading, onDelete }: PhotoGalleryProps) =>
         open={Boolean(preview)}
         onClose={() => setPreview(null)}
         onDelete={onDelete}
+        onUpdated={() => {
+          onMediaUpdated?.();
+        }}
       />
     </div>
   );

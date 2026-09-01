@@ -2,6 +2,7 @@ import axios from 'axios';
 import { apiClient } from '@/api/client';
 import type { ApiResponse } from '@/types/api.types';
 import type {
+  ConfirmUploadPayload,
   InitiateUploadPayload,
   InitiateUploadResponse,
   MediaItem,
@@ -37,10 +38,7 @@ export const mediaService = {
     });
   },
 
-  async confirmUpload(
-    id: string,
-    payload?: { overlayFrame?: { x: number; y: number; width: number; height: number } },
-  ): Promise<MediaItem> {
+  async confirmUpload(id: string, payload?: ConfirmUploadPayload): Promise<MediaItem> {
     const { data } = await apiClient.post<ApiResponse<MediaItem>>(
       `/media/${id}/confirm`,
       payload ?? {},
@@ -81,6 +79,13 @@ export const mediaService = {
 
   async updateMedia(id: string, payload: { originalFileName: string }): Promise<MediaItem> {
     const { data } = await apiClient.patch<ApiResponse<MediaItem>>(`/media/${id}`, payload);
+    return data.data;
+  },
+
+  async setMediaThumbnail(id: string, thumbnailBase64: string): Promise<MediaItem> {
+    const { data } = await apiClient.patch<ApiResponse<MediaItem>>(`/media/${id}/thumbnail`, {
+      thumbnailBase64,
+    });
     return data.data;
   },
 

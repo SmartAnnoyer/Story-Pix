@@ -20,6 +20,7 @@ import {
 } from './dto/media.dto';
 import { MediaLimitService } from './media-limit.service';
 import { MediaProcessingService } from './media-processing.service';
+import { buildThumbnailObjectKey } from './media-thumbnail.util';
 import { MediaValidationService } from './media-validation.service';
 import { Media, MediaDocument } from './schemas/media.schema';
 
@@ -243,19 +244,61 @@ export class MediaService {
     variant: 'thumbnail' | 'original',
   ): Promise<{ buffer: Buffer; contentType: string }> {
     const media = await this.findDocument(studioId, id);
-    const keys =
-      variant === 'thumbnail'
-        ? [this.resolvePreviewKey(media, 'thumbnail'), media.r2ObjectKey]
-        : [media.r2ObjectKey];
 
-    for (const key of keys) {
-      const object = await this.storageService.getObjectBuffer(key);
+    if (variant === 'original') {
+      const object = await this.storageService.getObjectBuffer(media.r2ObjectKey);
       if (object) {
-        return { buffer: object.buffer, contentType: object.contentType };
+        return {
+          buffer: object.buffer,
+          contentType: object.contentType || media.mimeType || 'application/octet-stream',
+        };
+      }
+      throw new NotFoundException('Media preview is not available yet');
+    }
+
+    const thumbKey = this.resolveThumbnailKey(media);
+    const storedThumb = await this.storageService.getObjectBuffer(thumbKey);
+    if (storedThumb) {
+      return { buffer: storedThumb.buffer, contentType: 'image/jpeg' };
+    }
+
+    if (media.mediaType === MediaType.PHOTO) {
+      const generated = await this.mediaProcessingService.generatePhotoThumbnailBuffer(
+        media.r2ObjectKey,
+      );
+      if (generated) {
+        await this.storageService.putObjectBuffer(thumbKey, generated, 'image/jpeg');
+        const thumbUrl = this.storageService.getPublicUrl(thumbKey);
+        if (!media.thumbnailUrl) {
+          media.thumbnailUrl = thumbUrl;
+          await media.save();
+        }
+        return { buffer: generated, contentType: 'image/jpeg' };
       }
     }
 
-    throw new NotFoundException('Media preview is not available yet');
+    throw new NotFoundException('Thumbnail is not available yet');
+  }
+
+  async setMediaThumbnail(studioId: string, id: string, thumbnailBase64: string) {
+    const media = await this.findDocument(studioId, id);
+
+    if (media.status !== MediaStatus.READY) {
+      throw new BadRequestException('Only ready media can receive a new thumbnail');
+    }
+
+    const thumbUrl = await this.mediaProcessingService.saveVideoPosterFromBase64(
+      media.r2ObjectKey,
+      thumbnailBase64,
+    );
+
+    if (!thumbUrl) {
+      throw new BadRequestException('Could not save thumbnail — invalid image data');
+    }
+
+    media.thumbnailUrl = thumbUrl;
+    await media.save();
+    return this.serialize(media);
   }
 
   async updateDisplayName(studioId: string, id: string, dto: UpdateMediaDto) {
@@ -387,10 +430,17 @@ export class MediaService {
     }
   }
 
-  private resolvePreviewKey(media: MediaDocument, variant: 'thumbnail' | 'original'): string {
-    if (variant === 'thumbnail' && media.thumbnailUrl) {
+  private resolveThumbnailKey(media: MediaDocument): string {
+    if (media.thumbnailUrl) {
       const extracted = this.extractKeyFromUrl(media.thumbnailUrl);
       if (extracted) return extracted;
+    }
+    return buildThumbnailObjectKey(media.r2ObjectKey);
+  }
+
+  private resolvePreviewKey(media: MediaDocument, variant: 'thumbnail' | 'original'): string {
+    if (variant === 'thumbnail') {
+      return this.resolveThumbnailKey(media);
     }
     return media.r2ObjectKey;
   }

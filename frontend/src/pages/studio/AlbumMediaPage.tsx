@@ -127,7 +127,12 @@ export const AlbumMediaPage = () => {
               />
             )}
             <div className="mt-4">
-              <PhotoGallery items={photos} loading={mediaLoading} onDelete={handleDelete} />
+              <PhotoGallery
+                items={photos}
+                loading={mediaLoading}
+                onDelete={handleDelete}
+                onMediaUpdated={() => void refetch()}
+              />
             </div>
           </Card>
         </Col>
@@ -144,7 +149,12 @@ export const AlbumMediaPage = () => {
               />
             )}
             <div className="mt-4">
-              <VideoGallery items={videos} loading={mediaLoading} onDelete={handleDelete} />
+              <VideoGallery
+                items={videos}
+                loading={mediaLoading}
+                onDelete={handleDelete}
+                onMediaUpdated={() => void refetch()}
+              />
             </div>
           </Card>
         </Col>

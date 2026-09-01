@@ -4,6 +4,8 @@ import { Table, Space, Button, Popconfirm } from 'antd';
 import { EditOutlined, DeleteOutlined, CheckCircleOutlined, StopOutlined } from '@ant-design/icons';
 import type { ArTarget } from '@/types/ar-target.types';
 import { ArTargetStatus } from '@/types/ar-target.types';
+import { MediaType } from '@/types/media.types';
+import { MappingMediaThumb } from '@/features/media/components/MappingMediaThumb';
 
 const { useBreakpoint } = Grid;
 
@@ -105,6 +107,11 @@ export const MappingTable = ({
         {items.map((record) => (
           <div key={record.id} className="app-list-card" style={{ display: 'block' }}>
             <div className="font-semibold text-gray-900">{record.targetName}</div>
+            <div className="mt-2 flex items-center gap-2">
+              <MappingMediaThumb media={record.photo} mediaType={MediaType.PHOTO} />
+              <span className="text-xs text-gray-400">→</span>
+              <MappingMediaThumb media={record.video} mediaType={MediaType.VIDEO} />
+            </div>
             <div className="mt-1 text-xs text-gray-500">
               {record.photo?.originalFileName ?? 'Photo'} →{' '}
               {record.video?.originalFileName ?? 'Video'}
@@ -136,12 +143,14 @@ export const MappingTable = ({
     {
       title: 'Photo',
       key: 'photo',
-      render: (_, record) => record.photo?.originalFileName ?? '—',
+      width: 88,
+      render: (_, record) => <MappingMediaThumb media={record.photo} mediaType={MediaType.PHOTO} />,
     },
     {
       title: 'Video',
       key: 'video',
-      render: (_, record) => record.video?.originalFileName ?? '—',
+      width: 88,
+      render: (_, record) => <MappingMediaThumb media={record.video} mediaType={MediaType.VIDEO} />,
     },
     {
       title: 'Status',
