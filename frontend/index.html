@@ -105,9 +105,9 @@
         50% { transform: scale(1.06); opacity: 0.85; }
       }
 
-      /* On-screen debug — inline in HTML so it shows before React bundles load. */
+      /* On-screen debug — hidden for now; set SHOW_VIEWER_DEBUG in the script to re-enable. */
       #sp-viewer-debug {
-        display: none;
+        display: none !important;
         position: fixed;
         top: max(8px, env(safe-area-inset-top));
         left: max(8px, env(safe-area-inset-left));
@@ -124,9 +124,6 @@
         box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
         overflow: hidden;
         -webkit-overflow-scrolling: touch;
-      }
-      html.viewer-route #sp-viewer-debug {
-        display: flex !important;
       }
       #sp-viewer-debug.sp-viewer-debug--min {
         max-height: none;
@@ -193,6 +190,8 @@
 
         document.documentElement.classList.add('viewer-route');
 
+        // On-screen debug panel is off for guest UX; flip to true to diagnose on device.
+        var SHOW_VIEWER_DEBUG = false;
         var DEBUG_BUILD = '2026-08-29-c';
         var lines = [];
         var bodyEl = null;
@@ -278,30 +277,42 @@
           appendLine('info', 'HTML debug panel ready · ' + location.pathname);
         }
 
-        window.__spViewerDebugPush = function (level, message) {
-          appendLine(level || 'info', String(message));
-        };
-        window.__spViewerDebugClear = function () {
-          lines.length = 0;
-          if (bodyEl) bodyEl.textContent = '';
-          renderTitle();
-        };
+        if (SHOW_VIEWER_DEBUG) {
+          window.__spViewerDebugPush = function (level, message) {
+            appendLine(level || 'info', String(message));
+          };
+          window.__spViewerDebugClear = function () {
+            lines.length = 0;
+            if (bodyEl) bodyEl.textContent = '';
+            renderTitle();
+          };
 
-        window.addEventListener('error', function (event) {
-          appendLine('error', 'early error: ' + event.message);
-        });
-        window.addEventListener('unhandledrejection', function (event) {
-          var reason = event.reason;
-          appendLine(
-            'error',
-            'early rejection: ' + (reason && reason.message ? reason.message : String(reason)),
-          );
-        });
+          window.addEventListener('error', function (event) {
+            appendLine('error', 'early error: ' + event.message);
+          });
+          window.addEventListener('unhandledrejection', function (event) {
+            var reason = event.reason;
+            appendLine(
+              'error',
+              'early rejection: ' + (reason && reason.message ? reason.message : String(reason)),
+            );
+          });
 
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', initPanel);
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initPanel);
+          } else {
+            initPanel();
+          }
         } else {
-          initPanel();
+          var hideDebug = function () {
+            var debugNode = document.getElementById('sp-viewer-debug');
+            if (debugNode) debugNode.remove();
+          };
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', hideDebug);
+          } else {
+            hideDebug();
+          }
         }
 
         // Preload only — do NOT execute in parallel.
