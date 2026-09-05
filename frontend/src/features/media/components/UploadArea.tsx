@@ -30,6 +30,7 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
   const [captureOpen, setCaptureOpen] = useState(false);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [cropFileName, setCropFileName] = useState('photo.jpg');
+  const [cropOriginalFile, setCropOriginalFile] = useState<File | null>(null);
   const [pendingPhoto, setPendingPhoto] = useState<File | null>(null);
   const [frameSrc, setFrameSrc] = useState<string | null>(null);
   const [pendingVideo, setPendingVideo] = useState<File | null>(null);
@@ -80,12 +81,14 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
   const openGalleryCrop = (file: File) => {
     const url = URL.createObjectURL(file);
     setCropFileName(file.name);
+    setCropOriginalFile(file);
     setCropSrc(url);
   };
 
   const closeCrop = () => {
     if (cropSrc) URL.revokeObjectURL(cropSrc);
     setCropSrc(null);
+    setCropOriginalFile(null);
   };
 
   const openFrameSelect = (file: File) => {
@@ -114,8 +117,8 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
     return (
       <div>
         <p className="mb-3 text-sm text-neutral-500">
-          Use the camera frame or crop from gallery, then mark the printed frame so the video plays
-          inside it while guests scan.
+          Take a photo or pick from gallery. You can keep the full image or trim edges, then mark
+          where the video should play on the print.
         </p>
         <Space wrap className="mb-3 w-full">
           <Button
@@ -131,7 +134,7 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
             disabled={disabled}
             onClick={() => galleryInputRef.current?.click()}
           >
-            Gallery &amp; crop
+            Gallery
           </Button>
         </Space>
         <input
@@ -159,8 +162,8 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
           <p className="ant-upload-drag-icon">
             <InboxOutlined />
           </p>
-          <p className="ant-upload-text">Or drop photos here to crop</p>
-          <p className="ant-upload-hint">JPG, PNG, WEBP — each file opens the crop frame</p>
+          <p className="ant-upload-text">Or drop photos here</p>
+          <p className="ant-upload-hint">JPG, PNG, WEBP — keep full photo or trim edges</p>
         </Dragger>
 
         <PhotoCaptureModal
@@ -175,6 +178,7 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
           open={Boolean(cropSrc)}
           imageSrc={cropSrc}
           fileName={cropFileName}
+          originalFile={cropOriginalFile}
           onConfirm={(file) => {
             closeCrop();
             openFrameSelect(file);
