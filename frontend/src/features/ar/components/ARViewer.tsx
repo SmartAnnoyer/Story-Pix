@@ -122,6 +122,8 @@ export const ARViewer = ({
   const [activeMindIndex, setActiveMindIndex] = useState<number | null>(null);
   const activeMindIndexRef = useRef<number | null>(null);
   const lastTargetSwitchAtRef = useRef(0);
+  /** Bumps on every beginPlayback so stale blob waits cannot remount an old clip. */
+  const playbackGenerationRef = useRef(0);
   const [targetAspectRatio, setTargetAspectRatio] = useState(1.414);
   const [videoMode, setVideoMode] = useState<VideoDisplayMode>('frame');
   const [mindBundle, setMindBundle] = useState<MindBundle | null>(initialMindBundle);
@@ -467,6 +469,7 @@ export const ARViewer = ({
             detachOverlayVideoPlane(targetEntitiesRef.current[mindIndex] ?? null);
           }
           releaseMappedVideoDecoder(host);
+          videoRevealRef.current = false;
           setVideoReveal(false);
         };
 
@@ -490,10 +493,17 @@ export const ARViewer = ({
           targetFoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
           targetFoundTimersRef.current.clear();
 
-          if (isSwitch && activeMindIndexRef.current !== null) {
+          if (isSwitch || activeMindIndexRef.current !== null) {
             haltCurrentPlayback(activeMindIndexRef.current);
           }
 
+          // Drop the previous mapping immediately so TargetFrameVideo cannot reload the old
+          // clip when the tracked entity changes while the next blob is still fetching.
+          setActiveTarget(null);
+          videoRevealRef.current = false;
+          setVideoReveal(false);
+
+          const playbackGeneration = ++playbackGenerationRef.current;
           activeMindIndexRef.current = mindIndex;
           statusRef.current = 'match_found';
 
@@ -524,7 +534,6 @@ export const ARViewer = ({
           }
           targetTrackedRef.current = true;
           setStatus('match_found');
-          setVideoReveal(false);
           void recordEventRef.current(ScanEventType.SCAN_SUCCESS, nextTarget);
 
           const playUrl = viewerService.getMappingVideoUrl(
@@ -540,6 +549,20 @@ export const ARViewer = ({
           void (async () => {
             const blobUrl = await ensureVideoBlobForPlayback(playUrl, isSwitch ? 30_000 : 45_000);
             if (!mounted) return;
+            if (playbackGenerationRef.current !== playbackGeneration) {
+              viewerLog('info', 'beginPlayback ignored — superseded by newer target', {
+                mindIndex,
+                target: nextTarget.targetName,
+              });
+              return;
+            }
+            if (activeMindIndexRef.current !== mindIndex) {
+              viewerLog('info', 'beginPlayback ignored — active index changed', {
+                mindIndex,
+                active: activeMindIndexRef.current,
+              });
+              return;
+            }
 
             if (!blobUrl) {
               viewerLog('error', 'video blob not ready for playback', {
@@ -555,6 +578,7 @@ export const ARViewer = ({
               setStatus('scanning');
               setStatusDetail('Video is still loading. Hold the photo steady and try again.');
               setProgress(0.92);
+              videoRevealRef.current = false;
               setVideoReveal(false);
               return;
             }
@@ -620,21 +644,8 @@ export const ARViewer = ({
               return;
             }
 
-            if (!videoRevealRef.current) {
-              const candidateUrl = viewerService.getMappingVideoUrl(
-                albumSlug,
-                nextTarget.id,
-                nextTarget.videoMediaId,
-              );
-              boostVideoBlobPriority(candidateUrl);
-              viewerLog('info', 'target switch deferred — video still loading onto photo', {
-                from: activeIndex,
-                candidate: mindIndex,
-                target: nextTarget.targetName,
-              });
-              return;
-            }
-
+            // Always switch to a different print. Do not wait for the previous clip to
+            // "reveal" — that gate left the old mapping mounted and blocked the new one.
             lastTargetSwitchAtRef.current = Date.now();
             viewerLog('info', 'switching playback to newly found photo', {
               from: activeIndex,
@@ -753,11 +764,15 @@ export const ARViewer = ({
                 activeMindIndexRef.current !== null &&
                 activeMindIndexRef.current !== mindIndex;
               if (switchingAway) {
+                // Tear down the old clip immediately so it cannot keep playing while we
+                // confirm / fetch the newly found photo's video.
                 stopPlaybackVideoImmediately();
                 detachOverlayVideoPlane(
                   targetEntitiesRef.current[activeMindIndexRef.current!] ?? null,
                 );
                 releaseMappedVideoDecoder(host);
+                setActiveTarget(null);
+                videoRevealRef.current = false;
                 setVideoReveal(false);
               }
 
