@@ -468,7 +468,7 @@ export const TargetFrameVideo = ({
       stage.style.visibility = 'hidden';
       stage.style.zIndex = '10080';
       stage.style.background = 'transparent';
-      stage.style.pointerEvents = 'none';
+      // pointer-events owned by setStageVisible — do not reset every frame or taps die.
 
       mountVideoInStage();
     };
@@ -477,6 +477,7 @@ export const TargetFrameVideo = ({
       if (!stage) return;
       stage.style.opacity = visible ? '1' : '0';
       stage.style.visibility = visible ? 'visible' : 'hidden';
+      stage.style.pointerEvents = visible ? 'auto' : 'none';
     };
 
     const applyQuad = (corners: Parameters<typeof quadToCssMatrix3d>[2]) => {
@@ -496,7 +497,7 @@ export const TargetFrameVideo = ({
       stage.style.visibility = 'hidden';
       stage.style.zIndex = '10080';
       stage.style.background = 'transparent';
-      stage.style.pointerEvents = 'none';
+
       mountVideoInStage();
       return true;
     };
@@ -1097,9 +1098,8 @@ export const TargetFrameVideo = ({
   }, [mode, onModeChange]);
 
   const handleStageDoubleTap = useCallback(
-    (event: { stopPropagation: () => void; preventDefault: () => void }) => {
+    (event: { stopPropagation: () => void }) => {
       event.stopPropagation();
-      event.preventDefault();
       const now = Date.now();
       if (now - lastTapAtRef.current < 450) {
         lastTapAtRef.current = 0;
@@ -1214,12 +1214,47 @@ export const TargetFrameVideo = ({
   const controls = showControlsBar ? (
     <div
       className="ar-video-controls ar-video-controls--dock"
+      style={{
+        position: 'fixed',
+        left: '50%',
+        bottom: 'max(20px, env(safe-area-inset-bottom, 0px))',
+        transform: 'translate3d(-50%, 0, 0)',
+        zIndex: 2147483646,
+        pointerEvents: 'auto',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '0.35rem',
+        padding: '0.45rem 0.6rem',
+        borderRadius: 999,
+        background: 'rgba(12, 12, 18, 0.82)',
+        border: '1px solid rgba(255, 255, 255, 0.22)',
+        boxShadow: '0 12px 32px rgba(0, 0, 0, 0.5)',
+      }}
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
     >
       {controlButtons}
     </div>
   ) : null;
+
+  // Full-screen double-tap catcher — independent of the AR stage (which often has
+  // pointer-events none / WebGL plane and cannot receive taps).
+  const doubleTapCatcher =
+    active && !needsTap ? (
+      <div
+        role="presentation"
+        aria-hidden
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 10085,
+          pointerEvents: 'auto',
+          background: 'transparent',
+          touchAction: 'manipulation',
+        }}
+        onPointerUp={handleStageDoubleTap}
+      />
+    ) : null;
 
   return createPortal(
     <>
@@ -1242,7 +1277,7 @@ export const TargetFrameVideo = ({
         aria-label={title ? `Playing ${title}` : 'Playing mapped video'}
       >
         {showFullscreen ? (
-          <p className="ar-video-nowplaying">Double-tap video · use buttons to mute or exit</p>
+          <p className="ar-video-nowplaying">Double-tap · mute from the buttons below</p>
         ) : null}
 
         <div
@@ -1286,18 +1321,10 @@ export const TargetFrameVideo = ({
               </button>
             ) : null}
           </div>
-          {/* Hit target above the video for reliable double-tap (mobile click is flaky). */}
-          {!needsTap ? (
-            <button
-              type="button"
-              className="ar-video-tap-layer"
-              aria-label="Double-tap to toggle fullscreen"
-              onPointerUp={handleStageDoubleTap}
-            />
-          ) : null}
         </div>
       </div>
 
+      {doubleTapCatcher}
       {controls}
     </>,
     document.body,
