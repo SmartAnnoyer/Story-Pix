@@ -18,6 +18,11 @@
     max(14px, env(safe-area-inset-left));
 }
 
+/* Above TargetFrameVideo portal so controls stay visible on the clip. */
+.viewer-top-chrome--portal {
+  z-index: 2147483000;
+}
+
 .viewer-top-chrome__brand {
   pointer-events: none;
   display: flex;

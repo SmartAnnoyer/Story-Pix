@@ -27,8 +27,9 @@
   max-height: none;
   aspect-ratio: auto;
   border-radius: 0;
-  pointer-events: none;
+  pointer-events: auto;
   background: transparent;
+  touch-action: manipulation;
 }
 
 .ar-video-shell--tracked .ar-video-media {
@@ -249,6 +250,42 @@
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
+}
+
+/* Mute / expand stay above the clip (portal sibling of the shell). */
+.ar-video-playback-chrome {
+  position: fixed;
+  top: max(12px, calc(env(safe-area-inset-top) + 8px));
+  right: max(12px, env(safe-area-inset-right));
+  z-index: 2147483001;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.ar-video-playback-chrome__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(12, 12, 18, 0.72);
+  color: #fff;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  touch-action: manipulation;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.ar-video-playback-chrome__btn:active {
+  transform: scale(0.96);
 }
 
 /* Controls sit under the frame so they don’t cover the video */

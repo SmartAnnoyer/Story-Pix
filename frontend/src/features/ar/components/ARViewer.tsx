@@ -1227,14 +1227,6 @@ export const ARViewer = ({
     handleExitFullscreen();
   }, [handleExitFullscreen]);
 
-  const handleToggleExpand = useCallback(() => {
-    if (videoMode === 'fullscreen') {
-      handleExitFullscreen();
-      return;
-    }
-    setVideoMode('fullscreen');
-  }, [videoMode, handleExitFullscreen]);
-
   const handleRetryScan = () => {
     clearScanTimers();
     setStatusDetail(null);
@@ -1288,9 +1280,7 @@ export const ARViewer = ({
       <ViewerTopChrome
         soundOn={soundOn}
         onToggleMute={() => setSoundOn((value) => !value)}
-        onToggleExpand={videoReveal || videoMode === 'fullscreen' ? handleToggleExpand : undefined}
-        expanded={videoMode === 'fullscreen'}
-        showActions={videoReveal || videoMode === 'fullscreen'}
+        showActions={false}
       />
       <ScanFocusFrame
         visible={

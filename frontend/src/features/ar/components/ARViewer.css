@@ -32,7 +32,6 @@ html.viewer-route #root {
 }
 
 /* Guest chrome must anchor to the viewport, not a collapsed inner host. */
-.ar-viewer-root > .viewer-top-chrome,
 .ar-viewer-root > .scan-focus-frame,
 .ar-viewer-root > .scan-status-overlay,
 .ar-viewer-root > .viewer-control-bar {
