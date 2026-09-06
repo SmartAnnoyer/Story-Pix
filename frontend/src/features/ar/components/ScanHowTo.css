@@ -211,32 +211,32 @@
 .scan-howto__corner--tl {
   top: 0;
   left: 0;
-  border-top-color: #2196f3;
-  border-left-color: #2196f3;
+  border-top-color: #5b4cf0;
+  border-left-color: #6b2cdb;
   border-radius: 10px 0 0 0;
 }
 
 .scan-howto__corner--tr {
   top: 0;
   right: 0;
-  border-top-color: #8a2be2;
-  border-right-color: #8a2be2;
+  border-top-color: #e93a8a;
+  border-right-color: #ff4fa3;
   border-radius: 0 10px 0 0;
 }
 
 .scan-howto__corner--bl {
   bottom: 0;
   left: 0;
-  border-bottom-color: #8a2be2;
-  border-left-color: #8a2be2;
+  border-bottom-color: #ff4fa3;
+  border-left-color: #e93a8a;
   border-radius: 0 0 0 10px;
 }
 
 .scan-howto__corner--br {
   right: 0;
   bottom: 0;
-  border-bottom-color: #2196f3;
-  border-right-color: #2196f3;
+  border-bottom-color: #6b2cdb;
+  border-right-color: #5b4cf0;
   border-radius: 0 0 10px 0;
 }
 
@@ -246,7 +246,8 @@
   right: 10%;
   height: 2px;
   border-radius: 999px;
-  background: linear-gradient(90deg, transparent, #2196f3, #8a2be2, #ff4fa3, transparent);
+  background: linear-gradient(90deg, transparent, #6b2cdb, #e93a8a, #ff4fa3, transparent);
+  box-shadow: 0 0 10px rgba(233, 58, 138, 0.7);
   animation: scan-howto-sweep 2.2s ease-in-out infinite;
 }
 

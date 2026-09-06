@@ -38,7 +38,7 @@ export const LandingPage = () => {
     <div className="sp-land">
       <header className="sp-land__nav">
         <a href="#top" className="sp-land__brand" aria-label={brand.name}>
-          <BrandLogo variant="full" height={32} />
+          <BrandLogo variant="nav" height={34} />
         </a>
         <nav className="sp-land__links" aria-label="Page">
           <a href="#how-it-works">How it works</a>
@@ -162,10 +162,10 @@ export const LandingPage = () => {
       </main>
 
       <footer className="sp-land__foot">
-        <BrandLogo variant="full" height={28} />
+        <BrandLogo variant="full" height={48} />
         <p>{brand.tagline}</p>
         <p className="sp-land__copy">
-          © {new Date().getFullYear()} Story-pix. All rights reserved.
+          © {new Date().getFullYear()} Story-PIX. All rights reserved.
         </p>
       </footer>
     </div>

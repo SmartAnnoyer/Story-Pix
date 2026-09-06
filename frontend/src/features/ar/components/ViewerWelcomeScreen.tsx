@@ -3,6 +3,7 @@ import { BrandLogo } from '@/components/BrandLogo';
 import type { ViewerManifest } from '@/types/ar-target.types';
 import { uniqueTrackingPhotos } from '../utils/manifest-photos';
 import type { WarmupProgress } from '../utils/viewer-warmup';
+import { ViewerBootLoader, type BootLoaderMode } from './ViewerBootLoader';
 import './ViewerIntro.css';
 
 interface ViewerWelcomeScreenProps {
@@ -43,17 +44,30 @@ export const ViewerWelcomeScreen = ({
     return () => window.clearTimeout(timer);
   }, [albumId, manifest]);
 
+  const bootMode: BootLoaderMode = starting
+    ? 'starting'
+    : needsTap && canStart
+      ? 'tap'
+      : canStart
+        ? 'ready'
+        : 'loading';
+
+  const displayPercent =
+    starting || bootMode === 'ready' || bootMode === 'tap' ? Math.max(percent, 92) : percent;
+
   const statusLine = warmup.error
     ? null
     : starting
       ? 'Allow camera access…'
       : needsTap && canStart
-        ? 'Tap anywhere to start scanning'
+        ? 'Tap anywhere to open the camera'
         : showProgress
           ? warmup.message
           : canStart
             ? 'Opening camera…'
             : 'Getting your album ready…';
+
+  const loaderStage = starting || canStart ? 'camera' : warmup.stage;
 
   return (
     <button
@@ -78,7 +92,7 @@ export const ViewerWelcomeScreen = ({
 
       <div className="viewer-intro__body">
         <div className="viewer-intro__brand viewer-intro__brand--large">
-          <BrandLogo variant="full" height={48} />
+          <BrandLogo variant="full" height={72} />
         </div>
 
         <div
@@ -89,32 +103,17 @@ export const ViewerWelcomeScreen = ({
           <p className="viewer-intro__eyebrow">Guest scan</p>
           <h1 className="viewer-intro__title">{albumName}</h1>
 
-          <div className="viewer-intro__scan-preview" aria-hidden>
-            <span className="viewer-intro__corner viewer-intro__corner--tl" />
-            <span className="viewer-intro__corner viewer-intro__corner--tr" />
-            <span className="viewer-intro__corner viewer-intro__corner--bl" />
-            <span className="viewer-intro__corner viewer-intro__corner--br" />
-            <span className="viewer-intro__scanline" />
-          </div>
-
-          <p className="viewer-intro__badge">Point camera at your photo</p>
-
-          {showProgress || starting || (canStart && !needsTap) ? (
-            <div className="viewer-intro__progress">
-              <p className="mb-2 text-center text-xs text-white/70">{statusLine}</p>
-              <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#8A2BE2] to-[#FF4FA3] transition-all duration-700 ease-out"
-                  style={{
-                    width: `${starting || (canStart && !needsTap) ? Math.max(percent, 92) : percent}%`,
-                  }}
-                />
-              </div>
-            </div>
+          {!warmup.error ? (
+            <ViewerBootLoader
+              percent={displayPercent}
+              message={statusLine}
+              stage={loaderStage === 'error' ? 'manifest' : loaderStage}
+              mode={bootMode}
+            />
           ) : null}
 
           {needsTap && canStart && !starting ? (
-            <p className="viewer-intro__tap-hint">{statusLine}</p>
+            <p className="viewer-intro__tap-hint">Tap to start scanning</p>
           ) : null}
         </div>
 
@@ -124,12 +123,12 @@ export const ViewerWelcomeScreen = ({
               {warmup.detail ?? warmup.error}
             </p>
           ) : (
-            <p className="text-center text-[11px] text-white/45">
+            <p className="text-center text-[11px] leading-relaxed text-white/45">
               {showProgress
-                ? 'Preparing your stories — camera opens next.'
+                ? 'Hold your printed photo ready — scanning starts next.'
                 : needsTap
                   ? 'Your browser needs one tap to open the camera.'
-                  : 'Have the printed photo ready.'}
+                  : 'Point your phone at the printed photo when the camera opens.'}
             </p>
           )}
         </div>

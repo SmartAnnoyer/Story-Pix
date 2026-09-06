@@ -162,7 +162,7 @@ export const DashboardLayout = () => {
     )?.key ?? (location.pathname.startsWith('/studio/albums') ? 'albums' : undefined);
 
   const headerTitle = isSuperAdmin ? 'Admin' : 'Studio';
-  const headerName = user ? user.firstName : 'Story-pix';
+  const headerName = user ? user.firstName : 'Story-PIX';
 
   const handleLogout = async () => {
     try {
@@ -194,7 +194,7 @@ export const DashboardLayout = () => {
             {desktopCollapsed ? (
               <BrandLogo variant="mark" height={32} />
             ) : (
-              <BrandLogo variant="full" height={32} />
+              <BrandLogo variant="nav" height={34} />
             )}
           </div>
           <Menu

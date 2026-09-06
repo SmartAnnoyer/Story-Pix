@@ -15,7 +15,7 @@ const normalizeApiBaseUrl = (raw: string | undefined, isProduction: boolean): st
 
 export const env = {
   apiBaseUrl: normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL, import.meta.env.PROD),
-  appName: import.meta.env.VITE_APP_NAME ?? 'Story-pix',
+  appName: import.meta.env.VITE_APP_NAME ?? 'Story-PIX',
   appEnv: import.meta.env.VITE_APP_ENV ?? 'development',
   isDevelopment: import.meta.env.DEV,
   isProduction: import.meta.env.PROD,

@@ -1,0 +1,95 @@
+.viewer-progress {
+  width: 100%;
+}
+
+.viewer-progress__row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.viewer-progress__ring-wrap {
+  position: relative;
+  flex-shrink: 0;
+  width: 2.75rem;
+  height: 2.75rem;
+  display: grid;
+  place-items: center;
+}
+
+.viewer-progress__ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.viewer-progress__track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.12);
+  stroke-width: 3.5;
+}
+
+.viewer-progress__value {
+  fill: none;
+  stroke: url(#sp-overlay-ring);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.45s ease-out;
+}
+
+.viewer-progress__pct {
+  position: relative;
+  z-index: 1;
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  color: #fff;
+}
+
+.viewer-progress__copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.viewer-progress__label {
+  margin: 0;
+  font-size: 0.84rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.viewer-progress__steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.viewer-progress__step {
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.viewer-progress__step--active {
+  border-color: rgba(233, 58, 138, 0.45);
+  background: rgba(233, 58, 138, 0.16);
+  color: #ffd0e6;
+}
+
+.viewer-progress__step--done {
+  border-color: rgba(91, 76, 240, 0.4);
+  background: rgba(91, 76, 240, 0.16);
+  color: #ddd6fe;
+}

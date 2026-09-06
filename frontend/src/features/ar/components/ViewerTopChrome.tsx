@@ -19,7 +19,7 @@ export const ViewerTopChrome = ({
   return (
     <div className="viewer-top-chrome">
       <div className="viewer-top-chrome__brand">
-        <BrandLogo variant="full" height={42} className="viewer-top-chrome__logo" />
+        <BrandLogo variant="nav" height={42} className="viewer-top-chrome__logo" />
       </div>
 
       {showActions ? (

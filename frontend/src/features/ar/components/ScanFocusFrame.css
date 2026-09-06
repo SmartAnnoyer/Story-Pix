@@ -11,7 +11,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1.1rem;
+  gap: 1.15rem;
   padding:
     max(88px, calc(env(safe-area-inset-top) + 72px))
     1rem
@@ -31,10 +31,10 @@
 .scan-focus-frame__badge {
   flex-shrink: 0;
   max-width: min(90vw, 320px);
-  padding: 0.55rem 1.05rem;
+  padding: 0.55rem 1.1rem;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(12, 12, 18, 0.58);
+  border: 1px solid rgba(233, 58, 138, 0.35);
+  background: rgba(10, 10, 16, 0.62);
   color: #fff;
   font-size: 0.88rem;
   font-weight: 600;
@@ -44,153 +44,171 @@
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   box-shadow:
-    0 10px 28px rgba(0, 0, 0, 0.35),
+    0 10px 28px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(107, 44, 219, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .scan-focus-frame--warming .scan-focus-frame__badge {
-  border-color: rgba(33, 150, 243, 0.45);
+  border-color: rgba(107, 44, 219, 0.55);
 }
 
 .scan-focus-frame--locking .scan-focus-frame__badge {
-  border-color: rgba(255, 194, 51, 0.55);
-  color: #ffe9ad;
+  border-color: rgba(233, 58, 138, 0.65);
+  color: #ffd0e6;
 }
 
 .scan-focus-frame__box {
   position: relative;
-  width: min(72vw, 280px, 52dvh);
-  height: min(72vw, 280px, 52dvh);
-  overflow: hidden;
+  width: min(74vw, 300px, 54dvh);
+  height: min(74vw, 300px, 54dvh);
+  overflow: visible;
   background: transparent;
+  /* Dim everything outside the viewfinder — QR-scanner style */
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.48);
+  border-radius: 4px;
 }
 
 .scan-focus-frame__corner {
   position: absolute;
-  width: min(22%, 56px);
-  height: min(22%, 56px);
+  width: min(24%, 64px);
+  height: min(24%, 64px);
   border-style: solid;
   border-color: transparent;
   border-width: 0;
   box-sizing: border-box;
-  animation: scan-corner-breathe 2s ease-in-out infinite;
+  filter: drop-shadow(0 0 6px rgba(233, 58, 138, 0.45));
+  animation: scan-corner-breathe 2.2s ease-in-out infinite;
 }
 
+/* Logo-matched corners: TL/BR purple-blue, TR/BL pink-magenta */
 .scan-focus-frame__corner--tl {
-  top: 0;
-  left: 0;
+  top: -2px;
+  left: -2px;
   border-top-width: 5px;
   border-left-width: 5px;
-  border-top-color: #ffffff;
-  border-left-color: #ffffff;
-  border-top-left-radius: 4px;
+  border-top-color: #5b4cf0;
+  border-left-color: #6b2cdb;
+  border-top-left-radius: 14px;
 }
 
 .scan-focus-frame__corner--tr {
-  top: 0;
-  right: 0;
+  top: -2px;
+  right: -2px;
   border-top-width: 5px;
   border-right-width: 5px;
-  border-top-color: #ffffff;
-  border-right-color: #ffffff;
-  border-top-right-radius: 4px;
+  border-top-color: #e93a8a;
+  border-right-color: #ff4fa3;
+  border-top-right-radius: 14px;
 }
 
 .scan-focus-frame__corner--bl {
-  bottom: 0;
-  left: 0;
+  bottom: -2px;
+  left: -2px;
   border-bottom-width: 5px;
   border-left-width: 5px;
-  border-bottom-color: #ffffff;
-  border-left-color: #ffffff;
-  border-bottom-left-radius: 4px;
+  border-bottom-color: #ff4fa3;
+  border-left-color: #e93a8a;
+  border-bottom-left-radius: 14px;
 }
 
 .scan-focus-frame__corner--br {
-  right: 0;
-  bottom: 0;
+  right: -2px;
+  bottom: -2px;
   border-bottom-width: 5px;
   border-right-width: 5px;
-  border-bottom-color: #ffffff;
-  border-right-color: #ffffff;
-  border-bottom-right-radius: 4px;
+  border-bottom-color: #6b2cdb;
+  border-right-color: #5b4cf0;
+  border-bottom-right-radius: 14px;
 }
 
-.scan-focus-frame--warming .scan-focus-frame__corner--tl,
-.scan-focus-frame--warming .scan-focus-frame__corner--tr,
-.scan-focus-frame--warming .scan-focus-frame__corner--bl,
-.scan-focus-frame--warming .scan-focus-frame__corner--br {
-  border-top-color: #2196f3;
-  border-right-color: #2196f3;
-  border-bottom-color: #2196f3;
-  border-left-color: #2196f3;
+.scan-focus-frame--warming .scan-focus-frame__corner {
+  filter: drop-shadow(0 0 10px rgba(107, 44, 219, 0.7));
 }
 
 .scan-focus-frame--locking .scan-focus-frame__corner {
   animation: none;
+  filter: drop-shadow(0 0 12px rgba(233, 58, 138, 0.85));
 }
 
 .scan-focus-frame--locking .scan-focus-frame__corner--tl,
-.scan-focus-frame--locking .scan-focus-frame__corner--tr,
-.scan-focus-frame--locking .scan-focus-frame__corner--bl,
 .scan-focus-frame--locking .scan-focus-frame__corner--br {
-  border-top-color: #ffc233;
-  border-right-color: #ffc233;
-  border-bottom-color: #ffc233;
-  border-left-color: #ffc233;
+  border-top-color: #ff4fa3;
+  border-left-color: #ff4fa3;
+  border-bottom-color: #ff4fa3;
+  border-right-color: #ff4fa3;
+}
+
+.scan-focus-frame--locking .scan-focus-frame__corner--tr,
+.scan-focus-frame--locking .scan-focus-frame__corner--bl {
+  border-top-color: #6b2cdb;
+  border-left-color: #6b2cdb;
+  border-bottom-color: #6b2cdb;
+  border-right-color: #6b2cdb;
 }
 
 @keyframes scan-corner-breathe {
   0%,
   100% {
-    opacity: 0.88;
+    opacity: 0.85;
+    transform: scale(1);
   }
   50% {
     opacity: 1;
+    transform: scale(1.02);
   }
 }
 
 .scan-focus-frame__scanline {
   position: absolute;
-  left: 8%;
-  right: 8%;
-  top: 4%;
+  left: 7%;
+  right: 7%;
+  top: 6%;
   height: 3px;
   border-radius: 999px;
   background: linear-gradient(
     90deg,
     transparent 0%,
-    #2196f3 20%,
-    #ffffff 50%,
-    #8a2be2 80%,
+    #5b4cf0 12%,
+    #6b2cdb 32%,
+    #e93a8a 58%,
+    #ff4fa3 82%,
     transparent 100%
   );
   box-shadow:
-    0 0 14px rgba(33, 150, 243, 1),
-    0 0 28px rgba(138, 43, 226, 0.65);
-  animation: scan-line-sweep 2s linear infinite;
+    0 0 10px rgba(233, 58, 138, 1),
+    0 0 22px rgba(107, 44, 219, 0.85),
+    0 0 40px rgba(255, 79, 163, 0.45);
+  animation: scan-line-sweep 2.1s linear infinite;
 }
 
 .scan-focus-frame__scanline::after {
   content: '';
   position: absolute;
-  left: 4%;
-  right: 4%;
+  left: 2%;
+  right: 2%;
   top: 0;
-  height: 36px;
+  height: 48px;
   transform: translateY(-2px);
-  background: linear-gradient(180deg, rgba(33, 150, 243, 0.35), transparent);
+  background: linear-gradient(
+    180deg,
+    rgba(233, 58, 138, 0.38) 0%,
+    rgba(107, 44, 219, 0.12) 55%,
+    transparent 100%
+  );
   pointer-events: none;
 }
 
 .scan-focus-frame--locking .scan-focus-frame__scanline {
-  background: linear-gradient(90deg, transparent, #ffc233, #fff, #ff4fa3, transparent);
-  animation-duration: 1.35s;
+  animation-duration: 1.25s;
+  box-shadow:
+    0 0 14px rgba(255, 79, 163, 1),
+    0 0 28px rgba(107, 44, 219, 0.9);
 }
 
 @keyframes scan-line-sweep {
   0% {
-    top: 4%;
+    top: 6%;
     opacity: 0.55;
   }
   12% {
@@ -200,7 +218,7 @@
     opacity: 1;
   }
   100% {
-    top: 94%;
+    top: 92%;
     opacity: 0.5;
   }
 }
@@ -215,8 +233,8 @@
   }
 
   .scan-focus-frame__box {
-    width: min(64vw, 230px, 44dvh);
-    height: min(64vw, 230px, 44dvh);
+    width: min(66vw, 240px, 46dvh);
+    height: min(66vw, 240px, 46dvh);
   }
 
   .scan-focus-frame__badge {
@@ -227,8 +245,8 @@
 
 @media (max-height: 620px) {
   .scan-focus-frame__box {
-    width: min(54vw, 190px, 38dvh);
-    height: min(54vw, 190px, 38dvh);
+    width: min(56vw, 200px, 40dvh);
+    height: min(56vw, 200px, 40dvh);
   }
 }
 
