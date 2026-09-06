@@ -77,8 +77,8 @@ const TARGET_SWITCH_CONFIRM_MS = 0;
 const TARGET_LOST_GRACE_MS = 120;
 /** Keep tracking while the clip buffers onto the photo. */
 const TARGET_LOST_LOADING_GRACE_MS = 45_000;
-/** Short hold while a clip is playing; frame switches halt playback instantly. */
-const TARGET_LOST_PLAYING_GRACE_MS = 900;
+/** Hold while a clip is playing so brief tracking gaps don't remount UI / blink icons. */
+const TARGET_LOST_PLAYING_GRACE_MS = 2_200;
 
 const buildServerMindBundle = (albumSlug: string, manifest: ViewerManifest): MindBundle | null => {
   if (!manifest.mindFile) return null;
@@ -270,7 +270,7 @@ export const ARViewer = ({
     scanNoMatchTimeoutRef.current = window.setTimeout(() => {
       setStatus('no_match');
       setStatusDetail(
-        'No match after 25 seconds. Scan the exact printed photo (not your screen). Use bright, even light.',
+        'Still looking… Keep the printed photo filling the frame in bright light. Tap Try again if it stays stuck.',
       );
       void recordEventRef.current(ScanEventType.SCAN_FAILED);
     }, SCAN_NO_MATCH_DELAY_MS);
@@ -574,12 +574,22 @@ export const ARViewer = ({
               activeMindIndexRef.current = null;
               setActiveMindIndex(null);
               setTrackedEntity(null);
+              setActiveTarget(null);
               statusRef.current = 'scanning';
               setStatus('scanning');
-              setStatusDetail('Video is still loading. Hold the photo steady and try again.');
+              setStatusDetail(
+                'Video is still loading. Hold the photo steady — or move away and point again.',
+              );
               setProgress(0.92);
               videoRevealRef.current = false;
               setVideoReveal(false);
+              // MindAR won't re-fire targetFound while still locked on the print.
+              window.setTimeout(() => {
+                if (!mounted) return;
+                keepMindArCameraPlaying(host);
+                restartMindArTracking(host);
+              }, 120);
+              startScanTimers();
               return;
             }
 
@@ -618,6 +628,8 @@ export const ARViewer = ({
           const current = statusRef.current;
           const playing = current === 'match_found' || current === 'recognized';
           const activeIndex = activeMindIndexRef.current;
+          const canAcceptScan =
+            current === 'scanning' || current === 'move_closer' || current === 'no_match';
 
           if (playing && activeIndex === mindIndex) {
             return;
@@ -659,7 +671,7 @@ export const ARViewer = ({
             return;
           }
 
-          if (current !== 'scanning' && current !== 'move_closer') {
+          if (!canAcceptScan) {
             viewerLog('warn', 'confirmTargetMatch ignored — wrong status', {
               mindIndex,
               status: current,

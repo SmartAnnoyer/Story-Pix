@@ -29,20 +29,25 @@ export const ScanStatusOverlay = ({ status, detail }: ScanStatusOverlayProps) =>
       : status === 'no_targets'
         ? 'This album is not ready yet'
         : status === 'no_match'
-          ? 'Point at the printed photo'
+          ? 'Having trouble finding the photo'
           : status === 'video_unavailable'
             ? 'Video unavailable'
             : status === 'camera_required'
               ? 'Camera access needed'
               : 'Something went wrong';
 
+  const showDetail =
+    Boolean(detail) &&
+    (status === 'compile_failed' ||
+      status === 'camera_required' ||
+      status === 'no_match' ||
+      status === 'video_unavailable');
+
   return (
     <div className="scan-status-overlay">
       <div className="scan-status-card">
         <p className="scan-status-card__title">{message}</p>
-        {detail && (status === 'compile_failed' || status === 'camera_required') ? (
-          <p className="scan-status-card__sub">{detail}</p>
-        ) : null}
+        {showDetail ? <p className="scan-status-card__sub">{detail}</p> : null}
       </div>
     </div>
   );
