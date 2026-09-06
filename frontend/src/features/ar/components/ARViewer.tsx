@@ -37,6 +37,7 @@ import {
   takeHeldCameraStream,
   releaseHeldCameraStream,
   stopPlaybackVideoImmediately,
+  setPlaybackMuted,
 } from '../utils/camera-permission';
 import {
   prefetchVideo,
@@ -1287,7 +1288,11 @@ export const ARViewer = ({
       />
       <ViewerTopChrome
         soundOn={soundOn}
-        onToggleMute={() => setSoundOn((value) => !value)}
+        onToggleMute={() => {
+          const next = !soundOn;
+          setPlaybackMuted(!next);
+          setSoundOn(next);
+        }}
         onToggleExpand={
           Boolean(activeTarget?.videoAvailable) || videoMode === 'fullscreen'
             ? handleToggleExpand
@@ -1363,7 +1368,6 @@ export const ARViewer = ({
         }}
         onEnded={handleFullscreenEnded}
         onExitFullscreen={handleExitFullscreen}
-        onClose={resumeScanningAfterVideo}
         reveal={videoReveal}
       />
       <ScanStatusOverlay

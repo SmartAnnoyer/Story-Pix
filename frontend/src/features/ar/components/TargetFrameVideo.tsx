@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { clampOverlayFrame, type OverlayFrame } from '../utils/overlay-frame';
-import { getPlaybackVideoElement, stopPlaybackVideoImmediately } from '../utils/camera-permission';
+import {
+  getPlaybackVideoElement,
+  stopPlaybackVideoImmediately,
+  unlockPlaybackAudio,
+} from '../utils/camera-permission';
 import {
   ensureTransparentRenderer,
   hideIosTrackingCanvas,
@@ -166,9 +170,9 @@ export const TargetFrameVideo = ({
   onPlay,
   onError,
   onEnded,
-  onClose,
+  onClose: _onClose,
   reveal = false,
-  showInlineControls = true,
+  showInlineControls: _showInlineControls = true,
   soundOn: soundOnProp,
   onSoundOnChange,
   onDownloadReady,
@@ -184,11 +188,13 @@ export const TargetFrameVideo = ({
   const [needsTap, setNeedsTap] = useState(false);
   const [loading, setLoading] = useState(false);
   const [, setIsPlaying] = useState(false);
-  const [soundOn, setSoundOn] = useState(soundOnProp ?? true);
+  const [, setSoundOn] = useState(soundOnProp ?? true);
   const soundOnRef = useRef(soundOnProp ?? true);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const lastTapAtRef = useRef(0);
   const prevPrimaryUrlRef = useRef<string | null>(null);
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
 
   useEffect(() => {
     onPlayRef.current = onPlay;
@@ -242,8 +248,89 @@ export const TargetFrameVideo = ({
       video.setAttribute('crossorigin', 'anonymous');
     }
 
-    const iosFrame = isIOS() && mode === 'frame';
+    const onEnded = () => {
+      if (modeRef.current === 'fullscreen') onEndedRef.current?.();
+    };
+    video.addEventListener('ended', onEnded);
+
+    return () => {
+      video.removeEventListener('ended', onEnded);
+      // Soft teardown only — never wipe src here (mode switches reuse the same element).
+      video.pause();
+      if (host && video.parentElement === host) {
+        host.removeChild(video);
+      } else if (video.parentNode) {
+        video.parentNode.removeChild(video);
+      }
+      video.removeAttribute('id');
+      if (host) keepMindArCameraPlaying(host);
+    };
+  }, [active, host]);
+
+  useLayoutEffect(() => {
+    if (!active) return undefined;
+    const video = videoRef.current ?? getPlaybackVideoElement();
+    videoRef.current = video;
     const htmlCamera = Boolean(host?.classList.contains('ar-scene-host--html-camera'));
+    const keepPlaying = !video.paused;
+    const resume = () => {
+      if (keepPlaying) void video.play().catch(() => undefined);
+    };
+
+    const mountToMedia = (objectFit: 'contain' | 'fill') => {
+      const parent = mediaRef.current;
+      if (!parent) return false;
+      video.id = 'sp-mapped-video';
+      video.style.position = 'absolute';
+      video.style.inset = '0';
+      video.style.width = '100%';
+      video.style.height = '100%';
+      video.style.display = 'block';
+      video.style.objectFit = objectFit;
+      video.style.background = htmlCamera && mode === 'frame' ? 'transparent' : '#000';
+      video.style.opacity = '1';
+      video.style.visibility = 'visible';
+      video.style.zIndex = '2';
+      video.style.pointerEvents = 'none';
+      video.style.transform = 'none';
+      if (video.parentElement !== parent) {
+        parent.appendChild(video);
+      }
+      return true;
+    };
+
+    if (mode === 'fullscreen') {
+      const stage = stageRef.current;
+      if (stage) {
+        stage.style.position = 'relative';
+        stage.style.left = '0';
+        stage.style.top = '0';
+        stage.style.width = '100%';
+        stage.style.height = '100%';
+        stage.style.transform = 'none';
+        stage.style.opacity = '1';
+        stage.style.visibility = 'visible';
+        stage.style.pointerEvents = 'auto';
+        stage.style.background = '#000';
+      }
+      let cancelled = false;
+      let retryFrame = 0;
+      const ensureMounted = () => {
+        if (cancelled) return;
+        if (mountToMedia('contain')) {
+          if (keepPlaying) void video.play().catch(() => undefined);
+          return;
+        }
+        retryFrame = window.requestAnimationFrame(ensureMounted);
+      };
+      ensureMounted();
+      return () => {
+        cancelled = true;
+        if (retryFrame) window.cancelAnimationFrame(retryFrame);
+      };
+    }
+
+    const iosFrame = isIOS();
     const useIosDecoderPark = iosFrame && host && !htmlCamera;
 
     if (useIosDecoderPark) {
@@ -259,69 +346,28 @@ export const TargetFrameVideo = ({
       video.style.objectFit = 'fill';
       video.style.background = 'transparent';
       video.style.zIndex = '0';
-      if (video.parentElement !== host) {
+      if (host && video.parentElement !== host) {
         host.insertBefore(video, host.firstChild);
       }
-
-      return () => {
-        video.pause();
-        video.removeAttribute('src');
-        video.src = '';
-        video.srcObject = null;
-        video.removeAttribute('id');
-        if (video.parentElement === host) {
-          host.removeChild(video);
-        }
-        keepMindArCameraPlaying(host);
-      };
+      resume();
+      // Do not clear src on cleanup — fullscreen reuses this element.
+      return undefined;
     }
-
-    const mountToMedia = () => {
-      const parent = mediaRef.current;
-      if (!parent) return false;
-      video.style.position = 'absolute';
-      video.style.inset = '0';
-      video.style.width = '100%';
-      video.style.height = '100%';
-      video.style.display = 'block';
-      video.style.objectFit = mode === 'fullscreen' ? 'contain' : 'fill';
-      video.style.background = htmlCamera && mode === 'frame' ? 'transparent' : '#000';
-      video.style.opacity = '1';
-      video.style.visibility = 'visible';
-      video.style.zIndex = '2';
-      video.style.pointerEvents = 'none';
-      video.style.transform = 'none';
-      if (video.parentElement !== parent) {
-        parent.appendChild(video);
-      }
-      return true;
-    };
-
-    const onEndedEvt = () => {
-      if (mode === 'fullscreen') onEndedRef.current?.();
-    };
 
     let cancelled = false;
     let retryFrame = 0;
-
     const ensureMounted = () => {
       if (cancelled) return;
-      if (mountToMedia()) {
-        video.addEventListener('ended', onEndedEvt);
+      if (mountToMedia('fill')) {
+        resume();
         return;
       }
       retryFrame = window.requestAnimationFrame(ensureMounted);
     };
-
     ensureMounted();
-
     return () => {
       cancelled = true;
       if (retryFrame) window.cancelAnimationFrame(retryFrame);
-      video.removeEventListener('ended', onEndedEvt);
-      video.pause();
-      video.parentNode?.removeChild(video);
-      if (host) keepMindArCameraPlaying(host);
     };
   }, [active, mode, host]);
 
@@ -664,25 +710,19 @@ export const TargetFrameVideo = ({
 
   useEffect(() => {
     if (mode !== 'fullscreen' || !stageRef.current) return;
-    stageRef.current.style.left = '';
-    stageRef.current.style.top = '';
-    stageRef.current.style.width = '';
-    stageRef.current.style.height = '';
-    stageRef.current.style.transform = '';
-    stageRef.current.style.opacity = '1';
-    stageRef.current.style.visibility = '';
-  }, [mode]);
-
-  const enableSound = useCallback(() => {
+    const stage = stageRef.current;
+    stage.style.left = '0';
+    stage.style.top = '0';
+    stage.style.width = '100%';
+    stage.style.height = '100%';
+    stage.style.transform = 'none';
+    stage.style.opacity = '1';
+    stage.style.visibility = 'visible';
+    stage.style.pointerEvents = 'auto';
+    // Keep the already-decoded frame on screen while layout settles.
     const video = videoRef.current;
-    if (!video) return false;
-    video.muted = false;
-    video.volume = 1;
-    setSoundOn(true);
-    soundOnRef.current = true;
-    onSoundOnChange?.(true);
-    return true;
-  }, [onSoundOnChange]);
+    if (video && video.paused) void video.play().catch(() => undefined);
+  }, [mode]);
 
   const tryPlay = useCallback(
     async (withSound = true) => {
@@ -1057,26 +1097,6 @@ export const TargetFrameVideo = ({
     };
   }, [active]);
 
-  const handleToggleMute = useCallback(() => {
-    const video = videoRef.current;
-    if (!video) {
-      const next = !soundOnRef.current;
-      setSoundOn(next);
-      soundOnRef.current = next;
-      onSoundOnChange?.(next);
-      return;
-    }
-    if (soundOn) {
-      video.muted = true;
-      setSoundOn(false);
-      soundOnRef.current = false;
-      onSoundOnChange?.(false);
-      return;
-    }
-    enableSound();
-    if (video.paused) void video.play().catch(() => undefined);
-  }, [soundOn, enableSound, onSoundOnChange]);
-
   useEffect(() => {
     if (typeof soundOnProp !== 'boolean') return;
     if (soundOnProp === soundOnRef.current) return;
@@ -1085,6 +1105,7 @@ export const TargetFrameVideo = ({
     const video = videoRef.current;
     if (!video || !active) return;
     if (soundOnProp) {
+      unlockPlaybackAudio();
       video.muted = false;
       video.volume = 1;
       if (video.paused) void video.play().catch(() => undefined);
@@ -1140,105 +1161,8 @@ export const TargetFrameVideo = ({
   if (!active || typeof document === 'undefined') return null;
 
   const showFullscreen = mode === 'fullscreen';
-  // Show as soon as the overlay is up — don't wait for reveal fade.
-  const showControlsBar = active;
 
-  const muteIcon = soundOn ? (
-    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden>
-      <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1-3.29-2.5-4.03v8.05c1.5-.74 2.5-2.26 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
-    </svg>
-  ) : (
-    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden>
-      <path d="M16.5 12c0-1.77-1-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3 3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4 9.91 6.09 12 8.18V4z" />
-    </svg>
-  );
-
-  const expandIcon = showFullscreen ? (
-    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden>
-      <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" />
-    </svg>
-  ) : (
-    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden>
-      <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
-    </svg>
-  );
-
-  const controlButtons = (
-    <>
-      <button
-        type="button"
-        className="ar-video-ctrl"
-        aria-label={soundOn ? 'Mute' : 'Unmute'}
-        onClick={handleToggleMute}
-      >
-        <span className="ar-video-ctrl__icon" aria-hidden>
-          {muteIcon}
-        </span>
-      </button>
-      <button
-        type="button"
-        className="ar-video-ctrl"
-        aria-label={showFullscreen ? 'Exit fullscreen' : 'Expand fullscreen'}
-        onClick={handleToggleFullscreen}
-      >
-        <span className="ar-video-ctrl__icon" aria-hidden>
-          {expandIcon}
-        </span>
-      </button>
-      {showInlineControls ? (
-        <button
-          type="button"
-          className="ar-video-ctrl"
-          aria-label="Download video"
-          onClick={() => void handleDownload()}
-        >
-          <span className="ar-video-ctrl__icon" aria-hidden>
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-              <path d="M11 4h2v9.2l3.1-3.1 1.4 1.4L12 17.1 6.5 11.5l1.4-1.4L11 13.2V4zM5 19h14v2H5v-2z" />
-            </svg>
-          </span>
-        </button>
-      ) : null}
-      {onClose ? (
-        <button type="button" className="ar-video-ctrl" aria-label="Close" onClick={onClose}>
-          <span className="ar-video-ctrl__icon" aria-hidden>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-              <path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6 6.4 5z" />
-            </svg>
-          </span>
-        </button>
-      ) : null}
-    </>
-  );
-
-  const controls = showControlsBar ? (
-    <div
-      className="ar-video-controls ar-video-controls--dock"
-      style={{
-        position: 'fixed',
-        left: '50%',
-        bottom: 'max(20px, env(safe-area-inset-bottom, 0px))',
-        transform: 'translate3d(-50%, 0, 0)',
-        zIndex: 2147483646,
-        pointerEvents: 'auto',
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '0.35rem',
-        padding: '0.45rem 0.6rem',
-        borderRadius: 999,
-        background: 'rgba(12, 12, 18, 0.82)',
-        border: '1px solid rgba(255, 255, 255, 0.22)',
-        boxShadow: '0 12px 32px rgba(0, 0, 0, 0.5)',
-      }}
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={(event) => event.stopPropagation()}
-    >
-      {controlButtons}
-    </div>
-  ) : null;
-
-  // Full-screen double-tap catcher — independent of the AR stage (which often has
-  // pointer-events none / WebGL plane and cannot receive taps).
+  // Full-screen double-tap catcher — independent of the AR stage.
   const doubleTapCatcher =
     active && !needsTap ? (
       <div
@@ -1276,10 +1200,6 @@ export const TargetFrameVideo = ({
         role="dialog"
         aria-label={title ? `Playing ${title}` : 'Playing mapped video'}
       >
-        {showFullscreen ? (
-          <p className="ar-video-nowplaying">Double-tap · mute from the buttons below</p>
-        ) : null}
-
         <div
           ref={stageRef}
           className="ar-video-stage"
@@ -1314,7 +1234,7 @@ export const TargetFrameVideo = ({
                 className="ar-video-tap-play"
                 onClick={(event) => {
                   event.stopPropagation();
-                  void tryPlay(soundOnRef.current);
+                  void tryPlay(true);
                 }}
               >
                 Tap to play
@@ -1325,7 +1245,6 @@ export const TargetFrameVideo = ({
       </div>
 
       {doubleTapCatcher}
-      {controls}
     </>,
     document.body,
   );

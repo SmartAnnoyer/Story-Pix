@@ -74,6 +74,19 @@ export const unlockPlaybackAudio = (): void => {
   }
 };
 
+/** Toggle mute in the same user-gesture turn (required for iOS unmute). */
+export const setPlaybackMuted = (muted: boolean): void => {
+  const video = getPlaybackVideoElement();
+  if (!muted) {
+    unlockPlaybackAudio();
+  }
+  video.muted = muted;
+  video.volume = 1;
+  if (!muted) {
+    void video.play().catch(() => undefined);
+  }
+};
+
 export const takeHeldCameraStream = (): MediaStream | null => {
   const stream = heldStream;
   heldStream = null;
