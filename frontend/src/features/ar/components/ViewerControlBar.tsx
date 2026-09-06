@@ -2,46 +2,30 @@ import type { CameraFacing } from '../utils/mindar-scene';
 import './ViewerControlBar.css';
 
 interface ViewerControlBarProps {
-  showFlip: boolean;
   showRetry: boolean;
+  /** @deprecated Front-camera flip removed from guest UX. */
+  showFlip?: boolean;
   flipping?: boolean;
-  facingMode: CameraFacing;
-  onFlip: () => void;
+  facingMode?: CameraFacing;
+  onFlip?: () => void;
   onRetry: () => void;
 }
 
-export const ViewerControlBar = ({
-  showFlip,
-  showRetry,
-  flipping = false,
-  facingMode,
-  onFlip,
-  onRetry,
-}: ViewerControlBarProps) => {
-  if (!showFlip && !showRetry) return null;
+export const ViewerControlBar = ({ showRetry, onRetry }: ViewerControlBarProps) => {
+  if (!showRetry) return null;
 
   return (
     <div className="viewer-control-bar pointer-events-auto">
-      {showFlip ? (
-        <button type="button" onClick={onFlip} disabled={flipping} className="viewer-control-btn">
-          <span className={`viewer-control-icon ${flipping ? 'is-spinning' : ''}`} aria-hidden>
-            ↻
-          </span>
-          {facingMode === 'environment' ? 'Front camera' : 'Back camera'}
-        </button>
-      ) : null}
-      {showRetry ? (
-        <button
-          type="button"
-          onClick={onRetry}
-          className="viewer-control-btn viewer-control-btn-primary"
-        >
-          <span className="viewer-control-icon" aria-hidden>
-            ⟳
-          </span>
-          Try again
-        </button>
-      ) : null}
+      <button
+        type="button"
+        onClick={onRetry}
+        className="viewer-control-btn viewer-control-btn-primary"
+      >
+        <span className="viewer-control-icon" aria-hidden>
+          ⟳
+        </span>
+        Try again
+      </button>
     </div>
   );
 };

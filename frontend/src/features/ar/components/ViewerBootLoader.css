@@ -179,7 +179,7 @@
 }
 
 .viewer-boot-loader__message {
-  margin: 0.15rem 0 0;
+  margin: 0.35rem 0 0;
   max-width: 18rem;
   text-align: center;
   font-size: clamp(0.84rem, 3.4vw, 0.95rem);
@@ -188,6 +188,11 @@
   letter-spacing: -0.015em;
   color: rgba(255, 255, 255, 0.88);
   min-height: 1.35em;
+}
+
+.viewer-boot-loader__percent,
+.viewer-boot-loader__stages {
+  display: none;
 }
 
 .viewer-boot-loader__stages {

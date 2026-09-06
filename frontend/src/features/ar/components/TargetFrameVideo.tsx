@@ -184,8 +184,8 @@ export const TargetFrameVideo = ({
   const [needsTap, setNeedsTap] = useState(false);
   const [loading, setLoading] = useState(false);
   const [, setIsPlaying] = useState(false);
-  const [soundOn, setSoundOn] = useState(soundOnProp ?? false);
-  const soundOnRef = useRef(soundOnProp ?? false);
+  const [soundOn, setSoundOn] = useState(soundOnProp ?? true);
+  const soundOnRef = useRef(soundOnProp ?? true);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const lastTapAtRef = useRef(0);
   const prevPrimaryUrlRef = useRef<string | null>(null);
@@ -684,7 +684,7 @@ export const TargetFrameVideo = ({
   }, [onSoundOnChange]);
 
   const tryPlay = useCallback(
-    async (withSound = false) => {
+    async (withSound = true) => {
       const video = videoRef.current;
       if (!video) return false;
 
@@ -692,19 +692,33 @@ export const TargetFrameVideo = ({
       video.setAttribute('webkit-playsinline', '');
       video.playsInline = true;
       video.autoplay = true;
+      video.volume = 1;
 
-      // iOS blocks unmuted autoplay. Start muted so the picture runs, then unmute.
-      video.muted = true;
-      try {
+      // Prefer sound on by default. If the browser blocks unmuted autoplay, fall back muted.
+      const attempt = async (muted: boolean) => {
+        video.muted = muted;
         await video.play();
+      };
+
+      try {
+        await attempt(!withSound);
       } catch {
-        setNeedsTap(true);
-        return video.videoWidth > 0 && !video.paused;
+        if (withSound) {
+          try {
+            await attempt(true);
+          } catch {
+            setNeedsTap(true);
+            return video.videoWidth > 0 && !video.paused;
+          }
+        } else {
+          setNeedsTap(true);
+          return video.videoWidth > 0 && !video.paused;
+        }
       }
 
       if (host) keepMindArCameraPlaying(host);
 
-      if (withSound) {
+      if (withSound && video.muted) {
         video.muted = false;
         video.volume = 1;
         if (video.paused) {
@@ -725,16 +739,18 @@ export const TargetFrameVideo = ({
       if (video.muted) {
         setSoundOn(false);
         soundOnRef.current = false;
+        onSoundOnChange?.(false);
       } else {
         setSoundOn(true);
         soundOnRef.current = true;
+        onSoundOnChange?.(true);
       }
       setNeedsTap(false);
       setIsPlaying(true);
       tryNotifyPlaybackReady();
       return true;
     },
-    [tryNotifyPlaybackReady, host],
+    [tryNotifyPlaybackReady, host, onSoundOnChange],
   );
 
   const loadAndPlay = useCallback(
@@ -750,9 +766,10 @@ export const TargetFrameVideo = ({
       video.preload = 'auto';
       hideNativeVideoControls(video);
       video.volume = 1;
-      video.muted = true;
-      soundOnRef.current = false;
-      setSoundOn(false);
+      const preferSound = soundOnProp !== false;
+      video.muted = !preferSound;
+      soundOnRef.current = preferSound;
+      setSoundOn(preferSound);
       let lastError: unknown;
       const uniqueSources = [...new Set(sources)];
       const iosHtmlCamera =
@@ -928,7 +945,7 @@ export const TargetFrameVideo = ({
 
       throw lastError ?? new Error('Video did not start');
     },
-    [tryPlay, tryNotifyPlaybackReady, host],
+    [tryPlay, tryNotifyPlaybackReady, host, soundOnProp],
   );
 
   useEffect(() => {
@@ -941,8 +958,6 @@ export const TargetFrameVideo = ({
       setNeedsTap(false);
       setLoading(false);
       setIsPlaying(false);
-      setSoundOn(false);
-      soundOnRef.current = false;
       setPlaybackUrl(null);
       video.pause();
       video.removeAttribute('src');
@@ -1206,7 +1221,7 @@ export const TargetFrameVideo = ({
         aria-label={title ? `Playing ${title}` : 'Playing mapped video'}
       >
         {showFullscreen ? (
-          <p className="ar-video-nowplaying">Double tap to exit · tap speaker for sound</p>
+          <p className="ar-video-nowplaying">Tap expand to return to the photo · mute anytime</p>
         ) : null}
 
         <div

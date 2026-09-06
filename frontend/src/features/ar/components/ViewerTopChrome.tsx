@@ -4,16 +4,16 @@ import './ViewerTopChrome.css';
 interface ViewerTopChromeProps {
   soundOn: boolean;
   onToggleMute: () => void;
-  onDownload: () => void;
-  canDownload?: boolean;
+  onToggleExpand?: () => void;
+  expanded?: boolean;
   showActions?: boolean;
 }
 
 export const ViewerTopChrome = ({
   soundOn,
   onToggleMute,
-  onDownload,
-  canDownload = false,
+  onToggleExpand,
+  expanded = false,
   showActions = true,
 }: ViewerTopChromeProps) => {
   return (
@@ -42,17 +42,24 @@ export const ViewerTopChrome = ({
             )}
           </button>
 
-          <button
-            type="button"
-            className="viewer-top-chrome__btn"
-            aria-label="Download video"
-            disabled={!canDownload}
-            onClick={onDownload}
-          >
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden>
-              <path d="M11 4h2v9.2l3.1-3.1 1.4 1.4L12 17.1 6.5 11.5l1.4-1.4L11 13.2V4zM5 19h14v2H5v-2z" />
-            </svg>
-          </button>
+          {onToggleExpand ? (
+            <button
+              type="button"
+              className="viewer-top-chrome__btn"
+              aria-label={expanded ? 'Exit fullscreen' : 'Expand fullscreen'}
+              onClick={onToggleExpand}
+            >
+              {expanded ? (
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden>
+                  <path d="M8 16H5v3h3v2H3v-5h2v0zm13 0h-3v3h-3v2h5v-5h1zm-8-8V5h3V3H8v5h2zm8 0V3h-5v2h3v3h2z" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden>
+                  <path d="M3 3h7v2H5v5H3V3zm18 0v7h-2V5h-5V3h7zM3 21v-7h2v5h5v2H3zm18 0h-7v-2h5v-5h2v7z" />
+                </svg>
+              )}
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>

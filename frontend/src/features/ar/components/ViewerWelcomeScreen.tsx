@@ -58,13 +58,13 @@ export const ViewerWelcomeScreen = ({
   const statusLine = warmup.error
     ? null
     : starting
-      ? 'Allow camera access…'
+      ? 'Opening camera…'
       : needsTap && canStart
-        ? 'Tap anywhere to open the camera'
+        ? 'Tap anywhere to continue'
         : showProgress
           ? warmup.message
           : canStart
-            ? 'Opening camera…'
+            ? 'Almost ready…'
             : 'Getting your album ready…';
 
   const loaderStage = starting || canStart ? 'camera' : warmup.stage;
@@ -125,10 +125,10 @@ export const ViewerWelcomeScreen = ({
           ) : (
             <p className="text-center text-[11px] leading-relaxed text-white/45">
               {showProgress
-                ? 'Hold your printed photo ready — scanning starts next.'
+                ? 'Hold your printed photo ready.'
                 : needsTap
-                  ? 'Your browser needs one tap to open the camera.'
-                  : 'Point your phone at the printed photo when the camera opens.'}
+                  ? 'Tap once to open the camera.'
+                  : 'Point your phone at the printed photo.'}
             </p>
           )}
         </div>

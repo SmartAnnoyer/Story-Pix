@@ -134,12 +134,11 @@ export const ARViewer = ({
   const [matchPercent, setMatchPercent] = useState(0);
   const [videoReveal, setVideoReveal] = useState(false);
   const videoRevealRef = useRef(false);
-  const [soundOn, setSoundOn] = useState(false);
+  const [soundOn, setSoundOn] = useState(true);
   const downloadActionRef = useRef<(() => void) | null>(null);
   const matchPercentRef = useRef(0);
-  const [facingMode, setFacingMode] = useState<CameraFacing>(initialFacingMode);
-  const [flipping, setFlipping] = useState(false);
-  const [sceneGeneration, setSceneGeneration] = useState(0);
+  const facingMode = initialFacingMode;
+  const sceneGeneration = 0;
   const [prepareGeneration, setPrepareGeneration] = useState(0);
   const skipWarmupPrepareRef = useRef(hasPreparedMind);
   const scanHintTimeoutRef = useRef<number | null>(null);
@@ -1170,31 +1169,6 @@ export const ARViewer = ({
     return () => window.clearTimeout(timer);
   }, [mindBundle, status]);
 
-  const handleFlipCamera = async () => {
-    const host = containerRef.current;
-    if (!host || flipping) return;
-
-    const nextFacing: CameraFacing = facingMode === 'environment' ? 'user' : 'environment';
-    setFlipping(true);
-    setStatusDetail(null);
-
-    try {
-      if (isCameraPreviewLive(host)) {
-        await flipMindArCamera(host, nextFacing);
-        setFacingMode(nextFacing);
-      } else {
-        setFacingMode(nextFacing);
-        setSceneGeneration((value) => value + 1);
-      }
-    } catch (error) {
-      console.error('[Story-pix AR] flip failed:', error);
-      setFacingMode(nextFacing);
-      setSceneGeneration((value) => value + 1);
-    } finally {
-      setFlipping(false);
-    }
-  };
-
   const stopVideoPlayback = useCallback(() => {
     stopPlaybackVideoImmediately();
     setActiveTarget(null);
@@ -1243,11 +1217,23 @@ export const ARViewer = ({
 
   const handleExitFullscreen = useCallback(() => {
     setVideoMode('frame');
-  }, []);
+    // If the print is no longer tracked, drop back into scanning.
+    if (!targetTrackedRef.current || activeMindIndexRef.current == null) {
+      resumeScanningAfterVideo();
+    }
+  }, [resumeScanningAfterVideo]);
 
   const handleFullscreenEnded = useCallback(() => {
-    setVideoMode('frame');
-  }, []);
+    handleExitFullscreen();
+  }, [handleExitFullscreen]);
+
+  const handleToggleExpand = useCallback(() => {
+    if (videoMode === 'fullscreen') {
+      handleExitFullscreen();
+      return;
+    }
+    setVideoMode('fullscreen');
+  }, [videoMode, handleExitFullscreen]);
 
   const handleRetryScan = () => {
     clearScanTimers();
@@ -1288,11 +1274,7 @@ export const ARViewer = ({
     videoMode !== 'fullscreen' &&
     !activeTarget &&
     status !== 'recognized' &&
-    (status === 'scanning' ||
-      status === 'move_closer' ||
-      status === 'loading' ||
-      status === 'no_match' ||
-      status === 'camera_required');
+    (status === 'no_match' || status === 'camera_required' || status === 'video_unavailable');
 
   return (
     <div className="ar-viewer-root bg-black">
@@ -1303,17 +1285,13 @@ export const ARViewer = ({
         }}
         className="ar-scene-host"
       />
-      {videoMode !== 'fullscreen' ? (
-        <ViewerTopChrome
-          soundOn={soundOn}
-          onToggleMute={() => setSoundOn((value) => !value)}
-          onDownload={() => downloadActionRef.current?.()}
-          canDownload={Boolean(
-            activeTarget?.videoAvailable && (activeVideoUrl || activeVideoFallbackUrl),
-          )}
-          showActions={videoReveal}
-        />
-      ) : null}
+      <ViewerTopChrome
+        soundOn={soundOn}
+        onToggleMute={() => setSoundOn((value) => !value)}
+        onToggleExpand={videoReveal || videoMode === 'fullscreen' ? handleToggleExpand : undefined}
+        expanded={videoMode === 'fullscreen'}
+        showActions={videoReveal || videoMode === 'fullscreen'}
+      />
       <ScanFocusFrame
         visible={
           videoMode !== 'fullscreen' &&
@@ -1337,7 +1315,13 @@ export const ARViewer = ({
         videoCount={siblingVideos.length}
         videoIndex={Math.max(0, siblingIndex)}
         onCycleVideo={cycleSiblingVideo}
-        onModeChange={setVideoMode}
+        onModeChange={(nextMode) => {
+          if (nextMode === 'frame' && videoModeRef.current === 'fullscreen') {
+            handleExitFullscreen();
+            return;
+          }
+          setVideoMode(nextMode);
+        }}
         showInlineControls={false}
         soundOn={soundOn}
         onSoundOnChange={setSoundOn}
@@ -1380,19 +1364,7 @@ export const ARViewer = ({
         progress={progress}
         phase={viewerPhase}
       />
-      <ViewerControlBar
-        showFlip={showControls}
-        showRetry={
-          status === 'no_match' ||
-          status === 'move_closer' ||
-          status === 'camera_required' ||
-          status === 'video_unavailable'
-        }
-        flipping={flipping}
-        facingMode={facingMode}
-        onFlip={() => void handleFlipCamera()}
-        onRetry={handleRetryScan}
-      />
+      <ViewerControlBar showRetry={showControls} onRetry={handleRetryScan} />
     </div>
   );
 };
