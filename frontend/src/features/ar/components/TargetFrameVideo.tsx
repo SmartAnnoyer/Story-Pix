@@ -5,6 +5,7 @@ import {
   getPlaybackVideoElement,
   stopPlaybackVideoImmediately,
   unlockPlaybackAudio,
+  setPlaybackMuted,
 } from '../utils/camera-permission';
 import {
   ensureTransparentRenderer,
@@ -188,7 +189,7 @@ export const TargetFrameVideo = ({
   const [needsTap, setNeedsTap] = useState(false);
   const [loading, setLoading] = useState(false);
   const [, setIsPlaying] = useState(false);
-  const [, setSoundOn] = useState(soundOnProp ?? true);
+  const [soundOn, setSoundOn] = useState(soundOnProp ?? true);
   const soundOnRef = useRef(soundOnProp ?? true);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const lastTapAtRef = useRef(0);
@@ -1118,6 +1119,18 @@ export const TargetFrameVideo = ({
     onModeChange(mode === 'fullscreen' ? 'frame' : 'fullscreen');
   }, [mode, onModeChange]);
 
+  const handleMuteClick = useCallback(
+    (event: { stopPropagation: () => void }) => {
+      event.stopPropagation();
+      const next = !soundOnRef.current;
+      setPlaybackMuted(!next);
+      soundOnRef.current = next;
+      setSoundOn(next);
+      onSoundOnChange?.(next);
+    },
+    [onSoundOnChange],
+  );
+
   const handleStageDoubleTap = useCallback(
     (event: { stopPropagation: () => void }) => {
       event.stopPropagation();
@@ -1162,7 +1175,95 @@ export const TargetFrameVideo = ({
 
   const showFullscreen = mode === 'fullscreen';
 
-  // Full-screen double-tap catcher — independent of the AR stage.
+  const playbackChrome = (
+    <div
+      className="ar-video-playback-chrome"
+      style={{
+        position: 'fixed',
+        top: 'max(12px, calc(env(safe-area-inset-top, 0px) + 8px))',
+        right: 'max(12px, env(safe-area-inset-right, 0px))',
+        zIndex: 100150,
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '0.4rem',
+        padding: '0.3rem',
+        borderRadius: 999,
+        background: 'rgba(12, 12, 18, 0.82)',
+        border: '1.5px solid rgba(233, 58, 138, 0.55)',
+        boxShadow: '0 10px 28px rgba(0, 0, 0, 0.45)',
+        pointerEvents: 'auto',
+        touchAction: 'manipulation',
+      }}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <button
+        type="button"
+        className={`ar-video-playback-chrome__btn${soundOn ? '' : ' ar-video-playback-chrome__btn--muted'}`}
+        aria-label={soundOn ? 'Mute' : 'Unmute'}
+        onClick={handleMuteClick}
+        style={{
+          width: '2.7rem',
+          height: '2.7rem',
+          border: 'none',
+          borderRadius: 999,
+          background: soundOn ? 'rgba(255,255,255,0.1)' : 'rgba(233,58,138,0.28)',
+          color: '#fff',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+        }}
+      >
+        {soundOn ? (
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden>
+            <path d="M3 9v6h4l5 5V4L7 9H3z" />
+            <path d="M16.5 12a3.5 3.5 0 0 0-1.8-3.05v6.1A3.5 3.5 0 0 0 16.5 12zm2.5 0c0 2.5-1.4 4.67-3.5 5.74v2.06A7.5 7.5 0 0 0 21.5 12 7.5 7.5 0 0 0 15.5 4.2v2.06A5.5 5.5 0 0 1 19 12z" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden>
+            <path d="M3 9v6h4l5 5V4L7 9H3z" />
+            <path d="M16.2 12.7 19 15.5l1.4-1.4-2.8-2.8 2.8-2.8L19 7.1l-2.8 2.8-2.8-2.8-1.4 1.4 2.8 2.8-2.8 2.8 1.4 1.4 2.8-2.8z" />
+          </svg>
+        )}
+      </button>
+      <button
+        type="button"
+        className={`ar-video-playback-chrome__btn${showFullscreen ? ' ar-video-playback-chrome__btn--active' : ''}`}
+        aria-label={showFullscreen ? 'Exit fullscreen' : 'Expand fullscreen'}
+        onClick={(event) => {
+          event.stopPropagation();
+          handleToggleFullscreen();
+        }}
+        style={{
+          width: '2.7rem',
+          height: '2.7rem',
+          border: 'none',
+          borderRadius: 999,
+          background: showFullscreen
+            ? 'linear-gradient(135deg, rgba(59,79,232,0.55), rgba(233,58,138,0.45))'
+            : 'rgba(255,255,255,0.1)',
+          color: '#fff',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+        }}
+      >
+        {showFullscreen ? (
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden>
+            <path d="M9 3H3v6h2V5h4V3zm12 0h-6v2h4v4h2V3zM5 15H3v6h6v-2H5v-4zm16 0h-2v4h-4v2h6v-6z" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden>
+            <path d="M3 3h7v2H5v5H3V3zm18 0v7h-2V5h-5V3h7zM3 21v-7h2v5h5v2H3zm18 0h-7v-2h5v-5h2v7z" />
+          </svg>
+        )}
+      </button>
+    </div>
+  );
+
+  // Full-screen double-tap catcher — below chrome, above video.
   const doubleTapCatcher =
     active && !needsTap ? (
       <div
@@ -1245,6 +1346,7 @@ export const TargetFrameVideo = ({
       </div>
 
       {doubleTapCatcher}
+      {playbackChrome}
     </>,
     document.body,
   );

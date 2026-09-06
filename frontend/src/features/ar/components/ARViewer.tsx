@@ -826,9 +826,10 @@ export const ARViewer = ({
 
               if (!mounted) return;
 
-              // Fullscreen is user-controlled — don't tear down from tracking blips.
+              // Fullscreen keeps playing, but remember the print left the frame.
               if (videoModeRef.current === 'fullscreen') {
-                viewerLog('info', 'targetLost ignored — fullscreen latched', { mindIndex });
+                targetTrackedRef.current = false;
+                viewerLog('info', 'targetLost noted — fullscreen latched', { mindIndex });
                 return;
               }
 
@@ -849,6 +850,7 @@ export const ARViewer = ({
                 if (!mounted) return;
 
                 if (videoModeRef.current === 'fullscreen') {
+                  targetTrackedRef.current = false;
                   return;
                 }
 
@@ -1218,8 +1220,9 @@ export const ARViewer = ({
 
   const handleExitFullscreen = useCallback(() => {
     setVideoMode('frame');
-    // If the print is no longer tracked, drop back into scanning.
+    // Only return to in-frame playback if the print is still in view.
     if (!targetTrackedRef.current || activeMindIndexRef.current == null) {
+      viewerLog('info', 'exit fullscreen — print not tracked, resume scanning');
       resumeScanningAfterVideo();
     }
   }, [resumeScanningAfterVideo]);
@@ -1227,14 +1230,6 @@ export const ARViewer = ({
   const handleFullscreenEnded = useCallback(() => {
     handleExitFullscreen();
   }, [handleExitFullscreen]);
-
-  const handleToggleExpand = useCallback(() => {
-    if (videoMode === 'fullscreen') {
-      handleExitFullscreen();
-      return;
-    }
-    setVideoMode('fullscreen');
-  }, [videoMode, handleExitFullscreen]);
 
   const handleRetryScan = () => {
     clearScanTimers();
@@ -1293,17 +1288,7 @@ export const ARViewer = ({
           setPlaybackMuted(!next);
           setSoundOn(next);
         }}
-        onToggleExpand={
-          Boolean(activeTarget?.videoAvailable) || videoMode === 'fullscreen'
-            ? handleToggleExpand
-            : undefined
-        }
-        expanded={videoMode === 'fullscreen'}
-        showActions={
-          Boolean(activeTarget?.videoAvailable && (activeVideoUrl || activeVideoFallbackUrl)) ||
-          videoMode === 'fullscreen' ||
-          videoReveal
-        }
+        showActions={false}
       />
       <ScanFocusFrame
         visible={
