@@ -28,7 +28,7 @@
   aspect-ratio: auto;
   border-radius: 0;
   pointer-events: auto;
-  background: transparent;
+  background: transparent !important;
   touch-action: manipulation;
 }
 
@@ -49,41 +49,6 @@
   z-index: 3;
   pointer-events: none;
   box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.35);
-}
-
-.ar-video-shell--tracked .ar-video-controls {
-  pointer-events: auto;
-  position: fixed;
-  left: 50%;
-  bottom: max(14px, env(safe-area-inset-bottom));
-  z-index: 10060;
-  transform: translateX(-50%);
-}
-
-.ar-video-shell--tracked.ar-video-shell--revealed .ar-video-controls {
-  animation: ar-controls-enter 0.45s ease-out;
-}
-
-@keyframes ar-controls-enter {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-}
-
-.ar-video-shell--loading .ar-video-controls {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.ar-video-shell--tracked:not(.ar-video-shell--revealed) .ar-video-controls {
-  opacity: 0;
-  pointer-events: none;
-  visibility: hidden;
 }
 
 .ar-video-nowplaying {
@@ -233,10 +198,6 @@
   -webkit-appearance: none;
 }
 
-.ar-video-shell--tracked .ar-video-stage {
-  background: transparent !important;
-}
-
 .ar-video-tap-play {
   position: absolute;
   inset: 0;
@@ -252,43 +213,25 @@
   cursor: pointer;
 }
 
-/* Mute / expand stay above the clip (portal sibling of the shell). */
-.ar-video-playback-chrome {
-  position: fixed;
-  top: max(12px, calc(env(safe-area-inset-top) + 8px));
-  right: max(12px, env(safe-area-inset-right));
-  z-index: 2147483001;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
+/* Transparent hit target over the clip for double-tap fullscreen. */
+.ar-video-tap-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
   pointer-events: auto;
   touch-action: manipulation;
-}
-
-.ar-video-playback-chrome__btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.75rem;
-  height: 2.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 999px;
-  background: rgba(12, 12, 18, 0.72);
-  color: #fff;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  cursor: pointer;
-  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   appearance: none;
   -webkit-appearance: none;
 }
 
-.ar-video-playback-chrome__btn:active {
-  transform: scale(0.96);
-}
-
-/* Controls sit under the frame so they don’t cover the video */
+/* Bottom dock: mute / expand / close — above the AR shell. */
 .ar-video-controls {
   pointer-events: auto !important;
   display: inline-flex;
@@ -300,9 +243,9 @@
   max-width: calc(100vw - 20px);
   padding: 0.4rem 0.55rem;
   border-radius: 999px;
-  background: rgba(12, 12, 18, 0.58);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  background: rgba(12, 12, 18, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   touch-action: manipulation;
@@ -310,12 +253,25 @@
   -webkit-user-select: none;
 }
 
-.ar-video-shell--fullscreen .ar-video-controls {
-  position: absolute;
+.ar-video-controls--dock {
+  position: fixed;
   left: 50%;
-  bottom: max(1.1rem, env(safe-area-inset-bottom));
-  z-index: 10060;
+  bottom: max(18px, env(safe-area-inset-bottom, 0px));
+  z-index: 100090;
   transform: translateX(-50%);
+  pointer-events: auto;
+  animation: ar-controls-enter 0.35s ease-out;
+}
+
+@keyframes ar-controls-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
 }
 
 .ar-video-ctrl {

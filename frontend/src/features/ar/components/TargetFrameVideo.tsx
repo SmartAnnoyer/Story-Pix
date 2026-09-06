@@ -1096,11 +1096,12 @@ export const TargetFrameVideo = ({
     onModeChange(mode === 'fullscreen' ? 'frame' : 'fullscreen');
   }, [mode, onModeChange]);
 
-  const handleStageTap = useCallback(
-    (event?: { stopPropagation?: () => void }) => {
-      event?.stopPropagation?.();
+  const handleStageDoubleTap = useCallback(
+    (event: { stopPropagation: () => void; preventDefault: () => void }) => {
+      event.stopPropagation();
+      event.preventDefault();
       const now = Date.now();
-      if (now - lastTapAtRef.current < 420) {
+      if (now - lastTapAtRef.current < 450) {
         lastTapAtRef.current = 0;
         handleToggleFullscreen();
         return;
@@ -1139,64 +1140,51 @@ export const TargetFrameVideo = ({
   if (!active || typeof document === 'undefined') return null;
 
   const showFullscreen = mode === 'fullscreen';
-  const showPlaybackChrome = active;
-  const showControlsBar = reveal && (showInlineControls || Boolean(onClose));
+  // Show as soon as the overlay is up — don't wait for reveal fade.
+  const showControlsBar = active;
 
-  const playbackChrome = showPlaybackChrome ? (
-    <div
-      className="ar-video-playback-chrome"
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={(event) => event.stopPropagation()}
-    >
+  const muteIcon = soundOn ? (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden>
+      <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1-3.29-2.5-4.03v8.05c1.5-.74 2.5-2.26 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+    </svg>
+  ) : (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden>
+      <path d="M16.5 12c0-1.77-1-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3 3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4 9.91 6.09 12 8.18V4z" />
+    </svg>
+  );
+
+  const expandIcon = showFullscreen ? (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden>
+      <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" />
+    </svg>
+  ) : (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden>
+      <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
+    </svg>
+  );
+
+  const controlButtons = (
+    <>
       <button
         type="button"
-        className="ar-video-playback-chrome__btn"
+        className="ar-video-ctrl"
         aria-label={soundOn ? 'Mute' : 'Unmute'}
         onClick={handleToggleMute}
       >
-        {soundOn ? (
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden>
-            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1-3.29-2.5-4.03v8.05c1.5-.74 2.5-2.26 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
-          </svg>
-        ) : (
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden>
-            <path d="M16.5 12c0-1.77-1-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3 3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4 9.91 6.09 12 8.18V4z" />
-          </svg>
-        )}
+        <span className="ar-video-ctrl__icon" aria-hidden>
+          {muteIcon}
+        </span>
       </button>
       <button
         type="button"
-        className="ar-video-playback-chrome__btn"
+        className="ar-video-ctrl"
         aria-label={showFullscreen ? 'Exit fullscreen' : 'Expand fullscreen'}
         onClick={handleToggleFullscreen}
       >
-        {showFullscreen ? (
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden>
-            <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" />
-          </svg>
-        ) : (
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden>
-            <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
-          </svg>
-        )}
+        <span className="ar-video-ctrl__icon" aria-hidden>
+          {expandIcon}
+        </span>
       </button>
-    </div>
-  ) : null;
-
-  const controls = showControlsBar ? (
-    <div
-      className="ar-video-controls"
-      style={{
-        position: 'fixed',
-        left: '50%',
-        bottom: 'max(18px, env(safe-area-inset-bottom, 0px))',
-        transform: 'translateX(-50%)',
-        zIndex: 2147483000,
-        pointerEvents: 'auto',
-      }}
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={(event) => event.stopPropagation()}
-    >
       {showInlineControls ? (
         <button
           type="button"
@@ -1211,7 +1199,6 @@ export const TargetFrameVideo = ({
           </span>
         </button>
       ) : null}
-
       {onClose ? (
         <button type="button" className="ar-video-ctrl" aria-label="Close" onClick={onClose}>
           <span className="ar-video-ctrl__icon" aria-hidden>
@@ -1221,6 +1208,16 @@ export const TargetFrameVideo = ({
           </span>
         </button>
       ) : null}
+    </>
+  );
+
+  const controls = showControlsBar ? (
+    <div
+      className="ar-video-controls ar-video-controls--dock"
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+    >
+      {controlButtons}
     </div>
   ) : null;
 
@@ -1245,18 +1242,12 @@ export const TargetFrameVideo = ({
         aria-label={title ? `Playing ${title}` : 'Playing mapped video'}
       >
         {showFullscreen ? (
-          <p className="ar-video-nowplaying">Double-tap to return to photo · mute anytime</p>
+          <p className="ar-video-nowplaying">Double-tap video · use buttons to mute or exit</p>
         ) : null}
 
         <div
           ref={stageRef}
           className="ar-video-stage"
-          onClick={handleStageTap}
-          onDoubleClick={(event) => {
-            event.stopPropagation();
-            lastTapAtRef.current = 0;
-            handleToggleFullscreen();
-          }}
           style={
             showFullscreen
               ? {
@@ -1295,10 +1286,18 @@ export const TargetFrameVideo = ({
               </button>
             ) : null}
           </div>
+          {/* Hit target above the video for reliable double-tap (mobile click is flaky). */}
+          {!needsTap ? (
+            <button
+              type="button"
+              className="ar-video-tap-layer"
+              aria-label="Double-tap to toggle fullscreen"
+              onPointerUp={handleStageDoubleTap}
+            />
+          ) : null}
         </div>
       </div>
 
-      {playbackChrome}
       {controls}
     </>,
     document.body,
