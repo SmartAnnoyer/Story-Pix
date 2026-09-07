@@ -14,6 +14,7 @@ import { albumSharePath } from '@/features/albums/utils/album-delivery';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { ROUTES } from '@/routes/paths';
 import { getErrorMessage } from '@/api/client';
+import { MAX_AR_ITEMS_PER_ALBUM } from '@/features/media/utils/media-limits';
 
 const { Title, Paragraph } = Typography;
 
@@ -31,6 +32,9 @@ export const ArMappingsPage = () => {
   if (!isLoading && (data?.items.length ?? 0) === 0) {
     return <Navigate to={ROUTES.ALBUM_AR_MAPPING_CREATE.replace(':id', id)} replace />;
   }
+
+  const mappingCount = data?.items.length ?? 0;
+  const atMappingCap = mappingCount >= MAX_AR_ITEMS_PER_ALBUM;
 
   const handlePublish = async (mappingId: string) => {
     try {
@@ -76,7 +80,8 @@ export const ArMappingsPage = () => {
         {album.albumName}
       </Title>
       <Paragraph type="secondary" className="!mb-4">
-        Each row is one printed photo and the video that plays when a guest scans it.
+        Each row is one printed photo and the video that plays when a guest scans it. Up to{' '}
+        {MAX_AR_ITEMS_PER_ALBUM} mappings per album keeps scanning sharp.
       </Paragraph>
 
       <AlbumDeliveryGuide albumId={id} current="map" />
@@ -85,9 +90,10 @@ export const ArMappingsPage = () => {
         <Button
           type="primary"
           icon={<PlusOutlined />}
+          disabled={atMappingCap}
           onClick={() => navigate(ROUTES.ALBUM_AR_MAPPING_CREATE.replace(':id', id))}
         >
-          Map another photo
+          {atMappingCap ? `Limit reached (${MAX_AR_ITEMS_PER_ALBUM})` : 'Map another photo'}
         </Button>
       </div>
 
