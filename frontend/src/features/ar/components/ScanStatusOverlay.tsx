@@ -13,18 +13,15 @@ interface ScanStatusOverlayProps {
 
 type StatusTone = 'warn' | 'error' | 'info';
 
-const STATUS_COPY: Partial<
-  Record<
-    ScanOverlayMessage,
-    {
-      title: string;
-      body: string;
-      tone: StatusTone;
-      tips?: string[];
-      action?: string;
-    }
-  >
-> = {
+type StatusCopy = {
+  title: string;
+  body: string;
+  tone: StatusTone;
+  tips?: string[];
+  action?: string;
+};
+
+const STATUS_COPY: Partial<Record<ScanOverlayMessage, StatusCopy>> = {
   no_match: {
     title: 'Need a fresh scan',
     body: 'Detection paused so you are not left waiting. Tap Try again to refresh and start again.',
@@ -63,10 +60,10 @@ const STATUS_COPY: Partial<
   },
 };
 
-const FALLBACK_COPY = {
+const FALLBACK_COPY: StatusCopy = {
   title: 'Something went wrong',
   body: 'Please try again in a moment.',
-  tone: 'error' as StatusTone,
+  tone: 'error',
   action: 'Try again',
 };
 
