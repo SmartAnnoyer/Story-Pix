@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Alert, Input, Select, Tabs, message } from 'antd';
-import { SearchOutlined } from '@ant-design/icons';
-import { Link, useNavigate } from 'react-router-dom';
+import { Alert, message } from 'antd';
+import { useNavigate } from 'react-router-dom';
 import { AlbumTable } from '@/features/albums/components/AlbumTable';
 import { useAlbumActionMutation, useAlbumsQuery } from '@/hooks/useAlbumQueries';
 import { useStudioPackSummaryQuery } from '@/hooks/usePackQueries';
@@ -9,14 +8,24 @@ import { AlbumStatus } from '@/types/album.types';
 import { ROUTES } from '@/routes/paths';
 import { getErrorMessage } from '@/api/client';
 import '../DashboardPage.css';
+import './AlbumsListPage.css';
+
+type AlbumFilter = 'all' | AlbumStatus.DRAFT | AlbumStatus.PUBLISHED | AlbumStatus.ARCHIVED;
+
+const FILTERS: { label: string; value: AlbumFilter }[] = [
+  { label: 'All', value: 'all' },
+  { label: 'Draft', value: AlbumStatus.DRAFT },
+  { label: 'Published', value: AlbumStatus.PUBLISHED },
+  { label: 'Archived', value: AlbumStatus.ARCHIVED },
+];
 
 export const AlbumsListPage = () => {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
+  const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<AlbumStatus | undefined>();
-  const [activeTab, setActiveTab] = useState<'all' | 'archived'>('all');
+  const [filter, setFilter] = useState<AlbumFilter>('all');
   const { data: packs } = useStudioPackSummaryQuery();
 
   const queryParams = useMemo(
@@ -24,19 +33,25 @@ export const AlbumsListPage = () => {
       page,
       limit,
       search: search || undefined,
-      status: activeTab === 'archived' ? AlbumStatus.ARCHIVED : status,
+      status: filter === 'all' ? undefined : filter,
     }),
-    [page, limit, search, status, activeTab],
+    [page, limit, search, filter],
   );
 
   const { data, isLoading } = useAlbumsQuery(queryParams);
   const actionMutation = useAlbumActionMutation();
   const canCreateAlbum = (packs?.remainingAlbumCredits ?? 0) > 0;
+  const showArchive = filter !== AlbumStatus.ARCHIVED;
+
+  const applySearch = () => {
+    setSearch(searchInput.trim());
+    setPage(1);
+  };
 
   const handleArchive = async (id: string) => {
     try {
       await actionMutation.mutateAsync({ id, action: 'archive' });
-      message.success('Album archived');
+      message.success('Album archived — guests can no longer scan it');
     } catch (error) {
       message.error(getErrorMessage(error, 'Archive failed'));
     }
@@ -52,14 +67,10 @@ export const AlbumsListPage = () => {
   };
 
   return (
-    <div className="studio-home">
+    <div className="studio-home albums-page">
       <header className="studio-home__hero">
         <p className="studio-home__eyebrow">Studio</p>
         <h1>Albums</h1>
-        <p className="studio-home__lede">
-          Each album uses 1 pack credit. Credits left: {packs?.remainingAlbumCredits ?? '—'}. Guest
-          plays are counted per mapped photo (see album details), not as a studio monthly total.
-        </p>
         <div className="studio-home__actions">
           <button
             type="button"
@@ -69,15 +80,12 @@ export const AlbumsListPage = () => {
           >
             {canCreateAlbum ? 'New album' : 'No credits left'}
           </button>
-          <Link className="studio-home__btn studio-home__btn--ghost" to={ROUTES.DASHBOARD}>
-            Home
-          </Link>
         </div>
       </header>
 
       {!canCreateAlbum ? (
         <Alert
-          className="!mb-4"
+          className="!mb-4 albums-page__alert"
           type="warning"
           showIcon
           message="Album creation blocked"
@@ -85,45 +93,37 @@ export const AlbumsListPage = () => {
         />
       ) : null}
 
-      <Tabs
-        activeKey={activeTab}
-        onChange={(key) => {
-          setActiveTab(key as 'all' | 'archived');
-          setPage(1);
-        }}
-        items={[
-          { key: 'all', label: 'Albums' },
-          { key: 'archived', label: 'Archived' },
-        ]}
-        className="mb-4"
-      />
-
-      <div className="mb-4 grid gap-3 md:grid-cols-2">
-        <Input
-          prefix={<SearchOutlined />}
-          placeholder="Search by name"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1);
-          }}
-          allowClear
-        />
-        {activeTab === 'all' ? (
-          <Select
-            placeholder="Draft or published"
-            allowClear
-            value={status}
-            onChange={(value) => {
-              setStatus(value);
-              setPage(1);
+      <div className="albums-page__toolbar">
+        <div className="albums-page__search">
+          <input
+            type="search"
+            placeholder="Search by album or client"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') applySearch();
             }}
-            options={[
-              { label: 'Draft', value: AlbumStatus.DRAFT },
-              { label: 'Published', value: AlbumStatus.PUBLISHED },
-            ]}
+            aria-label="Search albums"
           />
-        ) : null}
+          <button type="button" onClick={applySearch}>
+            Search
+          </button>
+        </div>
+        <div className="albums-page__filters" role="group" aria-label="Album status">
+          {FILTERS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={`albums-page__chip${filter === option.value ? ' albums-page__chip--on' : ''}`}
+              onClick={() => {
+                setFilter(option.value);
+                setPage(1);
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <AlbumTable
@@ -138,7 +138,7 @@ export const AlbumsListPage = () => {
           setPage(p);
           setLimit(ps);
         }}
-        onArchive={activeTab === 'all' ? handleArchive : undefined}
+        onArchive={showArchive ? handleArchive : undefined}
         onDelete={handleDelete}
       />
     </div>

@@ -1,6 +1,5 @@
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import { Button, Card, Typography, message } from 'antd';
-import { ArrowLeftOutlined, PlusOutlined } from '@ant-design/icons';
+import { message } from 'antd';
 import {
   useAlbumArTargetsQuery,
   useArchiveArTargetMutation,
@@ -15,8 +14,9 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { ROUTES } from '@/routes/paths';
 import { getErrorMessage } from '@/api/client';
 import { MAX_AR_ITEMS_PER_ALBUM } from '@/features/media/utils/media-limits';
-
-const { Title, Paragraph } = Typography;
+import { ArTargetStatus } from '@/types/ar-target.types';
+import '@/pages/DashboardPage.css';
+import './AlbumStudioPages.css';
 
 export const ArMappingsPage = () => {
   const { id = '' } = useParams();
@@ -36,6 +36,9 @@ export const ArMappingsPage = () => {
   const mappingCount = data?.items.length ?? 0;
   const maxMappings = album.maxMappings ?? MAX_AR_ITEMS_PER_ALBUM;
   const atMappingCap = mappingCount >= maxMappings;
+  const liveCount = (data?.items ?? []).filter(
+    (item) => item.status === ArTargetStatus.ACTIVE,
+  ).length;
 
   const handlePublish = async (mappingId: string) => {
     try {
@@ -68,50 +71,59 @@ export const ArMappingsPage = () => {
   };
 
   return (
-    <div>
-      <Button
-        type="link"
-        icon={<ArrowLeftOutlined />}
-        className="!px-0"
-        onClick={() => navigate(albumSharePath(id))}
-      >
-        Back to album
-      </Button>
-      <Title level={3} className="!mb-1">
-        {album.albumName}
-      </Title>
-      <Paragraph type="secondary" className="!mb-4">
-        Each row is one printed photo and the video that plays when a guest scans it. Up to{' '}
-        {maxMappings} mappings on this pack.
-      </Paragraph>
+    <div className="studio-home album-studio">
+      <header className="studio-home__hero">
+        <p className="studio-home__eyebrow">Map to video</p>
+        <h1>{album.albumName}</h1>
+        <div className="studio-home__actions">
+          <button
+            type="button"
+            className="studio-home__btn studio-home__btn--primary"
+            disabled={atMappingCap}
+            onClick={() => navigate(ROUTES.ALBUM_AR_MAPPING_CREATE.replace(':id', id))}
+          >
+            {atMappingCap ? `Limit reached (${maxMappings})` : 'Map another photo'}
+          </button>
+          <button
+            type="button"
+            className="studio-home__btn studio-home__btn--ghost"
+            onClick={() => navigate(albumSharePath(id))}
+          >
+            Album
+          </button>
+        </div>
+      </header>
+
+      <section className="album-studio__strip" aria-label="Mapping status">
+        <article className="album-studio__stat">
+          <span>Mapped</span>
+          <strong>
+            {mappingCount}
+            <small> / {maxMappings}</small>
+          </strong>
+        </article>
+        <article className="album-studio__stat album-studio__stat--live">
+          <span>Live</span>
+          <strong>{liveCount}</strong>
+        </article>
+        <article className="album-studio__stat">
+          <span>Plays / photo</span>
+          <strong>{(album.scansPerMapping ?? 1000).toLocaleString('en-IN')}</strong>
+        </article>
+      </section>
 
       <AlbumDeliveryGuide albumId={id} current="map" />
 
-      <div className="mb-4">
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          disabled={atMappingCap}
-          onClick={() => navigate(ROUTES.ALBUM_AR_MAPPING_CREATE.replace(':id', id))}
-        >
-          {atMappingCap ? `Limit reached (${maxMappings})` : 'Map another photo'}
-        </Button>
-      </div>
-
-      <Card>
-        <MappingTable
-          items={data?.items ?? []}
-          loading={isLoading}
-          onEdit={(mappingId) =>
-            navigate(
-              ROUTES.ALBUM_AR_MAPPING_EDIT.replace(':id', id).replace(':mappingId', mappingId),
-            )
-          }
-          onDelete={handleDelete}
-          onPublish={handlePublish}
-          onArchive={handleArchive}
-        />
-      </Card>
+      <MappingTable
+        items={data?.items ?? []}
+        loading={isLoading}
+        onEdit={(mappingId) =>
+          navigate(ROUTES.ALBUM_AR_MAPPING_EDIT.replace(':id', id).replace(':mappingId', mappingId))
+        }
+        onDelete={handleDelete}
+        onPublish={handlePublish}
+        onArchive={handleArchive}
+      />
     </div>
   );
 };

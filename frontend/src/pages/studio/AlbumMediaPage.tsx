@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Alert, Button, Card, Col, Row, Typography, message } from 'antd';
-import { ArrowLeftOutlined } from '@ant-design/icons';
 import { useAlbumQuery } from '@/hooks/useAlbumQueries';
 import { useAlbumMediaQuery, useDeleteMediaMutation } from '@/hooks/useMediaQueries';
 import { UploadArea } from '@/features/media/components/UploadArea';
@@ -19,8 +18,10 @@ import { AlbumStatus } from '@/types/album.types';
 import { MediaStatus, MediaType } from '@/types/media.types';
 import { getErrorMessage } from '@/api/client';
 import { useAlbumArTargetsQuery } from '@/hooks/useArTargetQueries';
+import '@/pages/DashboardPage.css';
+import './AlbumStudioPages.css';
 
-const { Title, Paragraph, Text } = Typography;
+const { Paragraph, Text } = Typography;
 
 export const AlbumMediaPage = () => {
   const { id = '' } = useParams();
@@ -58,22 +59,20 @@ export const AlbumMediaPage = () => {
   };
 
   return (
-    <div>
-      <Button
-        type="link"
-        icon={<ArrowLeftOutlined />}
-        className="!px-0"
-        onClick={() => navigate(albumSharePath(id))}
-      >
-        Back to album
-      </Button>
-      <Title level={3} className="!mb-1">
-        {album.albumName}
-      </Title>
-      <Paragraph type="secondary" className="!mb-4">
-        Guests will point their phone at the printed photo. Upload that print, then the video that
-        should play on it.
-      </Paragraph>
+    <div className="studio-home album-studio">
+      <header className="studio-home__hero">
+        <p className="studio-home__eyebrow">Photos & videos</p>
+        <h1>{album.albumName}</h1>
+        <div className="studio-home__actions">
+          <button
+            type="button"
+            className="studio-home__btn studio-home__btn--ghost"
+            onClick={() => navigate(albumSharePath(id))}
+          >
+            Album
+          </button>
+        </div>
+      </header>
 
       <AlbumDeliveryGuide albumId={id} current="media" />
 

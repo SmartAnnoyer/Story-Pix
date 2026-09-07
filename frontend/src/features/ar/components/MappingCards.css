@@ -1,0 +1,223 @@
+@import url('https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap');
+
+.mapping-cards {
+  --mc-ink: #1c1b22;
+  --mc-muted: #6a6772;
+  --mc-line: #e6e4ea;
+  --mc-paper: #f7f6f9;
+  --mc-accent: #5b2cdb;
+  --mc-live: #0f7a4f;
+  --mc-warn: #b42318;
+  display: grid;
+  gap: 0.75rem;
+  width: 100%;
+  min-width: 0;
+  font-family: Figtree, system-ui, sans-serif;
+  color: var(--mc-ink);
+}
+
+@media (min-width: 720px) {
+  .mapping-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1100px) {
+  .mapping-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.mapping-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  min-width: 0;
+  padding: 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--mc-line);
+  background: #fff;
+  transition:
+    border-color 0.18s ease,
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.mapping-card:hover {
+  border-color: #d4cfe0;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(28, 27, 34, 0.06);
+}
+
+.mapping-card__pair {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.mapping-card__media {
+  min-width: 0;
+}
+
+.mapping-card__media .mapping-media-thumb,
+.mapping-card__media .studio-media-thumb__placeholder {
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  overflow: hidden;
+  display: block;
+  background: var(--mc-paper);
+}
+
+.mapping-card__media span {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.68rem;
+  font-weight: 650;
+  color: var(--mc-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.mapping-card__arrow {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--mc-accent);
+  line-height: 1;
+}
+
+.mapping-card__status {
+  align-self: start;
+  display: inline-flex;
+  min-height: 1.45rem;
+  padding: 0.12rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.mapping-card__status--active {
+  color: var(--mc-live);
+  background: #ecfdf3;
+}
+
+.mapping-card__status--draft {
+  color: #175cd3;
+  background: #eff8ff;
+}
+
+.mapping-card__status--archived {
+  color: #b54708;
+  background: #fffaeb;
+}
+
+.mapping-card__name {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.mapping-card__files {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--mc-muted);
+  overflow-wrap: anywhere;
+}
+
+.mapping-card__plays {
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  background: var(--mc-paper);
+}
+
+.mapping-card__plays-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+}
+
+.mapping-card__plays-row span {
+  color: var(--mc-muted);
+}
+
+.mapping-card__plays--over {
+  color: var(--mc-warn);
+}
+
+.mapping-card__meter {
+  margin-top: 0.45rem;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: #ece8f8;
+}
+
+.mapping-card__meter i {
+  display: block;
+  height: 100%;
+  background: var(--mc-accent);
+}
+
+.mapping-card__meter--over {
+  background: #fdeceb;
+}
+
+.mapping-card__meter--over i {
+  background: var(--mc-warn);
+}
+
+.mapping-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: auto;
+}
+
+.mapping-card__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: #fff;
+}
+
+.mapping-card__btn--ghost {
+  color: var(--mc-ink);
+  border-color: var(--mc-line);
+}
+
+.mapping-card__btn--primary {
+  color: #fff;
+  background: var(--mc-accent);
+  border-color: var(--mc-accent);
+}
+
+.mapping-card__btn--danger {
+  color: var(--mc-warn);
+  background: #fff5f5;
+  border-color: #f5c6c2;
+}
+
+.mapping-cards__empty,
+.mapping-cards__loading {
+  padding: 2rem 1rem;
+  border-radius: 10px;
+  border: 1px dashed var(--mc-line);
+  background: #fff;
+  text-align: center;
+  color: var(--mc-muted);
+  font-size: 0.92rem;
+  font-family: Figtree, system-ui, sans-serif;
+}

@@ -29,18 +29,11 @@ export const DashboardPage = () => {
       ? Math.round((packs.usedCredits / packs.totalAssignedCredits) * 100)
       : 0;
 
-  const activePacks = packs.credits.filter((credit) => credit.remainingCredits > 0);
-  const usedUpPacks = packs.credits.filter((credit) => credit.remainingCredits <= 0);
-
   return (
     <div className="studio-home">
       <header className="studio-home__hero">
         <p className="studio-home__eyebrow">Studio</p>
-        <h1>Home{user ? `, ${user.firstName}` : ''}</h1>
-        <p className="studio-home__lede">
-          Make a printed photo play a video. Credits come from packs Story-PIX enables for your
-          studio.
-        </p>
+        <h1>Hello{user ? `, ${user.firstName}` : ''}</h1>
         <div className="studio-home__actions">
           <button
             type="button"
@@ -50,9 +43,6 @@ export const DashboardPage = () => {
           >
             {canCreateAlbum ? 'New album' : 'No credits left'}
           </button>
-          <Link className="studio-home__btn studio-home__btn--ghost" to={ROUTES.ALBUMS}>
-            Open albums
-          </Link>
         </div>
       </header>
 
@@ -60,10 +50,10 @@ export const DashboardPage = () => {
         <article
           className={`studio-home__stat${canCreateAlbum ? ' studio-home__stat--live' : ' studio-home__stat--warn'}`}
         >
-          <span className="studio-home__stat-label">Album credits left</span>
+          <span className="studio-home__stat-label">Albums you can create</span>
           <strong className="studio-home__stat-value">{creditsLeft}</strong>
           <span className="studio-home__stat-meta">
-            {canCreateAlbum ? 'Ready to create albums' : 'Ask admin for another pack'}
+            {canCreateAlbum ? 'From your active packs' : 'No credits left — ask admin'}
           </span>
         </article>
         <article className="studio-home__stat">
@@ -81,7 +71,7 @@ export const DashboardPage = () => {
           >
             <i style={{ width: `${Math.min(usedPct, 100)}%` }} />
           </div>
-          <span className="studio-home__stat-meta">{usedPct}% of assigned credits</span>
+          <span className="studio-home__stat-meta">{usedPct}% of pack credits used</span>
         </article>
         <article className="studio-home__stat">
           <span className="studio-home__stat-label">Albums in studio</span>
@@ -90,44 +80,69 @@ export const DashboardPage = () => {
         </article>
       </section>
 
-      <section className="studio-home__panel" aria-label="Activated packs">
-        <h2>Your activated pack</h2>
-        <p className="studio-home__panel-lede">
-          Each credit creates one album. Every mapped photo includes 1,000 guest plays — tracked on
-          that photo, not as a studio monthly total.
-        </p>
-        {activePacks.length ? (
-          <ul className="studio-home__pack-list">
-            {activePacks.map((pack) => (
-              <li key={pack.id}>
-                <div>
-                  <div className="studio-home__pack-name">{pack.packName}</div>
-                  <div className="studio-home__pack-meta">
-                    Up to {pack.maxMappings} photos ·{' '}
-                    {(pack.scansPerMapping ?? 1000).toLocaleString('en-IN')} plays / photo
+      <section className="studio-home__panel" aria-label="Pack status">
+        <h2>Your packs</h2>
+        {packs.credits.length ? (
+          <ul className="studio-home__pack-cards">
+            {packs.credits.map((pack) => {
+              const used = Math.max(0, pack.totalCredits - pack.remainingCredits);
+              const pct = pack.totalCredits > 0 ? Math.round((used / pack.totalCredits) * 100) : 0;
+              const active = pack.remainingCredits > 0;
+              const plays = (pack.scansPerMapping ?? 1000).toLocaleString('en-IN');
+
+              return (
+                <li key={pack.id} className="studio-home__pack-card">
+                  <div className="studio-home__pack-card-top">
+                    <div>
+                      <div className="studio-home__pack-name">{pack.packName}</div>
+                      <span
+                        className={`studio-home__badge${active ? '' : ' studio-home__badge--warn'}`}
+                      >
+                        {active ? 'Active' : 'Used up'}
+                      </span>
+                    </div>
+                    <div className="studio-home__pack-credits">
+                      {pack.remainingCredits} left
+                      <span> / {pack.totalCredits}</span>
+                    </div>
                   </div>
-                  <span className="studio-home__badge">Active</span>
-                </div>
-                <div className="studio-home__pack-credits">
-                  {pack.remainingCredits} left / {pack.totalCredits} credits
-                </div>
-              </li>
-            ))}
+
+                  <div
+                    className={`studio-home__meter${pct >= 100 ? ' studio-home__meter--warn' : ''}`}
+                    aria-hidden
+                  >
+                    <i style={{ width: `${Math.min(pct, 100)}%` }} />
+                  </div>
+                  <p className="studio-home__pack-progress">
+                    {used} album{used === 1 ? '' : 's'} used · {pack.remainingCredits} still
+                    creatable
+                  </p>
+
+                  <div className="studio-home__pack-facts">
+                    <div>
+                      <span>Albums in this pack</span>
+                      <strong>
+                        {used} used / {pack.totalCredits} total
+                      </strong>
+                    </div>
+                    <div>
+                      <span>Mappings per album</span>
+                      <strong>Up to {pack.maxMappings} photos</strong>
+                    </div>
+                    <div>
+                      <span>Guest plays per photo</span>
+                      <strong>{plays}</strong>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
-        ) : packs.credits.length ? (
-          <p className="studio-home__empty">
-            All pack credits are used up. Contact Story-PIX to enable Mini, Standard, or a Bundle.
-          </p>
         ) : (
           <p className="studio-home__empty">
             No pack enabled yet. Contact Story-PIX admin after offline payment.
           </p>
         )}
-        {usedUpPacks.length && activePacks.length ? (
-          <p className="studio-home__panel-lede" style={{ marginTop: '0.85rem', marginBottom: 0 }}>
-            {usedUpPacks.length} earlier pack{usedUpPacks.length === 1 ? '' : 's'} fully used.
-          </p>
-        ) : null}
       </section>
 
       <ol className="studio-home__steps">

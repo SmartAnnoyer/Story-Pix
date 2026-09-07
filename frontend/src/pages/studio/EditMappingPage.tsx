@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Button, Card, Typography, message } from 'antd';
-import { ArrowLeftOutlined } from '@ant-design/icons';
+import { message } from 'antd';
 import { MappingForm } from '@/features/ar/components/MappingForm';
 import { useAlbumQuery } from '@/hooks/useAlbumQueries';
 import { useAlbumMediaQuery } from '@/hooks/useMediaQueries';
@@ -12,8 +11,8 @@ import { MediaStatus } from '@/types/media.types';
 import { ROUTES } from '@/routes/paths';
 import { getErrorMessage } from '@/api/client';
 import { AlbumDeliveryGuide } from '@/features/albums/components/AlbumDeliveryGuide';
-
-const { Title, Paragraph } = Typography;
+import '@/pages/DashboardPage.css';
+import './AlbumStudioPages.css';
 
 export const EditMappingPage = () => {
   const { id = '', mappingId = '' } = useParams();
@@ -34,12 +33,23 @@ export const EditMappingPage = () => {
 
   if (mapping.status !== ArTargetStatus.DRAFT) {
     return (
-      <Card>
-        <Title level={4}>This mapping cannot be edited</Title>
-        <Button onClick={() => navigate(ROUTES.ALBUM_AR_MAPPINGS.replace(':id', id))}>
-          Back to map to video
-        </Button>
-      </Card>
+      <div className="studio-home album-studio">
+        <header className="studio-home__hero">
+          <p className="studio-home__eyebrow">Map to video</p>
+          <h1>Cannot edit</h1>
+        </header>
+        <div className="album-studio__notice">
+          <strong>Only saved (draft) mappings can be edited</strong>
+          <p>Turn this mapping off first, or create a new photo → video pair.</p>
+          <button
+            type="button"
+            className="studio-home__btn studio-home__btn--primary"
+            onClick={() => navigate(ROUTES.ALBUM_AR_MAPPINGS.replace(':id', id))}
+          >
+            Back to mappings
+          </button>
+        </div>
+      </div>
     );
   }
 
@@ -59,39 +69,38 @@ export const EditMappingPage = () => {
   };
 
   return (
-    <div>
-      <Button
-        type="link"
-        icon={<ArrowLeftOutlined />}
-        className="!mb-4 !px-0"
-        onClick={() => navigate(ROUTES.ALBUM_AR_MAPPINGS.replace(':id', id))}
-      >
-        Back to map to video
-      </Button>
-      <Title level={3} className="!mb-1">
-        Edit mapping
-      </Title>
-      <Paragraph type="secondary" className="!mb-4 max-w-2xl">
-        Tap a photo and a video to update this mapping, or drag a photo onto a video.
-      </Paragraph>
+    <div className="studio-home album-studio">
+      <header className="studio-home__hero">
+        <p className="studio-home__eyebrow">Edit mapping</p>
+        <h1>{mapping.targetName || album.albumName}</h1>
+        <div className="studio-home__actions">
+          <button
+            type="button"
+            className="studio-home__btn studio-home__btn--ghost"
+            onClick={() => navigate(ROUTES.ALBUM_AR_MAPPINGS.replace(':id', id))}
+          >
+            Mappings
+          </button>
+        </div>
+      </header>
+
       <AlbumDeliveryGuide albumId={id} current="map" />
-      <Card className="!border-0 !bg-transparent !shadow-none">
-        <MappingForm
-          photos={readyMedia}
-          videos={readyMedia}
-          singleMapping
-          initialValues={{
-            targetName: mapping.targetName,
-            photoMediaId: mapping.photoMediaId,
-            videoMediaId: mapping.videoMediaId,
-            overlayFrame: mapping.overlayFrame ?? undefined,
-          }}
-          loading={updateMutation.isPending}
-          submitLabel="Save"
-          onSubmit={handleSubmit}
-          onCancel={() => navigate(ROUTES.ALBUM_AR_MAPPINGS.replace(':id', id))}
-        />
-      </Card>
+
+      <MappingForm
+        photos={readyMedia}
+        videos={readyMedia}
+        singleMapping
+        initialValues={{
+          targetName: mapping.targetName,
+          photoMediaId: mapping.photoMediaId,
+          videoMediaId: mapping.videoMediaId,
+          overlayFrame: mapping.overlayFrame ?? undefined,
+        }}
+        loading={updateMutation.isPending}
+        submitLabel="Save"
+        onSubmit={handleSubmit}
+        onCancel={() => navigate(ROUTES.ALBUM_AR_MAPPINGS.replace(':id', id))}
+      />
     </div>
   );
 };

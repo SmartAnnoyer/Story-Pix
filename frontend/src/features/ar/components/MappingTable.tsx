@@ -1,24 +1,14 @@
-import { Tag, Grid } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
-import { Table, Space, Button, Popconfirm } from 'antd';
-import { EditOutlined, DeleteOutlined, CheckCircleOutlined, StopOutlined } from '@ant-design/icons';
+import { Popconfirm } from 'antd';
 import type { ArTarget } from '@/types/ar-target.types';
 import { ArTargetStatus } from '@/types/ar-target.types';
 import { MediaType } from '@/types/media.types';
 import { MappingMediaThumb } from '@/features/media/components/MappingMediaThumb';
-
-const { useBreakpoint } = Grid;
+import './MappingCards.css';
 
 const statusLabels: Record<ArTargetStatus, string> = {
   [ArTargetStatus.DRAFT]: 'Saved',
   [ArTargetStatus.ACTIVE]: 'Live',
   [ArTargetStatus.ARCHIVED]: 'Off',
-};
-
-const statusColors: Record<ArTargetStatus, string> = {
-  [ArTargetStatus.DRAFT]: 'default',
-  [ArTargetStatus.ACTIVE]: 'success',
-  [ArTargetStatus.ARCHIVED]: 'warning',
 };
 
 interface MappingTableProps {
@@ -30,58 +20,6 @@ interface MappingTableProps {
   onArchive: (id: string) => void;
 }
 
-const MappingActions = ({
-  record,
-  onEdit,
-  onDelete,
-  onPublish,
-  onArchive,
-}: {
-  record: ArTarget;
-  onEdit: (id: string) => void;
-  onDelete: (id: string) => void;
-  onPublish: (id: string) => void;
-  onArchive: (id: string) => void;
-}) => (
-  <Space wrap>
-    {record.status === ArTargetStatus.DRAFT ? (
-      <>
-        <Button size="small" icon={<EditOutlined />} onClick={() => onEdit(record.id)}>
-          Edit
-        </Button>
-        <Button
-          size="small"
-          type="primary"
-          icon={<CheckCircleOutlined />}
-          onClick={() => onPublish(record.id)}
-        >
-          Turn on
-        </Button>
-      </>
-    ) : null}
-    {record.status === ArTargetStatus.ACTIVE ? (
-      <Button size="small" icon={<StopOutlined />} onClick={() => onArchive(record.id)}>
-        Turn off
-      </Button>
-    ) : null}
-    <Popconfirm
-      title="Remove this photo → video?"
-      description={
-        record.status === ArTargetStatus.ACTIVE
-          ? 'Guests will no longer unlock this video from that print.'
-          : 'This cannot be undone.'
-      }
-      okText="Delete"
-      okButtonProps={{ danger: true }}
-      onConfirm={() => onDelete(record.id)}
-    >
-      <Button size="small" danger icon={<DeleteOutlined />}>
-        Delete
-      </Button>
-    </Popconfirm>
-  </Space>
-);
-
 export const MappingTable = ({
   items,
   loading,
@@ -90,99 +28,114 @@ export const MappingTable = ({
   onPublish,
   onArchive,
 }: MappingTableProps) => {
-  const screens = useBreakpoint();
-  const isMobile = !screens.md;
+  if (loading && items.length === 0) {
+    return <p className="mapping-cards__loading">Loading mappings…</p>;
+  }
 
-  if (isMobile) {
+  if (!loading && items.length === 0) {
     return (
-      <div>
-        {loading && items.length === 0 ? (
-          <p className="text-sm text-gray-500">Loading mappings…</p>
-        ) : null}
-        {!loading && items.length === 0 ? (
-          <p className="rounded-2xl bg-white p-6 text-center text-sm text-gray-500">
-            No mappings yet. Create one to link a photo to a video. You can reuse photos and videos.
-          </p>
-        ) : null}
-        {items.map((record) => (
-          <div key={record.id} className="app-list-card" style={{ display: 'block' }}>
-            <div className="font-semibold text-gray-900">{record.targetName}</div>
-            <div className="mt-2 flex items-center gap-2">
-              <MappingMediaThumb media={record.photo} mediaType={MediaType.PHOTO} />
-              <span className="text-xs text-gray-400">→</span>
-              <MappingMediaThumb media={record.video} mediaType={MediaType.VIDEO} />
-            </div>
-            <div className="mt-1 text-xs text-gray-500">
-              {record.photo?.originalFileName ?? 'Photo'} →{' '}
-              {record.video?.originalFileName ?? 'Video'}
-            </div>
-            <div className="mt-2">
-              <Tag color={statusColors[record.status]}>{statusLabels[record.status]}</Tag>
-            </div>
-            <div className="mt-3 border-t border-gray-100 pt-2">
-              <MappingActions
-                record={record}
-                onEdit={onEdit}
-                onDelete={onDelete}
-                onPublish={onPublish}
-                onArchive={onArchive}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
+      <p className="mapping-cards__empty">
+        No mappings yet. Link a printed photo to the video that should play on it.
+      </p>
     );
   }
 
-  const columns: ColumnsType<ArTarget> = [
-    {
-      title: 'Name',
-      dataIndex: 'targetName',
-      key: 'targetName',
-    },
-    {
-      title: 'Photo',
-      key: 'photo',
-      width: 88,
-      render: (_, record) => <MappingMediaThumb media={record.photo} mediaType={MediaType.PHOTO} />,
-    },
-    {
-      title: 'Video',
-      key: 'video',
-      width: 88,
-      render: (_, record) => <MappingMediaThumb media={record.video} mediaType={MediaType.VIDEO} />,
-    },
-    {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status: ArTargetStatus) => (
-        <Tag color={statusColors[status]}>{statusLabels[status]}</Tag>
-      ),
-    },
-    {
-      title: 'Actions',
-      key: 'actions',
-      render: (_, record) => (
-        <MappingActions
-          record={record}
-          onEdit={onEdit}
-          onDelete={onDelete}
-          onPublish={onPublish}
-          onArchive={onArchive}
-        />
-      ),
-    },
-  ];
-
   return (
-    <Table
-      rowKey="id"
-      columns={columns}
-      dataSource={items}
-      loading={loading}
-      pagination={false}
-      scroll={{ x: true }}
-    />
+    <div className="mapping-cards">
+      {items.map((record) => {
+        const used = record.scanUsage ?? 0;
+        const limit = record.scanLimit ?? 1000;
+        const over = Boolean(record.scansExhausted || used >= limit);
+        const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+
+        return (
+          <article key={record.id} className="mapping-card">
+            <div className="mapping-card__pair">
+              <div className="mapping-card__media">
+                <MappingMediaThumb media={record.photo} mediaType={MediaType.PHOTO} />
+                <span>Photo</span>
+              </div>
+              <div className="mapping-card__arrow" aria-hidden>
+                →
+              </div>
+              <div className="mapping-card__media">
+                <MappingMediaThumb media={record.video} mediaType={MediaType.VIDEO} />
+                <span>Video</span>
+              </div>
+              <span className={`mapping-card__status mapping-card__status--${record.status}`}>
+                {statusLabels[record.status]}
+              </span>
+            </div>
+
+            <h2 className="mapping-card__name">{record.targetName}</h2>
+            <p className="mapping-card__files">
+              {record.photo?.originalFileName ?? 'Photo'} →{' '}
+              {record.video?.originalFileName ?? 'Video'}
+            </p>
+
+            <div className="mapping-card__plays">
+              <div className="mapping-card__plays-row">
+                <span>Guest plays</span>
+                <strong className={over ? 'mapping-card__plays--over' : undefined}>
+                  {used.toLocaleString('en-IN')} / {limit.toLocaleString('en-IN')}
+                  {over ? ' · Over' : ''}
+                </strong>
+              </div>
+              <div
+                className={`mapping-card__meter${over ? ' mapping-card__meter--over' : ''}`}
+                aria-hidden
+              >
+                <i style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+
+            <div className="mapping-card__actions">
+              {record.status === ArTargetStatus.DRAFT ? (
+                <>
+                  <button
+                    type="button"
+                    className="mapping-card__btn mapping-card__btn--ghost"
+                    onClick={() => onEdit(record.id)}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="mapping-card__btn mapping-card__btn--primary"
+                    onClick={() => onPublish(record.id)}
+                  >
+                    Turn on
+                  </button>
+                </>
+              ) : null}
+              {record.status === ArTargetStatus.ACTIVE ? (
+                <button
+                  type="button"
+                  className="mapping-card__btn mapping-card__btn--ghost"
+                  onClick={() => onArchive(record.id)}
+                >
+                  Turn off
+                </button>
+              ) : null}
+              <Popconfirm
+                title="Remove this photo → video?"
+                description={
+                  record.status === ArTargetStatus.ACTIVE
+                    ? 'Guests will no longer unlock this video from that print.'
+                    : 'This cannot be undone.'
+                }
+                okText="Delete"
+                okButtonProps={{ danger: true }}
+                onConfirm={() => onDelete(record.id)}
+              >
+                <button type="button" className="mapping-card__btn mapping-card__btn--danger">
+                  Delete
+                </button>
+              </Popconfirm>
+            </div>
+          </article>
+        );
+      })}
+    </div>
   );
 };

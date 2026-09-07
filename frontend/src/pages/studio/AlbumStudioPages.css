@@ -1,0 +1,70 @@
+.album-studio {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+}
+
+.album-studio__strip {
+  display: grid;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+
+@media (min-width: 640px) {
+  .album-studio__strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.album-studio__stat {
+  padding: 0.85rem 0.95rem;
+  border-radius: 10px;
+  border: 1px solid #e6e4ea;
+  background: #fff;
+}
+
+.album-studio__stat span {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6a6772;
+}
+
+.album-studio__stat strong {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.album-studio__stat small {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #6a6772;
+}
+
+.album-studio__stat--live strong {
+  color: #0f7a4f;
+}
+
+.album-studio__notice {
+  margin-bottom: 1rem;
+  padding: 0.9rem 1rem;
+  border-radius: 10px;
+  border: 1px solid #f5d0c5;
+  background: #fff8f6;
+  color: #1c1b22;
+}
+
+.album-studio__notice p {
+  margin: 0.2rem 0 0.75rem;
+  font-size: 0.86rem;
+  color: #6a6772;
+}
+
+.album-studio__notice strong {
+  display: block;
+  font-size: 0.92rem;
+}
