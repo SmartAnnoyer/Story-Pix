@@ -60,7 +60,7 @@ export const LandingPage = () => {
     <div className="sp-land">
       <header className="sp-land__nav">
         <a href="#top" className="sp-land__brand" aria-label={brand.name}>
-          <BrandLogo variant="nav" height={34} />
+          <BrandLogo variant="nav" height={40} />
         </a>
         <nav className="sp-land__links" aria-label="Page">
           <a href="#how-it-works">How it works</a>
@@ -81,7 +81,7 @@ export const LandingPage = () => {
       <main id="top">
         <section className="sp-land__hero" aria-label={`${brand.name} home`}>
           <div className="sp-land__hero-stage">
-            <BrandLogo variant="full" height={56} />
+            <BrandLogo variant="full" height={96} />
             <h1 className="sp-land__hero-title">Print a photo. Watch it come alive.</h1>
             <p className="sp-land__lede">
               Story-PIX plays the mapped video on a printed photo in your phone browser — no app
@@ -176,7 +176,7 @@ export const LandingPage = () => {
       </main>
 
       <footer className="sp-land__foot">
-        <BrandLogo variant="full" height={40} />
+        <BrandLogo variant="full" height={64} />
         <p>{brand.tagline}</p>
         <p className="sp-land__copy">
           © {new Date().getFullYear()} {brand.name}. All rights reserved.

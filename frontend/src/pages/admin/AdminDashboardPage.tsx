@@ -30,7 +30,7 @@ export const AdminDashboardPage = () => {
             Manage studios
           </Link>
           <Link className="admin-home__btn admin-home__btn--ghost" to={ROUTES.CATALOG}>
-            Open catalog
+            Album packs
           </Link>
         </div>
       </header>
@@ -59,7 +59,7 @@ export const AdminDashboardPage = () => {
         </article>
       </section>
 
-      <section className="admin-home__grid">
+      <section className="admin-home__grid admin-home__grid--two">
         <article className="admin-home__panel admin-home__panel--wide">
           <h2>Usage now</h2>
           <div className="admin-home__usage">
@@ -76,30 +76,9 @@ export const AdminDashboardPage = () => {
           </div>
         </article>
 
-        <article className="admin-home__panel">
-          <h2>Subscriptions</h2>
-          <ul className="admin-home__list">
-            <li>
-              <span>Active</span>
-              <strong>{data.subscriptionSummary.active}</strong>
-            </li>
-            <li>
-              <span>Expired</span>
-              <strong>{data.subscriptionSummary.expired}</strong>
-            </li>
-            <li>
-              <span>Suspended</span>
-              <strong>{data.subscriptionSummary.suspended}</strong>
-            </li>
-          </ul>
-          <Link className="admin-home__text-link" to={`${ROUTES.CATALOG}?tab=subscriptions`}>
-            Manage in catalog →
-          </Link>
-        </article>
-
         <article className="admin-home__panel admin-home__panel--cta">
-          <h2>Ship albums faster</h2>
-          <p>Enable Mini, Standard, or Bundle packs on a studio, then track credit history.</p>
+          <h2>Album packs</h2>
+          <p>Enable Mini, Standard, or Bundle packs on a studio after offline payment.</p>
           <div className="admin-home__actions">
             <Link
               className="admin-home__btn admin-home__btn--light"

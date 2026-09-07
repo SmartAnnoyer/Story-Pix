@@ -25,10 +25,6 @@ import { ArMappingsPage } from '@/pages/studio/ArMappingsPage';
 import { CreateMappingPage } from '@/pages/studio/CreateMappingPage';
 import { EditMappingPage } from '@/pages/studio/EditMappingPage';
 import { AlbumInsightsPage } from '@/pages/studio/AlbumInsightsPage';
-import { CreatePlanPage } from '@/pages/admin/CreatePlanPage';
-import { EditPlanPage } from '@/pages/admin/EditPlanPage';
-import { PlanDetailsPage } from '@/pages/admin/PlanDetailsPage';
-import { SubscriptionDetailsPage } from '@/pages/admin/SubscriptionDetailsPage';
 import { StudioPacksPage } from '@/pages/studio/StudioPacksPage';
 import { AdminCatalogPage } from '@/pages/admin/AdminCatalogPage';
 import { ROUTES } from '@/routes/paths';
@@ -96,18 +92,15 @@ export const AppRoutes = () => {
               path={ROUTES.PACK_LEDGER}
               element={<Navigate to={`${ROUTES.CATALOG}?tab=history`} replace />}
             />
+            <Route path={ROUTES.PLANS} element={<Navigate to={ROUTES.CATALOG} replace />} />
+            <Route path={ROUTES.PLAN_CREATE} element={<Navigate to={ROUTES.CATALOG} replace />} />
+            <Route path={ROUTES.PLAN_EDIT} element={<Navigate to={ROUTES.CATALOG} replace />} />
+            <Route path={ROUTES.PLAN_DETAILS} element={<Navigate to={ROUTES.CATALOG} replace />} />
+            <Route path={ROUTES.SUBSCRIPTIONS} element={<Navigate to={ROUTES.CATALOG} replace />} />
             <Route
-              path={ROUTES.PLANS}
-              element={<Navigate to={`${ROUTES.CATALOG}?tab=plans`} replace />}
+              path={ROUTES.SUBSCRIPTION_DETAILS}
+              element={<Navigate to={ROUTES.CATALOG} replace />}
             />
-            <Route path={ROUTES.PLAN_CREATE} element={<CreatePlanPage />} />
-            <Route path={ROUTES.PLAN_EDIT} element={<EditPlanPage />} />
-            <Route path={ROUTES.PLAN_DETAILS} element={<PlanDetailsPage />} />
-            <Route
-              path={ROUTES.SUBSCRIPTIONS}
-              element={<Navigate to={`${ROUTES.CATALOG}?tab=subscriptions`} replace />}
-            />
-            <Route path={ROUTES.SUBSCRIPTION_DETAILS} element={<SubscriptionDetailsPage />} />
           </Route>
         </Route>
 

@@ -49,6 +49,103 @@
   background: #fff;
 }
 
+.app-shell--admin .app-shell__header--admin {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 64px;
+  padding: calc(0.55rem + env(safe-area-inset-top)) 1.15rem 0.55rem;
+  background: #fff;
+}
+
+.app-shell__admin-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.app-shell__brand-link {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+.app-shell__sider-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 64px;
+  padding: 0.75rem 0.85rem;
+  overflow: visible;
+}
+
+.app-shell__admin-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.app-shell__admin-link {
+  padding: 0.4rem 0.7rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 650;
+  color: #6a6772;
+  text-decoration: none;
+}
+
+.app-shell__admin-link:hover {
+  color: #1c1b22;
+  background: #f3f3f5;
+}
+
+.app-shell__admin-link--on {
+  color: #5b2cdb;
+  background: #f3eefc;
+}
+
+.app-shell__admin-right {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.app-shell__back {
+  font-weight: 650 !important;
+  color: #1c1b22 !important;
+}
+
+.app-shell__content--admin {
+  padding: 1rem 1.15rem calc(1.5rem + env(safe-area-inset-bottom));
+  max-width: 1100px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .app-shell__content--admin {
+    padding: 1.35rem 1.5rem 2rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-shell__admin-left {
+    flex-wrap: wrap;
+  }
+
+  .app-shell__admin-link {
+    padding: 0.35rem 0.55rem;
+    font-size: 0.84rem;
+  }
+}
+
 .app-tabbar {
   position: fixed;
   right: 0;

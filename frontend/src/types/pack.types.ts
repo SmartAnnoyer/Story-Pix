@@ -58,6 +58,8 @@ export interface StudioPackSummary {
 export interface PackLedgerEntry {
   id: string;
   studioId: string;
+  studioName: string | null;
+  studioCode: string | null;
   packId: string;
   creditId: string | null;
   albumId: string | null;

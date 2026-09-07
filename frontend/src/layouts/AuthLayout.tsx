@@ -10,7 +10,7 @@ export const AuthLayout = () => {
   return (
     <div className="auth-app">
       <div className="auth-app__hero">
-        <BrandLogo variant="full" height={56} className="mb-2" />
+        <BrandLogo variant="full" height={88} className="mb-2" />
         <Text type="secondary">{brand.tagline}</Text>
       </div>
       <div className="auth-app__card">

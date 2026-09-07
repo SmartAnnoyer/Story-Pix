@@ -183,6 +183,10 @@
   .admin-home__grid {
     grid-template-columns: 1.35fr 0.9fr 0.9fr;
   }
+
+  .admin-home__grid--two {
+    grid-template-columns: 1.4fr 1fr;
+  }
 }
 
 .admin-home__panel {

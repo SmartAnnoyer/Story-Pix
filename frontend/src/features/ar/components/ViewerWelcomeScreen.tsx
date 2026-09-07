@@ -92,7 +92,7 @@ export const ViewerWelcomeScreen = ({
 
       <div className="viewer-intro__body">
         <div className="viewer-intro__brand viewer-intro__brand--large">
-          <BrandLogo variant="full" height={72} />
+          <BrandLogo variant="full" height={80} />
         </div>
 
         <div

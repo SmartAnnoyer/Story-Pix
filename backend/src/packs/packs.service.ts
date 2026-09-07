@@ -12,6 +12,7 @@ import { SCANS_PER_MAPPING } from '../common/constants/pack.constants';
 import { AlbumPack, AlbumPackDocument } from './schemas/album-pack.schema';
 import { StudioPackCredit, StudioPackCreditDocument } from './schemas/studio-pack-credit.schema';
 import { PackLedgerEntry, PackLedgerEntryDocument } from './schemas/pack-ledger.schema';
+import { Studio, StudioDocument } from '../studios/schemas/studio.schema';
 import {
   AssignPackDto,
   CreateAlbumPackDto,
@@ -122,6 +123,7 @@ export class PacksService implements OnModuleInit {
     private readonly creditModel: Model<StudioPackCreditDocument>,
     @InjectModel(PackLedgerEntry.name)
     private readonly ledgerModel: Model<PackLedgerEntryDocument>,
+    @InjectModel(Studio.name) private readonly studioModel: Model<StudioDocument>,
   ) {}
 
   async onModuleInit() {
@@ -314,9 +316,30 @@ export class PacksService implements OnModuleInit {
       this.ledgerModel.countDocuments(filter).exec(),
     ]);
 
+    const studioIds = [...new Set(items.map((entry) => entry.studioId.toString()))];
+    const studios = studioIds.length
+      ? await this.studioModel
+          .find({ _id: { $in: studioIds.map((id) => new Types.ObjectId(id)) } })
+          .select({ studioName: 1, studioCode: 1 })
+          .lean()
+          .exec()
+      : [];
+    const studioById = new Map(
+      studios.map((studio) => [
+        studio._id.toString(),
+        {
+          studioName: studio.studioName as string,
+          studioCode: (studio.studioCode as string) ?? null,
+        },
+      ]),
+    );
+
     const totalPages = Math.ceil(total / limit) || 1;
     return {
-      items: items.map((entry) => this.serializeLedger(entry)),
+      items: items.map((entry) => {
+        const studio = studioById.get(entry.studioId.toString());
+        return this.serializeLedger(entry, studio?.studioName ?? null, studio?.studioCode ?? null);
+      }),
       pagination: { page, limit, total, totalPages, hasMore: page < totalPages },
     };
   }
@@ -363,11 +386,17 @@ export class PacksService implements OnModuleInit {
     };
   }
 
-  serializeLedger(entry: PackLedgerEntryDocument) {
+  serializeLedger(
+    entry: PackLedgerEntryDocument,
+    studioName: string | null = null,
+    studioCode: string | null = null,
+  ) {
     const doc = entry as PackLedgerEntryDocument & { createdAt?: Date; updatedAt?: Date };
     return {
       id: entry._id.toString(),
       studioId: entry.studioId.toString(),
+      studioName,
+      studioCode,
       packId: entry.packId.toString(),
       creditId: entry.creditId?.toString() ?? null,
       albumId: entry.albumId?.toString() ?? null,
