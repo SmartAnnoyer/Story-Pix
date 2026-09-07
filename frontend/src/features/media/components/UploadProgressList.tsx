@@ -1,9 +1,5 @@
-import { Button, List, Progress, Typography } from 'antd';
-import { CloseOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useUploadStore } from '@/store/upload.store';
 import { mediaService } from '@/services/media.service';
-
-const { Text } = Typography;
 
 export const UploadProgressList = () => {
   const { tasks, updateTask, removeTask } = useUploadStore();
@@ -11,39 +7,50 @@ export const UploadProgressList = () => {
   if (!tasks.length) return null;
 
   return (
-    <List
-      size="small"
-      header={<Text strong>Uploads</Text>}
-      dataSource={tasks}
-      renderItem={(task) => (
-        <List.Item
-          actions={[
-            task.status === 'failed' ? (
-              <Button
-                type="link"
-                icon={<ReloadOutlined />}
-                onClick={() => retryTask(task.id, task.mediaId, updateTask)}
-              />
-            ) : null,
-            task.status !== 'uploading' && task.status !== 'confirming' ? (
-              <Button type="link" icon={<CloseOutlined />} onClick={() => removeTask(task.id)} />
-            ) : null,
-          ].filter(Boolean)}
-        >
-          <div className="w-full">
-            <Text ellipsis className="block">
-              {task.file.name}
-            </Text>
-            <Progress percent={task.progress} size="small" status={task.status === 'failed' ? 'exception' : 'active'} />
-            {task.error ? (
-              <Text type="danger" className="text-xs">
-                {task.error}
-              </Text>
-            ) : null}
-          </div>
-        </List.Item>
-      )}
-    />
+    <div className="media-uploads">
+      <h3 className="media-uploads__title">Uploads</h3>
+      <ul className="media-uploads__list">
+        {tasks.map((task) => {
+          const failed = task.status === 'failed';
+          return (
+            <li key={task.id} className="media-uploads__item">
+              <div className="media-uploads__row">
+                <span className="media-uploads__name" title={task.file.name}>
+                  {task.file.name}
+                </span>
+                <div className="media-uploads__actions">
+                  {failed ? (
+                    <button
+                      type="button"
+                      className="media-uploads__btn"
+                      onClick={() => void retryTask(task.id, task.mediaId, updateTask)}
+                    >
+                      Retry
+                    </button>
+                  ) : null}
+                  {task.status !== 'uploading' && task.status !== 'confirming' ? (
+                    <button
+                      type="button"
+                      className="media-uploads__btn"
+                      onClick={() => removeTask(task.id)}
+                    >
+                      Dismiss
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+              <div
+                className={`media-uploads__meter${failed ? ' media-uploads__meter--failed' : ''}`}
+                aria-hidden
+              >
+                <i style={{ width: `${Math.min(task.progress, 100)}%` }} />
+              </div>
+              {task.error ? <p className="media-uploads__error">{task.error}</p> : null}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 };
 
@@ -56,8 +63,10 @@ const retryTask = async (
   try {
     updateTask(taskId, { status: 'uploading', progress: 0, error: undefined });
     const result = await mediaService.retryUpload(mediaId);
-    await mediaService.uploadToStorage(result.upload.uploadUrl, useUploadStore.getState().tasks.find((t) => t.id === taskId)!.file, (p) =>
-      updateTask(taskId, { progress: p }),
+    await mediaService.uploadToStorage(
+      result.upload.uploadUrl,
+      useUploadStore.getState().tasks.find((t) => t.id === taskId)!.file,
+      (p) => updateTask(taskId, { progress: p }),
     );
     updateTask(taskId, { status: 'confirming', progress: 95 });
     await mediaService.confirmUpload(result.media.id);

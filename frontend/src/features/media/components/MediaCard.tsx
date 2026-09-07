@@ -1,49 +1,46 @@
-import { Card, Tag, Typography } from 'antd';
 import type { MediaItem } from '@/types/media.types';
 import { MediaStatus, MediaType } from '@/types/media.types';
 import { StudioMediaThumbnail } from '@/features/media/components/StudioMediaThumbnail';
-
-const { Text } = Typography;
 
 interface MediaCardProps {
   item: MediaItem;
   onClick?: () => void;
 }
 
-const STATUS_COLORS: Record<MediaStatus, string> = {
-  [MediaStatus.UPLOADING]: 'processing',
-  [MediaStatus.PROCESSING]: 'processing',
-  [MediaStatus.READY]: 'success',
-  [MediaStatus.FAILED]: 'error',
-  [MediaStatus.DELETED]: 'default',
+const formatDuration = (seconds: number) => {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+};
+
+const statusLabel = (status: MediaStatus) => {
+  if (status === MediaStatus.READY) return 'Ready';
+  if (status === MediaStatus.PROCESSING) return 'Processing';
+  if (status === MediaStatus.UPLOADING) return 'Uploading';
+  if (status === MediaStatus.FAILED) return 'Failed';
+  return status;
 };
 
 export const MediaCard = ({ item, onClick }: MediaCardProps) => {
   const isVideo = item.mediaType === MediaType.VIDEO;
 
   return (
-    <Card hoverable={Boolean(onClick)} className="overflow-hidden" onClick={onClick}>
-      <div className="studio-media-thumb relative mb-3 aspect-square overflow-hidden rounded-md">
+    <button type="button" className="media-tile" onClick={onClick}>
+      <div className="media-tile__thumb">
         <StudioMediaThumbnail item={item} className="absolute inset-0 h-full w-full" />
         {isVideo && item.duration != null ? (
-          <Tag className="absolute bottom-2 right-2 m-0">{formatDuration(item.duration)}</Tag>
+          <span className="media-tile__duration">{formatDuration(item.duration)}</span>
         ) : null}
       </div>
-      <Text ellipsis className="block font-medium">
+      <span className="media-tile__name" title={item.originalFileName}>
         {item.originalFileName}
-      </Text>
-      <div className="mt-2 flex items-center justify-between gap-2">
-        <Tag color={STATUS_COLORS[item.status]}>{item.status}</Tag>
-        <Text type="secondary" className="text-xs">
-          {(item.fileSize / (1024 * 1024)).toFixed(1)} MB
-        </Text>
+      </span>
+      <div className="media-tile__meta">
+        <span className={`media-tile__status media-tile__status--${item.status}`}>
+          {statusLabel(item.status)}
+        </span>
+        <span className="media-tile__size">{(item.fileSize / (1024 * 1024)).toFixed(1)} MB</span>
       </div>
-    </Card>
+    </button>
   );
-};
-
-const formatDuration = (seconds: number) => {
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
 };

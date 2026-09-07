@@ -49,6 +49,20 @@
   color: #0f7a4f;
 }
 
+.album-studio__stat--accent {
+  border-color: rgba(91, 44, 219, 0.28);
+  background: #f3eefc;
+}
+
+.album-studio__stat--accent strong {
+  color: #5b2cdb;
+}
+
+.album-studio__stat-text {
+  font-size: 1.05rem !important;
+  line-height: 1.2 !important;
+}
+
 .album-studio__notice {
   margin-bottom: 1rem;
   padding: 0.9rem 1rem;

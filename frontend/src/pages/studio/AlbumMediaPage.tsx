@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Alert, Button, Card, Col, Row, Typography, message } from 'antd';
+import { message } from 'antd';
 import { useAlbumQuery } from '@/hooks/useAlbumQueries';
 import { useAlbumMediaQuery, useDeleteMediaMutation } from '@/hooks/useMediaQueries';
 import { UploadArea } from '@/features/media/components/UploadArea';
@@ -20,8 +20,7 @@ import { getErrorMessage } from '@/api/client';
 import { useAlbumArTargetsQuery } from '@/hooks/useArTargetQueries';
 import '@/pages/DashboardPage.css';
 import './AlbumStudioPages.css';
-
-const { Paragraph, Text } = Typography;
+import './AlbumMediaPage.css';
 
 export const AlbumMediaPage = () => {
   const { id = '' } = useParams();
@@ -45,8 +44,22 @@ export const AlbumMediaPage = () => {
   const isArchived = album.status === AlbumStatus.ARCHIVED;
   const canMap = readyPhotos.length > 0 && readyVideos.length > 0;
   const hasMappings = (mappings?.items.length ?? 0) > 0;
-  const waitingPhotos = photos.some((item) => item.status !== MediaStatus.READY);
-  const waitingVideos = videos.some((item) => item.status !== MediaStatus.READY);
+  const waiting =
+    processing ||
+    photos.some((item) => item.status !== MediaStatus.READY) ||
+    videos.some((item) => item.status !== MediaStatus.READY);
+
+  const statusLabel = canMap
+    ? 'Ready to map'
+    : waiting
+      ? 'Processing…'
+      : photos.length === 0 && videos.length === 0
+        ? 'Add media'
+        : photos.length === 0
+          ? 'Need a photo'
+          : videos.length === 0
+            ? 'Need a video'
+            : 'Waiting';
 
   const handleDelete = async (mediaId: string) => {
     try {
@@ -59,11 +72,20 @@ export const AlbumMediaPage = () => {
   };
 
   return (
-    <div className="studio-home album-studio">
+    <div className="studio-home album-studio album-media">
       <header className="studio-home__hero">
         <p className="studio-home__eyebrow">Photos & videos</p>
         <h1>{album.albumName}</h1>
         <div className="studio-home__actions">
+          {canMap ? (
+            <button
+              type="button"
+              className="studio-home__btn studio-home__btn--primary"
+              onClick={() => navigate(albumMapPath(id, hasMappings))}
+            >
+              Map to video
+            </button>
+          ) : null}
           <button
             type="button"
             className="studio-home__btn studio-home__btn--ghost"
@@ -74,106 +96,117 @@ export const AlbumMediaPage = () => {
         </div>
       </header>
 
+      <section className="album-studio__strip" aria-label="Media status">
+        <article className="album-studio__stat">
+          <span>Photos ready</span>
+          <strong>
+            {readyPhotos.length}
+            <small> / {photos.length}</small>
+          </strong>
+        </article>
+        <article className="album-studio__stat">
+          <span>Videos ready</span>
+          <strong>
+            {readyVideos.length}
+            <small> / {videos.length}</small>
+          </strong>
+        </article>
+        <article className={`album-studio__stat${canMap ? ' album-studio__stat--accent' : ''}`}>
+          <span>Status</span>
+          <strong className="album-studio__stat-text">{statusLabel}</strong>
+        </article>
+      </section>
+
       <AlbumDeliveryGuide albumId={id} current="media" />
 
-      {!canMap ? (
-        <Alert
-          className="!mb-4"
-          type="info"
-          showIcon
-          message={
-            photos.length === 0 && videos.length === 0
-              ? 'You need one photo and one video'
-              : photos.length === 0
-                ? 'Add the printed photo next'
-                : videos.length === 0
-                  ? 'Add the video next'
-                  : processing || waitingPhotos || waitingVideos
-                    ? 'Wait until upload finishes'
-                    : 'Photo and video must finish processing before you can map them'
-          }
-          description="The photo is what they print. The video is what plays when they scan it."
-        />
-      ) : (
-        <Alert
-          className="!mb-4"
-          type="success"
-          showIcon
-          message="Photo and video are ready"
-          description="Next, choose which video plays when a guest scans that photo."
-          action={
-            <Button type="primary" onClick={() => navigate(albumMapPath(id, hasMappings))}>
-              Next: map to video
-            </Button>
-          }
-        />
-      )}
-
-      <Row gutter={[16, 16]}>
-        <Col xs={24} lg={12}>
-          <Card
-            title="1. Printed photo"
-            extra={<Text type="secondary">{readyPhotos.length} ready</Text>}
-          >
-            <Paragraph type="secondary" className="!text-sm">
-              Use the same photo you will print for the client.
-            </Paragraph>
-            {isArchived ? null : (
-              <UploadArea
-                albumId={id}
-                mediaType={MediaType.PHOTO}
-                onComplete={() => void refetch()}
-              />
-            )}
-            <div className="mt-4">
-              <PhotoGallery
-                items={photos}
-                loading={mediaLoading}
-                onDelete={handleDelete}
-                onMediaUpdated={() => void refetch()}
-              />
-            </div>
-          </Card>
-        </Col>
-        <Col xs={24} lg={12}>
-          <Card title="2. Video" extra={<Text type="secondary">{readyVideos.length} ready</Text>}>
-            <Paragraph type="secondary" className="!text-sm">
-              This is what plays on the photo in the guest’s camera.
-            </Paragraph>
-            {isArchived ? null : (
-              <UploadArea
-                albumId={id}
-                mediaType={MediaType.VIDEO}
-                onComplete={() => void refetch()}
-              />
-            )}
-            <div className="mt-4">
-              <VideoGallery
-                items={videos}
-                loading={mediaLoading}
-                onDelete={handleDelete}
-                onMediaUpdated={() => void refetch()}
-              />
-            </div>
-          </Card>
-        </Col>
-      </Row>
-
-      <Card className="mt-4">
-        <UploadProgressList />
-      </Card>
-
       {canMap ? (
-        <div className="mt-4">
-          <Button
-            type="primary"
-            size="large"
+        <div className="album-media__cta">
+          <div>
+            <strong>Ready for mapping</strong>
+            <p>Choose which video plays when a guest scans each printed photo.</p>
+          </div>
+          <button
+            type="button"
+            className="studio-home__btn studio-home__btn--primary"
             onClick={() => navigate(albumMapPath(id, hasMappings))}
           >
-            Next: map to video
-          </Button>
+            Continue to map
+          </button>
         </div>
-      ) : null}
+      ) : (
+        <div className="album-media__cta album-media__cta--muted">
+          <div>
+            <strong>
+              {photos.length === 0 && videos.length === 0
+                ? 'Upload the print and the video'
+                : photos.length === 0
+                  ? 'Add the printed photo next'
+                  : videos.length === 0
+                    ? 'Add the video next'
+                    : waiting
+                      ? 'Wait until uploads finish'
+                      : 'Finish processing before mapping'}
+            </strong>
+            <p>The photo is what they print. The video is what plays on scan.</p>
+          </div>
+        </div>
+      )}
+
+      <div className="album-media__workspace">
+        <section className="album-media__panel">
+          <div className="album-media__panel-head">
+            <div>
+              <h2>Printed photos</h2>
+              <p>Same image you will print for the client.</p>
+            </div>
+            <span className="album-media__count">{readyPhotos.length} ready</span>
+          </div>
+          {isArchived ? null : (
+            <UploadArea
+              albumId={id}
+              mediaType={MediaType.PHOTO}
+              onComplete={() => void refetch()}
+            />
+          )}
+          <div className="album-media__gallery">
+            <PhotoGallery
+              items={photos}
+              loading={mediaLoading}
+              onDelete={handleDelete}
+              onMediaUpdated={() => void refetch()}
+            />
+          </div>
+        </section>
+
+        <section className="album-media__panel">
+          <div className="album-media__panel-head">
+            <div>
+              <h2>Videos</h2>
+              <p>Plays on the photo in the guest’s camera.</p>
+            </div>
+            <span className="album-media__count">{readyVideos.length} ready</span>
+          </div>
+          {isArchived ? null : (
+            <UploadArea
+              albumId={id}
+              mediaType={MediaType.VIDEO}
+              onComplete={() => void refetch()}
+            />
+          )}
+          <div className="album-media__gallery">
+            <VideoGallery
+              items={videos}
+              loading={mediaLoading}
+              onDelete={handleDelete}
+              onMediaUpdated={() => void refetch()}
+            />
+          </div>
+        </section>
+      </div>
+
+      <div className="album-media__uploads">
+        <UploadProgressList />
+      </div>
     </div>
   );
 };

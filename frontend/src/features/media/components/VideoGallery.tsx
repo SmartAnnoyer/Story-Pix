@@ -1,8 +1,7 @@
-import { Empty, Row, Col } from 'antd';
+import { useState } from 'react';
 import type { MediaItem } from '@/types/media.types';
 import { MediaCard } from './MediaCard';
 import { FilePreviewModal } from './FilePreviewModal';
-import { useState } from 'react';
 
 interface VideoGalleryProps {
   items: MediaItem[];
@@ -15,18 +14,16 @@ export const VideoGallery = ({ items, loading, onDelete, onMediaUpdated }: Video
   const [preview, setPreview] = useState<MediaItem | null>(null);
 
   if (!loading && !items.length) {
-    return <Empty description="No videos yet" />;
+    return <p className="media-tile-empty">No videos yet</p>;
   }
 
   return (
     <>
-      <Row gutter={[16, 16]}>
+      <div className="media-tile-grid">
         {items.map((item) => (
-          <Col key={item.id} xs={24} sm={12} lg={8} xl={6}>
-            <MediaCard item={item} onClick={() => setPreview(item)} />
-          </Col>
+          <MediaCard key={item.id} item={item} onClick={() => setPreview(item)} />
         ))}
-      </Row>
+      </div>
       <FilePreviewModal
         item={preview}
         open={Boolean(preview)}

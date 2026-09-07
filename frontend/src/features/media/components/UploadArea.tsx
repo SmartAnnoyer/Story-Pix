@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { CameraOutlined, InboxOutlined, PictureOutlined } from '@ant-design/icons';
-import { Button, Space, Upload, message } from 'antd';
+import { Upload, message } from 'antd';
 import { mediaService } from '@/services/media.service';
 import { useUploadStore } from '@/store/upload.store';
 import { MediaType } from '@/types/media.types';
@@ -115,28 +115,29 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
 
   if (mediaType === MediaType.PHOTO) {
     return (
-      <div>
-        <p className="mb-3 text-sm text-neutral-500">
-          Take a photo or pick from gallery. You can keep the full image or trim edges, then mark
-          where the video should play on the print.
+      <div className="media-upload">
+        <p className="media-upload__hint">
+          Take a photo or pick from gallery. Keep the full image or trim edges, then mark where the
+          video should play.
         </p>
-        <Space wrap className="mb-3 w-full">
-          <Button
-            type="primary"
-            icon={<CameraOutlined />}
+        <div className="media-upload__actions">
+          <button
+            type="button"
+            className="media-upload__btn media-upload__btn--primary"
             disabled={disabled}
             onClick={() => setCaptureOpen(true)}
           >
-            Take photo
-          </Button>
-          <Button
-            icon={<PictureOutlined />}
+            <CameraOutlined /> Take photo
+          </button>
+          <button
+            type="button"
+            className="media-upload__btn"
             disabled={disabled}
             onClick={() => galleryInputRef.current?.click()}
           >
-            Gallery
-          </Button>
-        </Space>
+            <PictureOutlined /> Gallery
+          </button>
+        </div>
         <input
           ref={galleryInputRef}
           type="file"
@@ -163,7 +164,7 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
             <InboxOutlined />
           </p>
           <p className="ant-upload-text">Or drop photos here</p>
-          <p className="ant-upload-hint">JPG, PNG, WEBP — keep full photo or trim edges</p>
+          <p className="ant-upload-hint">JPG, PNG, WEBP</p>
         </Dragger>
 
         <PhotoCaptureModal
@@ -209,7 +210,8 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
   }
 
   return (
-    <>
+    <div className="media-upload">
+      <p className="media-upload__hint">Drop or choose a video, then pick a cover frame.</p>
       <Dragger
         multiple
         disabled={disabled}
@@ -223,8 +225,8 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
         <p className="ant-upload-drag-icon">
           <InboxOutlined />
         </p>
-        <p className="ant-upload-text">Click or drag videos to upload</p>
-        <p className="ant-upload-hint">MP4, MOV — pick a cover frame before upload completes</p>
+        <p className="ant-upload-text">Drop videos here</p>
+        <p className="ant-upload-hint">MP4, MOV</p>
       </Dragger>
 
       <VideoThumbnailSelectModal
@@ -237,6 +239,6 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
           if (file) void processFile(file, payload);
         }}
       />
-    </>
+    </div>
   );
 };
