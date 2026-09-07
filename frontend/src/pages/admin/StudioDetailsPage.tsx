@@ -43,7 +43,7 @@ import { ROUTES } from '@/routes/paths';
 import { StudioStatus } from '@/types/studio.types';
 import { BillingCycle } from '@/types/subscription.types';
 
-const { Title, Paragraph } = Typography;
+const { Title, Paragraph, Text } = Typography;
 
 export const StudioDetailsPage = () => {
   const { id = '' } = useParams();
@@ -55,7 +55,7 @@ export const StudioDetailsPage = () => {
   const { data: plans } = usePlansQuery();
   const { data: packs } = useAdminPacksQuery();
   const { data: packSummary } = useAdminStudioPackSummaryQuery(id);
-  const assignMutation = useAssignPlanMutation();
+  const assignPlanMutation = useAssignPlanMutation();
   const assignPackMutation = useAssignPackMutation();
   const subscriptionActionMutation = useSubscriptionActionMutation();
 
@@ -63,6 +63,7 @@ export const StudioDetailsPage = () => {
 
   const canActivateStudio =
     studio.status === StudioStatus.SUSPENDED || studio.status === StudioStatus.EXPIRED;
+  const hasSubscription = Boolean(studio.subscriptionId);
 
   const handleResetAdminPassword = async () => {
     const result = await resetPasswordMutation.mutateAsync(id);
@@ -79,23 +80,24 @@ export const StudioDetailsPage = () => {
     message.success('Studio activated');
   };
 
-  const handleAssignPlan = async (values: { planId: string; billingCycle: BillingCycle }) => {
-    await assignMutation.mutateAsync({
-      studioId: id,
-      planId: values.planId,
-      billingCycle: values.billingCycle,
-    });
-    message.success('Plan assigned and studio activated');
-  };
+  const handleSavePlan = async (values: { planId: string; billingCycle: BillingCycle }) => {
+    if (hasSubscription) {
+      await subscriptionActionMutation.mutateAsync({
+        action: 'upgrade',
+        studioId: id,
+        planId: values.planId,
+        billingCycle: values.billingCycle,
+      });
+      message.success('Plan updated');
+      return;
+    }
 
-  const handleChangePlan = async (values: { planId: string; billingCycle: BillingCycle }) => {
-    await subscriptionActionMutation.mutateAsync({
-      action: 'upgrade',
+    await assignPlanMutation.mutateAsync({
       studioId: id,
       planId: values.planId,
       billingCycle: values.billingCycle,
     });
-    message.success('Plan changed');
+    message.success('Plan set and studio activated');
   };
 
   const handleAssignPack = async (values: { packId: string; quantity: number; notes?: string }) => {
@@ -105,7 +107,7 @@ export const StudioDetailsPage = () => {
       quantity: values.quantity,
       notes: values.notes,
     });
-    message.success('Album pack credits enabled for studio');
+    message.success('Pack credits added');
   };
 
   const planOptions = (plans ?? [])
@@ -119,10 +121,12 @@ export const StudioDetailsPage = () => {
       value: pack.id,
     }));
 
+  const planSaving = assignPlanMutation.isPending || subscriptionActionMutation.isPending;
+
   return (
     <div>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <Space>
+        <Space wrap>
           <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(ROUTES.STUDIOS)}>
             Back
           </Button>
@@ -138,15 +142,6 @@ export const StudioDetailsPage = () => {
           >
             Edit
           </Button>
-          {studio.subscriptionId ? (
-            <Button
-              onClick={() =>
-                navigate(ROUTES.SUBSCRIPTION_DETAILS.replace(':id', studio.subscriptionId!))
-              }
-            >
-              Manage subscription
-            </Button>
-          ) : null}
           {canActivateStudio ? (
             <Button
               type="primary"
@@ -192,95 +187,16 @@ export const StudioDetailsPage = () => {
         />
       </div>
 
-      <Card title="Album packs (enable for shop)" className="mb-6">
-        <Paragraph type="secondary" className="!mb-2">
-          Mini = up to 10 photos · Standard = up to 25 photos · Bundles = multiple albums at a
-          discount. Every photo always includes 1,000 guest plays.
-        </Paragraph>
-        <Paragraph type="secondary" className="!mb-4">
-          Remaining album credits: <strong>{packSummary?.remainingAlbumCredits ?? 0}</strong> /{' '}
-          {packSummary?.totalAssignedCredits ?? 0} assigned
-          {(packSummary?.remainingAlbumCredits ?? 0) <= 0 ? (
-            <>
-              {' '}
-              <Tag color="warning">Studio blocked from new albums</Tag>
-            </>
-          ) : (
-            <>
-              {' '}
-              <Tag color="success">Can create albums</Tag>
-            </>
-          )}
-        </Paragraph>
-
-        <Table
-          className="!mb-6"
-          rowKey="id"
-          size="small"
-          pagination={false}
-          dataSource={packSummary?.credits ?? []}
-          columns={[
-            { title: 'Activated pack', dataIndex: 'packName' },
-            { title: 'Photos max', dataIndex: 'maxMappings' },
-            {
-              title: 'Credits left',
-              render: (_, row) => `${row.remainingCredits} / ${row.totalCredits}`,
-            },
-            {
-              title: 'Status',
-              render: (_, row) =>
-                row.remainingCredits > 0 ? <Tag color="success">Active</Tag> : <Tag>Used up</Tag>,
-            },
-            {
-              title: 'Enabled',
-              dataIndex: 'createdAt',
-              render: (v: string | null) => (v ? new Date(v).toLocaleDateString() : '—'),
-            },
-          ]}
-          locale={{ emptyText: 'No packs enabled yet' }}
-        />
-
-        <Form
-          layout="vertical"
-          initialValues={{ quantity: 1 }}
-          onFinish={handleAssignPack}
-          className="max-w-xl"
-        >
-          <Form.Item
-            name="packId"
-            label="Pack"
-            rules={[{ required: true, message: 'Select a pack' }]}
-          >
-            <Select
-              options={packOptions}
-              showSearch
-              optionFilterProp="label"
-              placeholder="Select pack"
-            />
-          </Form.Item>
-          <Form.Item
-            name="quantity"
-            label="Quantity"
-            extra="Bundle packs already include multiple albums; quantity multiplies that."
-            rules={[{ required: true }]}
-          >
-            <InputNumber min={1} max={100} className="w-full" />
-          </Form.Item>
-          <Form.Item name="notes" label="Notes">
-            <Input.TextArea rows={2} placeholder="Optional note (shop name, offline receipt…)" />
-          </Form.Item>
-          <Button type="primary" htmlType="submit" loading={assignPackMutation.isPending}>
-            Enable pack for studio
-          </Button>
-        </Form>
-      </Card>
-
       <div className="mb-6 grid gap-6 lg:grid-cols-2">
-        <Card title="Assign plan (activate studio)">
+        <Card title="Access plan">
+          <Paragraph type="secondary" className="!mb-4">
+            Sets storage and scan limits for this studio. Use Activate / Suspend above for account
+            status.
+          </Paragraph>
           <Form
             layout="vertical"
             initialValues={{ billingCycle: BillingCycle.MONTHLY }}
-            onFinish={handleAssignPlan}
+            onFinish={handleSavePlan}
           >
             <Form.Item
               name="planId"
@@ -294,7 +210,7 @@ export const StudioDetailsPage = () => {
                 placeholder="Select plan"
               />
             </Form.Item>
-            <Form.Item name="billingCycle" label="Plan cycle" rules={[{ required: true }]}>
+            <Form.Item name="billingCycle" label="Cycle" rules={[{ required: true }]}>
               <Select
                 options={[
                   { label: 'Monthly', value: BillingCycle.MONTHLY },
@@ -302,40 +218,69 @@ export const StudioDetailsPage = () => {
                 ]}
               />
             </Form.Item>
-            <Button type="primary" htmlType="submit" loading={assignMutation.isPending}>
-              Assign plan
+            <Button type="primary" htmlType="submit" loading={planSaving}>
+              {hasSubscription ? 'Update plan' : 'Set plan'}
             </Button>
           </Form>
         </Card>
 
-        <Card title="Change current plan">
-          <Form
-            layout="vertical"
-            initialValues={{ billingCycle: BillingCycle.MONTHLY }}
-            onFinish={handleChangePlan}
-          >
+        <Card title="Album packs">
+          <Paragraph type="secondary" className="!mb-2">
+            Credits to create albums. Separate from the access plan — payment stays offline.
+          </Paragraph>
+          <Paragraph type="secondary" className="!mb-4">
+            Remaining: <Text strong>{packSummary?.remainingAlbumCredits ?? 0}</Text> /{' '}
+            {packSummary?.totalAssignedCredits ?? 0}
+            {(packSummary?.remainingAlbumCredits ?? 0) <= 0 ? (
+              <>
+                {' '}
+                <Tag color="warning">Blocked from new albums</Tag>
+              </>
+            ) : (
+              <>
+                {' '}
+                <Tag color="success">Can create albums</Tag>
+              </>
+            )}
+          </Paragraph>
+
+          <Table
+            className="!mb-4"
+            rowKey="id"
+            size="small"
+            pagination={false}
+            dataSource={packSummary?.credits ?? []}
+            columns={[
+              { title: 'Pack', dataIndex: 'packName' },
+              {
+                title: 'Left',
+                render: (_, row) => `${row.remainingCredits} / ${row.totalCredits}`,
+              },
+            ]}
+            locale={{ emptyText: 'No packs yet' }}
+          />
+
+          <Form layout="vertical" initialValues={{ quantity: 1 }} onFinish={handleAssignPack}>
             <Form.Item
-              name="planId"
-              label="New plan"
-              rules={[{ required: true, message: 'Select a plan' }]}
+              name="packId"
+              label="Add pack"
+              rules={[{ required: true, message: 'Select a pack' }]}
             >
               <Select
-                options={planOptions}
+                options={packOptions}
                 showSearch
                 optionFilterProp="label"
-                placeholder="Select plan"
+                placeholder="Select pack"
               />
             </Form.Item>
-            <Form.Item name="billingCycle" label="Plan cycle" rules={[{ required: true }]}>
-              <Select
-                options={[
-                  { label: 'Monthly', value: BillingCycle.MONTHLY },
-                  { label: 'Yearly', value: BillingCycle.YEARLY },
-                ]}
-              />
+            <Form.Item name="quantity" label="Quantity" rules={[{ required: true }]}>
+              <InputNumber min={1} max={100} className="w-full" />
             </Form.Item>
-            <Button type="primary" htmlType="submit" loading={subscriptionActionMutation.isPending}>
-              Change plan
+            <Form.Item name="notes" label="Note">
+              <Input.TextArea rows={2} placeholder="Optional (shop name, offline receipt…)" />
+            </Form.Item>
+            <Button type="primary" htmlType="submit" loading={assignPackMutation.isPending}>
+              Add pack credits
             </Button>
           </Form>
         </Card>
@@ -349,10 +294,7 @@ export const StudioDetailsPage = () => {
           <Descriptions.Item label="Phone">{studio.phone ?? '—'}</Descriptions.Item>
           <Descriptions.Item label="Website">{studio.website ?? '—'}</Descriptions.Item>
           <Descriptions.Item label="Address">{studio.address ?? '—'}</Descriptions.Item>
-          <Descriptions.Item label="Subscription">{studio.subscriptionStatus}</Descriptions.Item>
-          <Descriptions.Item label="Subscription ID">
-            {studio.subscriptionId ?? '—'}
-          </Descriptions.Item>
+          <Descriptions.Item label="Plan status">{studio.subscriptionStatus}</Descriptions.Item>
           <Descriptions.Item label="Created">
             {studio.createdAt ? new Date(studio.createdAt).toLocaleString() : '—'}
           </Descriptions.Item>
