@@ -13,7 +13,6 @@ export const ROUTES = {
   STUDIO_DETAILS: '/admin/studios/:id',
   STUDIO_PROFILE: '/studio/profile',
   STUDIO_PLAN: '/studio/plan',
-  STUDIO_BILLING: '/studio/billing',
   ALBUMS: '/studio/albums',
   ALBUM_CREATE: '/studio/albums/new',
   ALBUM_EDIT: '/studio/albums/:id/edit',
@@ -27,8 +26,7 @@ export const ROUTES = {
   STUDIO_ANALYTICS: '/studio/analytics',
   STUDIO_ANALYTICS_REPORTS: '/studio/analytics/reports',
   ALBUM_INSIGHTS: '/studio/albums/:id/insights',
-  ADMIN_ANALYTICS: '/admin/analytics',
-  ADMIN_ANALYTICS_REPORTS: '/admin/analytics/reports',
+  CATALOG: '/admin/catalog',
   PLANS: '/admin/plans',
   PLAN_CREATE: '/admin/plans/new',
   PLAN_EDIT: '/admin/plans/:id/edit',
@@ -38,10 +36,6 @@ export const ROUTES = {
   STUDIO_PACKS: '/studio/packs',
   SUBSCRIPTIONS: '/admin/subscriptions',
   SUBSCRIPTION_DETAILS: '/admin/subscriptions/:id',
-  ADMIN_BILLING: '/admin/billing',
-  ADMIN_BILLING_PAYMENTS: '/admin/billing/payments',
-  ADMIN_BILLING_INVOICES: '/admin/billing/invoices',
-  ADMIN_BILLING_SUBSCRIPTIONS: '/admin/billing/subscriptions',
 } as const;
 
 export type AppRoute = (typeof ROUTES)[keyof typeof ROUTES];

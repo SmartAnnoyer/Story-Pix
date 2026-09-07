@@ -10,10 +10,7 @@ import {
 import { SubscriptionSummaryWidget } from '@/features/subscriptions/components/SubscriptionSummaryWidget';
 import { SubscriptionStatusBadge } from '@/features/subscriptions/components/SubscriptionStatusBadge';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import {
-  BillingCycle,
-  SubscriptionStatus,
-} from '@/types/subscription.types';
+import { BillingCycle, SubscriptionStatus } from '@/types/subscription.types';
 
 const { Title, Text } = Typography;
 
@@ -151,7 +148,7 @@ export const SubscriptionDetailsPage = () => {
             <Form.Item name="planId" label="Target Plan" rules={[{ required: true }]}>
               <Select options={planOptions} showSearch optionFilterProp="label" />
             </Form.Item>
-            <Form.Item name="billingCycle" label="Billing Cycle" rules={[{ required: true }]}>
+            <Form.Item name="billingCycle" label="Plan cycle" rules={[{ required: true }]}>
               <Select
                 options={[
                   { label: 'Monthly', value: BillingCycle.MONTHLY },

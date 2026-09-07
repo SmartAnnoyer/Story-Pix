@@ -8,6 +8,8 @@ import {
   InputNumber,
   Select,
   Space,
+  Table,
+  Tag,
   Typography,
   message,
 } from 'antd';
@@ -198,7 +200,46 @@ export const StudioDetailsPage = () => {
         <Paragraph type="secondary" className="!mb-4">
           Remaining album credits: <strong>{packSummary?.remainingAlbumCredits ?? 0}</strong> /{' '}
           {packSummary?.totalAssignedCredits ?? 0} assigned
+          {(packSummary?.remainingAlbumCredits ?? 0) <= 0 ? (
+            <>
+              {' '}
+              <Tag color="warning">Studio blocked from new albums</Tag>
+            </>
+          ) : (
+            <>
+              {' '}
+              <Tag color="success">Can create albums</Tag>
+            </>
+          )}
         </Paragraph>
+
+        <Table
+          className="!mb-6"
+          rowKey="id"
+          size="small"
+          pagination={false}
+          dataSource={packSummary?.credits ?? []}
+          columns={[
+            { title: 'Activated pack', dataIndex: 'packName' },
+            { title: 'Photos max', dataIndex: 'maxMappings' },
+            {
+              title: 'Credits left',
+              render: (_, row) => `${row.remainingCredits} / ${row.totalCredits}`,
+            },
+            {
+              title: 'Status',
+              render: (_, row) =>
+                row.remainingCredits > 0 ? <Tag color="success">Active</Tag> : <Tag>Used up</Tag>,
+            },
+            {
+              title: 'Enabled',
+              dataIndex: 'createdAt',
+              render: (v: string | null) => (v ? new Date(v).toLocaleDateString() : '—'),
+            },
+          ]}
+          locale={{ emptyText: 'No packs enabled yet' }}
+        />
+
         <Form
           layout="vertical"
           initialValues={{ quantity: 1 }}
@@ -220,13 +261,13 @@ export const StudioDetailsPage = () => {
           <Form.Item
             name="quantity"
             label="Quantity"
-            extra="Volume packs already include multiple albums; quantity multiplies that."
+            extra="Bundle packs already include multiple albums; quantity multiplies that."
             rules={[{ required: true }]}
           >
             <InputNumber min={1} max={100} className="w-full" />
           </Form.Item>
           <Form.Item name="notes" label="Notes">
-            <Input.TextArea rows={2} placeholder="Optional note (payment ref, shop name…)" />
+            <Input.TextArea rows={2} placeholder="Optional note (shop name, offline receipt…)" />
           </Form.Item>
           <Button type="primary" htmlType="submit" loading={assignPackMutation.isPending}>
             Enable pack for studio
@@ -253,7 +294,7 @@ export const StudioDetailsPage = () => {
                 placeholder="Select plan"
               />
             </Form.Item>
-            <Form.Item name="billingCycle" label="Billing cycle" rules={[{ required: true }]}>
+            <Form.Item name="billingCycle" label="Plan cycle" rules={[{ required: true }]}>
               <Select
                 options={[
                   { label: 'Monthly', value: BillingCycle.MONTHLY },
@@ -285,7 +326,7 @@ export const StudioDetailsPage = () => {
                 placeholder="Select plan"
               />
             </Form.Item>
-            <Form.Item name="billingCycle" label="Billing cycle" rules={[{ required: true }]}>
+            <Form.Item name="billingCycle" label="Plan cycle" rules={[{ required: true }]}>
               <Select
                 options={[
                   { label: 'Monthly', value: BillingCycle.MONTHLY },

@@ -3,10 +3,8 @@ import { Avatar, Button, Drawer, Dropdown, Layout, Menu, theme, Grid } from 'ant
 import { BrandLogo } from '@/components/BrandLogo';
 import {
   AppstoreOutlined,
-  BarChartOutlined,
   CrownOutlined,
   DashboardOutlined,
-  DollarOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -57,8 +55,7 @@ export const DashboardLayout = () => {
               path: ROUTES.ADMIN_DASHBOARD,
             },
             { key: 'studios', label: 'Studios', icon: <TeamOutlined />, path: ROUTES.STUDIOS },
-            { key: 'packs', label: 'Packs', icon: <CrownOutlined />, path: ROUTES.PACKS },
-            { key: 'plans', label: 'Plans', icon: <CrownOutlined />, path: ROUTES.PLANS },
+            { key: 'catalog', label: 'Catalog', icon: <CrownOutlined />, path: ROUTES.CATALOG },
           ]
         : [
             { key: 'home', label: 'Home', icon: <DashboardOutlined />, path: ROUTES.DASHBOARD },
@@ -71,44 +68,13 @@ export const DashboardLayout = () => {
   const moreItems: NavItem[] = useMemo(
     () =>
       isSuperAdmin
-        ? [
-            {
-              key: 'subscriptions',
-              label: 'Subscriptions',
-              icon: <CrownOutlined />,
-              path: ROUTES.SUBSCRIPTIONS,
-            },
-            {
-              key: 'pack-ledger',
-              label: 'Pack history',
-              icon: <CrownOutlined />,
-              path: ROUTES.PACK_LEDGER,
-            },
-            {
-              key: 'billing',
-              label: 'Billing',
-              icon: <DollarOutlined />,
-              path: ROUTES.ADMIN_BILLING,
-            },
-            {
-              key: 'analytics',
-              label: 'Analytics',
-              icon: <BarChartOutlined />,
-              path: ROUTES.ADMIN_ANALYTICS,
-            },
-          ]
+        ? []
         : [
             {
               key: 'profile',
               label: 'Studio',
               icon: <ShopOutlined />,
               path: ROUTES.STUDIO_PROFILE,
-            },
-            {
-              key: 'plan',
-              label: 'Plan',
-              icon: <CrownOutlined />,
-              path: ROUTES.STUDIO_BILLING,
             },
           ],
     [isSuperAdmin],
@@ -126,21 +92,38 @@ export const DashboardLayout = () => {
   );
 
   const allNav = [...primaryTabs, ...moreItems];
+  const catalogRelated =
+    isSuperAdmin &&
+    (location.pathname.startsWith('/admin/plans') ||
+      location.pathname.startsWith('/admin/subscriptions') ||
+      location.pathname.startsWith('/admin/packs') ||
+      location.pathname.startsWith(ROUTES.CATALOG));
+
   const selectedPath =
     allNav
       .filter(
         (item) => location.pathname === item.path || location.pathname.startsWith(`${item.path}/`),
       )
       .sort((a, b) => b.path.length - a.path.length)[0]?.path ??
-    (location.pathname.startsWith('/studio/albums') ? ROUTES.ALBUMS : undefined);
+    (catalogRelated
+      ? ROUTES.CATALOG
+      : location.pathname.startsWith('/studio/albums')
+        ? ROUTES.ALBUMS
+        : undefined);
 
   const activeTab =
     primaryTabs.find(
       (tab) => location.pathname === tab.path || location.pathname.startsWith(`${tab.path}/`),
-    )?.key ?? (location.pathname.startsWith('/studio/albums') ? 'albums' : undefined);
+    )?.key ??
+    (catalogRelated
+      ? 'catalog'
+      : location.pathname.startsWith('/studio/albums')
+        ? 'albums'
+        : undefined);
 
   const headerTitle = isSuperAdmin ? 'Admin' : 'Studio';
   const headerName = user ? user.firstName : 'Story-PIX';
+  const showMore = moreItems.length > 0;
 
   const handleLogout = async () => {
     try {
@@ -261,55 +244,60 @@ export const DashboardLayout = () => {
               {tab.label}
             </button>
           ))}
-          <button
-            type="button"
-            className={`app-tabbar__item${
-              moreOpen ||
-              moreItems.some(
-                (item) =>
-                  location.pathname === item.path || location.pathname.startsWith(`${item.path}/`),
-              )
-                ? ' app-tabbar__item--active'
-                : ''
-            }`}
-            onClick={() => setMoreOpen(true)}
-          >
-            <span className="app-tabbar__icon">
-              {isSuperAdmin ? <AppstoreOutlined /> : <MoreOutlined />}
-            </span>
-            More
-          </button>
+          {showMore ? (
+            <button
+              type="button"
+              className={`app-tabbar__item${
+                moreOpen ||
+                moreItems.some(
+                  (item) =>
+                    location.pathname === item.path ||
+                    location.pathname.startsWith(`${item.path}/`),
+                )
+                  ? ' app-tabbar__item--active'
+                  : ''
+              }`}
+              onClick={() => setMoreOpen(true)}
+            >
+              <span className="app-tabbar__icon">
+                {isSuperAdmin ? <AppstoreOutlined /> : <MoreOutlined />}
+              </span>
+              More
+            </button>
+          ) : null}
         </nav>
       ) : null}
 
-      <Drawer
-        title="More"
-        placement="bottom"
-        height="auto"
-        open={moreOpen}
-        onClose={() => setMoreOpen(false)}
-        styles={{ body: { paddingTop: 8, paddingBottom: 24 } }}
-      >
-        {moreItems.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            className="app-more-item"
-            onClick={() => go(item.path)}
-          >
-            {item.icon}
-            {item.label}
-          </button>
-        ))}
-        <button
-          type="button"
-          className="app-more-item app-more-item--danger"
-          onClick={() => void handleLogout()}
+      {showMore ? (
+        <Drawer
+          title="More"
+          placement="bottom"
+          height="auto"
+          open={moreOpen}
+          onClose={() => setMoreOpen(false)}
+          styles={{ body: { paddingTop: 8, paddingBottom: 24 } }}
         >
-          <LogoutOutlined />
-          Log out
-        </button>
-      </Drawer>
+          {moreItems.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              className="app-more-item"
+              onClick={() => go(item.path)}
+            >
+              {item.icon}
+              {item.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            className="app-more-item app-more-item--danger"
+            onClick={() => void handleLogout()}
+          >
+            <LogoutOutlined />
+            Log out
+          </button>
+        </Drawer>
+      ) : null}
     </Layout>
   );
 };

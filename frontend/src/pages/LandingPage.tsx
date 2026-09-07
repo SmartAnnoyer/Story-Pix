@@ -10,17 +10,17 @@ const DEMO_SLUG = import.meta.env.VITE_DEMO_ALBUM_SLUG as string | undefined;
 
 const STEPS = [
   {
-    n: '01',
+    n: '1',
     title: 'Print the photo',
     body: 'Use the photo your studio mapped — a standard print on plain paper is enough.',
   },
   {
-    n: '02',
+    n: '2',
     title: 'Open the album link',
     body: 'Scan the QR or open the shared link in your phone browser. No app store.',
   },
   {
-    n: '03',
+    n: '3',
     title: 'Point and watch',
     body: 'Hold the camera on the print. Video plays on the photo with the room still around it.',
   },
@@ -80,25 +80,12 @@ export const LandingPage = () => {
 
       <main id="top">
         <section className="sp-land__hero" aria-label={`${brand.name} home`}>
-          <div className="sp-land__hero-atmosphere" aria-hidden>
-            <span className="sp-land__orb sp-land__orb--a" />
-            <span className="sp-land__orb sp-land__orb--b" />
-            <span className="sp-land__orb sp-land__orb--c" />
-            <span className="sp-land__grain" />
-            <span className="sp-land__beam" />
-          </div>
-
           <div className="sp-land__hero-stage">
-            <div className="sp-land__hero-brand">
-              <BrandLogo variant="full" height={72} />
-            </div>
-            <h1 className="sp-land__hero-title">
-              Photos that
-              <span> remember.</span>
-            </h1>
+            <BrandLogo variant="full" height={56} />
+            <h1 className="sp-land__hero-title">Print a photo. Watch it come alive.</h1>
             <p className="sp-land__lede">
-              Point a phone at a print. Story-PIX plays the mapped video on the photo — in the
-              browser, in under a minute.
+              Story-PIX plays the mapped video on a printed photo in your phone browser — no app
+              download.
             </p>
             <div className="sp-land__cta">
               <a className="sp-land__btn sp-land__btn--primary" href={demoHref}>
@@ -114,39 +101,13 @@ export const LandingPage = () => {
                 </Link>
               )}
             </div>
-            <p className="sp-land__hint">Safari &amp; Chrome · No app download</p>
-          </div>
-
-          <div className="sp-land__hero-visual" aria-hidden>
-            <div className="sp-land__stage-print">
-              <div className="sp-land__print-glow" />
-              <div className="sp-land__print">
-                <div className="sp-land__print-face">
-                  <span className="sp-land__print-shine" />
-                  <span className="sp-land__print-pulse" />
-                </div>
-              </div>
-              <div className="sp-land__phone-shell">
-                <div className="sp-land__phone-screen">
-                  <div className="sp-land__reticle">
-                    <span className="sp-land__corner sp-land__corner--tl" />
-                    <span className="sp-land__corner sp-land__corner--tr" />
-                    <span className="sp-land__corner sp-land__corner--bl" />
-                    <span className="sp-land__corner sp-land__corner--br" />
-                    <div className="sp-land__scanline" />
-                  </div>
-                </div>
-              </div>
-            </div>
+            <p className="sp-land__hint">Works in Safari and Chrome</p>
           </div>
         </section>
 
         <section className="sp-land__section" id="how-it-works">
-          <p className="sp-land__kicker">Getting started</p>
-          <h2>Three steps to your first living photo</h2>
-          <p className="sp-land__sub">
-            Print, open the link, scan — the same flow your guests will use.
-          </p>
+          <h2>How it works</h2>
+          <p className="sp-land__sub">Three steps guests already know how to do.</p>
           <ol className="sp-land__steps">
             {STEPS.map((step) => (
               <li key={step.n}>
@@ -158,29 +119,24 @@ export const LandingPage = () => {
           </ol>
         </section>
 
-        <section className="sp-land__section sp-land__section--cinema" id="experience">
-          <div className="sp-land__cinema-inner">
-            <p className="sp-land__kicker">What you’ll experience</p>
-            <h2>The photo stays in the room. The memory plays on it.</h2>
-            <ul className="sp-land__bullets">
-              <li>Live camera around the print — a true AR overlay, not a black box.</li>
-              <li>Video locks to the photo as you move.</li>
-              <li>One album link. Many prints. Guests scan whatever page they hold.</li>
-            </ul>
-            {DEMO_SLUG ? (
-              <a className="sp-land__btn sp-land__btn--primary" href={demoHref}>
-                Open the demo on your phone
-              </a>
-            ) : null}
-          </div>
+        <section className="sp-land__section sp-land__section--alt" id="experience">
+          <h2>The photo stays in the room. The memory plays on it.</h2>
+          <ul className="sp-land__bullets">
+            <li>Live camera around the print — a real AR overlay, not a black box.</li>
+            <li>Video locks to the photo as you move.</li>
+            <li>One album link. Many prints.</li>
+          </ul>
+          {DEMO_SLUG ? (
+            <a className="sp-land__btn sp-land__btn--primary" href={demoHref}>
+              Open the demo on your phone
+            </a>
+          ) : null}
         </section>
 
         <section className="sp-land__section" id="packs">
-          <p className="sp-land__kicker">Album packs</p>
-          <h2>Pay per album. Every photo gets 1,000 plays.</h2>
+          <h2>Album packs</h2>
           <p className="sp-land__sub">
-            Enable a pack, create albums, map photos. When credits run out, new albums pause until
-            you renew.
+            Pay per album outside the app. Every photo gets 1,000 plays.
           </p>
           <div className="sp-land__packs" role="list">
             {PACKS.map((pack) => (
@@ -197,17 +153,13 @@ export const LandingPage = () => {
               </article>
             ))}
           </div>
-          <p className="sp-land__hint sp-land__hint--packs">
-            Bundles = more albums for the shop. Plays stay 1,000 per photo.
-          </p>
         </section>
 
-        <section className="sp-land__section sp-land__section--studio" id="studios">
-          <p className="sp-land__kicker">For studios</p>
-          <h2>Map a photo to a video. Share a QR. That’s the product.</h2>
+        <section className="sp-land__section" id="studios">
+          <h2>For studios</h2>
           <p className="sp-land__sub">
-            Wedding, school, frame, and heritage jobs become living experiences — one album, one QR,
-            many guests.
+            Map a photo to a video, share a QR, and deliver living albums for weddings, schools, and
+            frames.
           </p>
           <div className="sp-land__cta">
             {showDashboard ? (
@@ -224,7 +176,7 @@ export const LandingPage = () => {
       </main>
 
       <footer className="sp-land__foot">
-        <BrandLogo variant="full" height={44} />
+        <BrandLogo variant="full" height={40} />
         <p>{brand.tagline}</p>
         <p className="sp-land__copy">
           © {new Date().getFullYear()} {brand.name}. All rights reserved.

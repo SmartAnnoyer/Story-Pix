@@ -13,7 +13,7 @@ export const CreatePlanPage = () => {
       <Title level={3} className="!mb-6">
         Create Plan
       </Title>
-      <PlanForm mode="create" onDone={() => navigate(ROUTES.PLANS)} />
+      <PlanForm mode="create" onDone={() => navigate(`${ROUTES.CATALOG}?tab=plans`)} />
     </div>
   );
 };

@@ -10,7 +10,6 @@ import { StudioStatus } from '@/types/studio.types';
 import { ROUTES } from '@/routes/paths';
 import { message } from 'antd';
 import { StudioTable } from '@/features/studios/components/StudioTable';
-import { brand } from '@/styles/brand';
 import './StudiosListPage.css';
 
 const STATUS_FILTERS: { label: string; value: StudioStatus }[] = [
@@ -63,12 +62,12 @@ export const StudiosListPage = () => {
     <div className="studios-page">
       <header className="studios-page__hero">
         <div className="studios-page__hero-glow" aria-hidden />
-        <p className="studios-page__eyebrow">{brand.name} network</p>
+        <p className="studios-page__eyebrow">Studios</p>
         <div className="studios-page__hero-row">
           <div>
-            <h1>Studios</h1>
+            <h1>All studios</h1>
             <p className="studios-page__lede">
-              Search, filter, and manage every studio on the platform.
+              Search, filter, activate, or suspend studios on the platform.
             </p>
           </div>
           <Link className="studios-page__btn studios-page__btn--primary" to={ROUTES.STUDIO_CREATE}>

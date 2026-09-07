@@ -10,7 +10,10 @@ interface SubscriptionSummaryWidgetProps {
   showPlanPrice?: boolean;
 }
 
-export const SubscriptionSummaryWidget = ({ summary, showPlanPrice = true }: SubscriptionSummaryWidgetProps) => {
+export const SubscriptionSummaryWidget = ({
+  summary,
+  showPlanPrice = false,
+}: SubscriptionSummaryWidgetProps) => {
   return (
     <div>
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

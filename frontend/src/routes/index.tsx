@@ -16,7 +16,6 @@ import { CreateStudioPage } from '@/pages/admin/CreateStudioPage';
 import { EditStudioPage } from '@/pages/admin/EditStudioPage';
 import { StudioDetailsPage } from '@/pages/admin/StudioDetailsPage';
 import { StudioProfilePage } from '@/pages/studio/StudioProfilePage';
-import { BillingDashboardPage } from '@/pages/studio/BillingDashboardPage';
 import { AlbumsListPage } from '@/pages/studio/AlbumsListPage';
 import { CreateAlbumPage } from '@/pages/studio/CreateAlbumPage';
 import { EditAlbumPage } from '@/pages/studio/EditAlbumPage';
@@ -26,21 +25,12 @@ import { ArMappingsPage } from '@/pages/studio/ArMappingsPage';
 import { CreateMappingPage } from '@/pages/studio/CreateMappingPage';
 import { EditMappingPage } from '@/pages/studio/EditMappingPage';
 import { AlbumInsightsPage } from '@/pages/studio/AlbumInsightsPage';
-import { PlansListPage } from '@/pages/admin/PlansListPage';
 import { CreatePlanPage } from '@/pages/admin/CreatePlanPage';
 import { EditPlanPage } from '@/pages/admin/EditPlanPage';
 import { PlanDetailsPage } from '@/pages/admin/PlanDetailsPage';
-import { SubscriptionsListPage } from '@/pages/admin/SubscriptionsListPage';
 import { SubscriptionDetailsPage } from '@/pages/admin/SubscriptionDetailsPage';
-import { PlatformAnalyticsPage } from '@/pages/admin/PlatformAnalyticsPage';
-import { PlatformReportsPage } from '@/pages/admin/PlatformReportsPage';
-import { RevenueDashboardPage } from '@/pages/admin/RevenueDashboardPage';
-import { AdminPaymentsListPage } from '@/pages/admin/AdminPaymentsListPage';
-import { AdminInvoicesListPage } from '@/pages/admin/AdminInvoicesListPage';
-import { SubscriptionRevenuePage } from '@/pages/admin/SubscriptionRevenuePage';
-import { PacksListPage } from '@/pages/admin/PacksListPage';
-import { PackLedgerPage } from '@/pages/admin/PackLedgerPage';
 import { StudioPacksPage } from '@/pages/studio/StudioPacksPage';
+import { AdminCatalogPage } from '@/pages/admin/AdminCatalogPage';
 import { ROUTES } from '@/routes/paths';
 import { UserRole } from '@/types/auth.types';
 import { LandingPage } from '@/pages/LandingPage';
@@ -63,9 +53,8 @@ export const AppRoutes = () => {
             <Route path={ROUTES.STUDIO_PROFILE} element={<StudioProfilePage />} />
             <Route
               path={ROUTES.STUDIO_PLAN}
-              element={<Navigate to={ROUTES.STUDIO_BILLING} replace />}
+              element={<Navigate to={ROUTES.STUDIO_PACKS} replace />}
             />
-            <Route path={ROUTES.STUDIO_BILLING} element={<BillingDashboardPage />} />
             <Route path={ROUTES.STUDIO_PACKS} element={<StudioPacksPage />} />
             <Route path={ROUTES.ALBUMS} element={<AlbumsListPage />} />
             <Route path={ROUTES.ALBUM_CREATE} element={<CreateAlbumPage />} />
@@ -101,23 +90,24 @@ export const AppRoutes = () => {
             <Route path={ROUTES.STUDIO_CREATE} element={<CreateStudioPage />} />
             <Route path={ROUTES.STUDIO_EDIT} element={<EditStudioPage />} />
             <Route path={ROUTES.STUDIO_DETAILS} element={<StudioDetailsPage />} />
-            <Route path={ROUTES.PLANS} element={<PlansListPage />} />
+            <Route path={ROUTES.CATALOG} element={<AdminCatalogPage />} />
+            <Route path={ROUTES.PACKS} element={<Navigate to={ROUTES.CATALOG} replace />} />
+            <Route
+              path={ROUTES.PACK_LEDGER}
+              element={<Navigate to={`${ROUTES.CATALOG}?tab=history`} replace />}
+            />
+            <Route
+              path={ROUTES.PLANS}
+              element={<Navigate to={`${ROUTES.CATALOG}?tab=plans`} replace />}
+            />
             <Route path={ROUTES.PLAN_CREATE} element={<CreatePlanPage />} />
             <Route path={ROUTES.PLAN_EDIT} element={<EditPlanPage />} />
             <Route path={ROUTES.PLAN_DETAILS} element={<PlanDetailsPage />} />
-            <Route path={ROUTES.PACKS} element={<PacksListPage />} />
-            <Route path={ROUTES.PACK_LEDGER} element={<PackLedgerPage />} />
-            <Route path={ROUTES.SUBSCRIPTIONS} element={<SubscriptionsListPage />} />
-            <Route path={ROUTES.SUBSCRIPTION_DETAILS} element={<SubscriptionDetailsPage />} />
-            <Route path={ROUTES.ADMIN_ANALYTICS} element={<PlatformAnalyticsPage />} />
-            <Route path={ROUTES.ADMIN_ANALYTICS_REPORTS} element={<PlatformReportsPage />} />
-            <Route path={ROUTES.ADMIN_BILLING} element={<RevenueDashboardPage />} />
-            <Route path={ROUTES.ADMIN_BILLING_PAYMENTS} element={<AdminPaymentsListPage />} />
-            <Route path={ROUTES.ADMIN_BILLING_INVOICES} element={<AdminInvoicesListPage />} />
             <Route
-              path={ROUTES.ADMIN_BILLING_SUBSCRIPTIONS}
-              element={<SubscriptionRevenuePage />}
+              path={ROUTES.SUBSCRIPTIONS}
+              element={<Navigate to={`${ROUTES.CATALOG}?tab=subscriptions`} replace />}
             />
+            <Route path={ROUTES.SUBSCRIPTION_DETAILS} element={<SubscriptionDetailsPage />} />
           </Route>
         </Route>
 

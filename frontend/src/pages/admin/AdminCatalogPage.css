@@ -1,0 +1,111 @@
+@import url('https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap');
+
+.catalog-page {
+  --c-ink: #1c1b22;
+  --c-muted: #6a6772;
+  --c-line: #e6e4ea;
+  --c-accent: #5b2cdb;
+  font-family: Figtree, system-ui, sans-serif;
+  color: var(--c-ink);
+}
+
+.catalog-page__hero {
+  margin: 0 0 1rem;
+  padding: 0 0 1rem;
+  border-bottom: 1px solid var(--c-line);
+}
+
+.catalog-page__hero-glow {
+  display: none;
+}
+
+.catalog-page__eyebrow {
+  margin: 0 0 0.3rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--c-muted);
+}
+
+.catalog-page__hero h1 {
+  margin: 0 0 0.35rem;
+  font-size: clamp(1.45rem, 3vw, 1.8rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.catalog-page__lede {
+  margin: 0;
+  max-width: 38rem;
+  font-size: 0.94rem;
+  line-height: 1.5;
+  color: var(--c-muted);
+}
+
+.catalog-page__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--c-line);
+}
+
+.catalog-page__tab {
+  min-height: 2.4rem;
+  padding: 0.45rem 0.9rem;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: transparent;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--c-muted);
+  cursor: pointer;
+}
+
+.catalog-page__tab--on {
+  color: var(--c-ink);
+  border-bottom-color: var(--c-accent);
+}
+
+.catalog-page__panel {
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.catalog-page__hint {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--c-muted);
+}
+
+.catalog-page__hint--foot {
+  margin: 1rem 0 0;
+}
+
+.catalog-page__hint a {
+  font-weight: 650;
+  color: var(--c-accent);
+}
+
+.catalog-page__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.catalog-page__toolbar .catalog-page__hint {
+  margin-bottom: 0;
+  flex: 1;
+}
+
+.catalog-page__expand {
+  margin: 0;
+  color: var(--c-muted);
+  font-size: 0.88rem;
+}
