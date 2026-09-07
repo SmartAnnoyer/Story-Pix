@@ -161,6 +161,18 @@ export const ViewerPage = () => {
   const manifest = warmup.manifest;
   const hasTargets = Boolean(manifest?.targets.length);
 
+  if (manifest?.album.scansExhausted) {
+    return (
+      <ViewerErrorState
+        title="Plays finished"
+        message={
+          manifest.branding.contactHint ??
+          'Every photo in this album has used its guest plays. Please contact your photo studio to renew.'
+        }
+      />
+    );
+  }
+
   if (!started) {
     return (
       <ViewerWelcomeScreen

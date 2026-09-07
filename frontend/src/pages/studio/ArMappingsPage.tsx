@@ -34,7 +34,8 @@ export const ArMappingsPage = () => {
   }
 
   const mappingCount = data?.items.length ?? 0;
-  const atMappingCap = mappingCount >= MAX_AR_ITEMS_PER_ALBUM;
+  const maxMappings = album.maxMappings ?? MAX_AR_ITEMS_PER_ALBUM;
+  const atMappingCap = mappingCount >= maxMappings;
 
   const handlePublish = async (mappingId: string) => {
     try {
@@ -81,7 +82,7 @@ export const ArMappingsPage = () => {
       </Title>
       <Paragraph type="secondary" className="!mb-4">
         Each row is one printed photo and the video that plays when a guest scans it. Up to{' '}
-        {MAX_AR_ITEMS_PER_ALBUM} mappings per album keeps scanning sharp.
+        {maxMappings} mappings on this pack.
       </Paragraph>
 
       <AlbumDeliveryGuide albumId={id} current="map" />
@@ -93,7 +94,7 @@ export const ArMappingsPage = () => {
           disabled={atMappingCap}
           onClick={() => navigate(ROUTES.ALBUM_AR_MAPPING_CREATE.replace(':id', id))}
         >
-          {atMappingCap ? `Limit reached (${MAX_AR_ITEMS_PER_ALBUM})` : 'Map another photo'}
+          {atMappingCap ? `Limit reached (${maxMappings})` : 'Map another photo'}
         </Button>
       </div>
 

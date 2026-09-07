@@ -42,6 +42,13 @@ export class ArTarget {
   })
   overlayFrame?: { x: number; y: number; width: number; height: number } | null;
 
+  /** Lifetime guest plays for this mapped photo (default 1000). */
+  @Prop({ type: Number, default: 1000 })
+  scanLimit!: number;
+
+  @Prop({ type: Number, default: 0 })
+  scanUsage!: number;
+
   @Prop({ type: Date, default: null })
   deletedAt?: Date | null;
 }

@@ -146,6 +146,28 @@ export const AlbumDetailsPage = () => {
 
       <AlbumDeliveryGuide albumId={id} current="share" />
 
+      <Card className="!mb-4" size="small">
+        <Space wrap size="large">
+          <Text>
+            Pack: <Text strong>{album.packName ?? album.packCode ?? '—'}</Text>
+          </Text>
+          <Text>
+            Photos: up to <Text strong>{album.maxMappings ?? 25}</Text>
+          </Text>
+          <Text>
+            Plays per photo:{' '}
+            <Text strong>{(album.scansPerMapping ?? 1000).toLocaleString('en-IN')}</Text>
+          </Text>
+          <Text>
+            Total plays used (all photos):{' '}
+            <Text strong>{(album.scanUsage ?? 0).toLocaleString('en-IN')}</Text>
+          </Text>
+          {album.scansExhausted ? (
+            <Text type="danger">All photo plays used — guests see contact message</Text>
+          ) : null}
+        </Space>
+      </Card>
+
       {!mediaDone ? (
         <Alert
           className="!mb-4"

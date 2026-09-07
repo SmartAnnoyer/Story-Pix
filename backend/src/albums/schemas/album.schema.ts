@@ -81,6 +81,34 @@ export class Album {
   @Prop({ type: Date, default: null })
   mindFileBuildStartedAt?: Date | null;
 
+  /** Album pack limits (lifetime hosting; scans enforced per mapping). */
+  @Prop({ type: Types.ObjectId, ref: 'StudioPackCredit', default: null })
+  packCreditId?: Types.ObjectId | null;
+
+  @Prop({ type: String, default: null })
+  packCode?: string | null;
+
+  @Prop({ type: String, default: null })
+  packName?: string | null;
+
+  @Prop({ type: Number, default: 25 })
+  maxMappings!: number;
+
+  /** Scans guaranteed per mapped photo (always 1000). */
+  @Prop({ type: Number, default: 1000 })
+  scansPerMapping!: number;
+
+  /**
+   * Soft album ceiling = maxMappings × scansPerMapping (display / analytics).
+   * Guest enforcement is per mapping, not this pool.
+   */
+  @Prop({ type: Number, default: 25000 })
+  scanLimit!: number;
+
+  /** Sum of mapping scanUsage (analytics). */
+  @Prop({ type: Number, default: 0 })
+  scanUsage!: number;
+
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   createdBy!: Types.ObjectId;
 

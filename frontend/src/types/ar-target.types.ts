@@ -34,6 +34,10 @@ export interface ArTarget {
   status: ArTargetStatus;
   mindFileUrl: string | null;
   overlayFrame?: OverlayFrame | null;
+  scanLimit?: number;
+  scanUsage?: number;
+  scansRemaining?: number;
+  scansExhausted?: boolean;
   photo: ArTargetMediaSummary | null;
   video: ArTargetMediaSummary | null;
   createdAt: string | null;
@@ -87,6 +91,10 @@ export interface ViewerManifestTarget {
   videoThumbnailUrl: string | null;
   videoAvailable: boolean;
   overlayFrame?: OverlayFrame | null;
+  scanLimit?: number;
+  scanUsage?: number;
+  scansRemaining?: number;
+  scansExhausted?: boolean;
 }
 
 export interface ViewerManifestMindFile {
@@ -102,11 +110,19 @@ export interface ViewerManifest {
     albumName: string;
     slug: string;
     coverImage: string | null;
+    maxMappings?: number;
+    scansPerMapping?: number;
+    scanLimit?: number;
+    scanUsage?: number;
+    scansRemaining?: number;
+    scansExhausted?: boolean;
+    packName?: string | null;
   };
   targets: ViewerManifestTarget[];
   branding: {
     studioName: string | null;
     logoUrl: string | null;
+    contactHint?: string | null;
   };
   mindFile: ViewerManifestMindFile | null;
 }
@@ -134,4 +150,5 @@ export type ScanOverlayMessage =
   | 'loading'
   | 'preparing'
   | 'compile_failed'
-  | 'no_targets';
+  | 'no_targets'
+  | 'scans_exhausted';

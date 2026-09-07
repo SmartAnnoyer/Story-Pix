@@ -20,6 +20,8 @@ import { AnalyticsIngestionService } from '../analytics/analytics-ingestion.serv
 import { EventBusService } from '../notifications/services/event-bus.service';
 import { MindArCompilerService } from '../mind-ar/mind-ar-compiler.service';
 import { UsageService } from '../subscriptions/usage.service';
+import { PacksService } from '../packs/packs.service';
+import { SCANS_PER_MAPPING } from '../common/constants/pack.constants';
 import { Album, AlbumDocument } from './schemas/album.schema';
 import { ArTarget, ArTargetDocument } from '../ar-targets/schemas/ar-target.schema';
 import {
@@ -36,6 +38,7 @@ export class AlbumsService {
     @InjectModel(Album.name) private readonly albumModel: Model<AlbumDocument>,
     @InjectModel(ArTarget.name) private readonly arTargetModel: Model<ArTargetDocument>,
     private readonly usageService: UsageService,
+    private readonly packsService: PacksService,
     private readonly configService: ConfigService,
     private readonly analyticsIngestionService: AnalyticsIngestionService,
     private readonly eventBus: EventBusService,
@@ -103,8 +106,32 @@ export class AlbumsService {
       status: AlbumStatus.DRAFT,
       isPublished: false,
       publishedAt: null,
+      maxMappings: 25,
+      scansPerMapping: SCANS_PER_MAPPING,
+      scanLimit: 25 * SCANS_PER_MAPPING,
+      scanUsage: 0,
       createdBy: new Types.ObjectId(userId),
     });
+
+    try {
+      const consumed = await this.packsService.consumeCreditForAlbum({
+        studioId,
+        packCreditId: dto.packCreditId,
+        albumId: album._id.toString(),
+        performedBy: userId,
+      });
+      album.packCreditId = new Types.ObjectId(consumed.creditId);
+      album.packCode = consumed.packCode;
+      album.packName = consumed.packName;
+      album.maxMappings = consumed.maxMappings;
+      album.scansPerMapping = consumed.scansPerMapping || SCANS_PER_MAPPING;
+      album.scanLimit = album.maxMappings * album.scansPerMapping;
+      album.scanUsage = 0;
+      await album.save();
+    } catch (error) {
+      await this.albumModel.deleteOne({ _id: album._id }).exec();
+      throw error;
+    }
 
     await this.usageService.incrementAlbumCount(studioId);
     void this.trackEvent(studioId, album._id.toString(), AnalyticsEventType.ALBUM_CREATED);
@@ -115,6 +142,102 @@ export class AlbumsService {
       metadata: { albumName: album.albumName, albumId: album._id.toString() },
     });
     return this.serialize(album);
+  }
+
+  async assertMappingCapacity(studioId: string, albumId: string) {
+    const album = await this.findDocument(studioId, albumId);
+    const maxMappings = album.maxMappings ?? 25;
+    const count = await this.arTargetModel
+      .countDocuments({
+        albumId: album._id,
+        studioId: this.toObjectId(studioId),
+        status: { $ne: ArTargetStatus.ARCHIVED },
+        deletedAt: null,
+      })
+      .exec();
+
+    if (count >= maxMappings) {
+      throw new BadRequestException({
+        message: `This album allows up to ${maxMappings} mappings for its pack.`,
+        code: 'ALBUM_MAPPING_LIMIT',
+        details: { maxMappings, used: count },
+      });
+    }
+
+    return { album, maxMappings, used: count };
+  }
+
+  async assertMappingScanAvailable(arTargetId: string) {
+    const target = await this.arTargetModel.findById(arTargetId).exec();
+    if (!target || target.deletedAt) {
+      throw new NotFoundException('AR mapping not found');
+    }
+
+    const scanLimit = target.scanLimit ?? SCANS_PER_MAPPING;
+    const scanUsage = target.scanUsage ?? 0;
+    if (scanUsage >= scanLimit) {
+      throw new ForbiddenException({
+        message:
+          'This photo’s scan limit is over. Please contact the photo studio to renew access.',
+        code: 'MAPPING_SCAN_LIMIT_EXCEEDED',
+        details: { arTargetId, scanLimit, scanUsage },
+      });
+    }
+
+    return target;
+  }
+
+  async incrementMappingScanUsage(arTargetId: string, albumId: string) {
+    await this.assertMappingScanAvailable(arTargetId);
+    const target = await this.arTargetModel
+      .findByIdAndUpdate(arTargetId, { $inc: { scanUsage: 1 } }, { new: true })
+      .exec();
+    if (!target) throw new NotFoundException('AR mapping not found');
+
+    await this.albumModel.findByIdAndUpdate(albumId, { $inc: { scanUsage: 1 } }).exec();
+    return target;
+  }
+
+  /** Add +1000 plays to every active mapping in the album (shop renewal). */
+  async topUpAlbumScans(albumId: string, additionalScans = SCANS_PER_MAPPING) {
+    if (!Number.isFinite(additionalScans) || additionalScans < 1) {
+      throw new BadRequestException('additionalScans must be at least 1');
+    }
+    const album = await this.albumModel.findById(albumId).exec();
+    if (!album || album.deletedAt) throw new NotFoundException('Album not found');
+
+    const perMapping = additionalScans;
+    await this.arTargetModel
+      .updateMany(
+        {
+          albumId: album._id,
+          deletedAt: null,
+          status: { $ne: ArTargetStatus.ARCHIVED },
+        },
+        { $inc: { scanLimit: perMapping } },
+      )
+      .exec();
+
+    const mappingCount = await this.arTargetModel
+      .countDocuments({
+        albumId: album._id,
+        deletedAt: null,
+        status: { $ne: ArTargetStatus.ARCHIVED },
+      })
+      .exec();
+
+    album.scanLimit = (album.scanLimit ?? 0) + perMapping * Math.max(mappingCount, 1);
+    await album.save();
+    return this.serialize(album);
+  }
+
+  async assertAlbumScanAvailable(_albumId: string) {
+    // Kept for compatibility — guest enforcement is per mapping.
+    return null;
+  }
+
+  async incrementAlbumScanUsage(_albumId: string) {
+    return null;
   }
 
   async update(studioId: string, id: string, dto: UpdateAlbumDto) {
@@ -378,6 +501,18 @@ export class AlbumsService {
       arScanFileBuildStartedAt: album.mindFileBuildStartedAt
         ? album.mindFileBuildStartedAt.toISOString()
         : null,
+      packCreditId: album.packCreditId?.toString() ?? null,
+      packCode: album.packCode ?? null,
+      packName: album.packName ?? null,
+      maxMappings: album.maxMappings ?? 25,
+      scansPerMapping: album.scansPerMapping ?? SCANS_PER_MAPPING,
+      scanLimit: album.scanLimit ?? (album.maxMappings ?? 25) * SCANS_PER_MAPPING,
+      scanUsage: album.scanUsage ?? 0,
+      scansRemaining: Math.max(
+        0,
+        (album.scanLimit ?? (album.maxMappings ?? 25) * SCANS_PER_MAPPING) - (album.scanUsage ?? 0),
+      ),
+      scansExhausted: false,
       createdBy: album.createdBy.toString(),
       createdAt: doc.createdAt ?? null,
       updatedAt: doc.updatedAt ?? null,

@@ -6,6 +6,7 @@ import type {
 } from '@/types/ar-target.types';
 import { ScanEventType } from '@/types/ar-target.types';
 import { detectDeviceInfo, getViewerSessionId, viewerService } from '@/services/viewer.service';
+import { getErrorMessage } from '@/api/client';
 import { ScanStatusOverlay } from './ScanStatusOverlay';
 import { ScanFocusFrame, type ScanFocusPhase } from './ScanFocusFrame';
 import { TargetFrameVideo, type VideoDisplayMode } from './TargetFrameVideo';
@@ -116,8 +117,8 @@ export const ARViewer = ({
   const targetFoundTimersRef = useRef<Map<number, number>>(new Map());
   const targetLostGraceRef = useRef<Map<number, number>>(new Map());
   const prefetchedOnWarmRef = useRef(false);
-  const [status, setStatus] = useState<ScanOverlayMessage>(
-    hasPreparedMind ? 'loading' : 'preparing',
+  const [status, setStatus] = useState<ScanOverlayMessage>(() =>
+    manifest.album.scansExhausted ? 'scans_exhausted' : hasPreparedMind ? 'loading' : 'preparing',
   );
   const [activeTarget, setActiveTarget] = useState<ViewerManifestTarget | null>(null);
   const [activeMindIndex, setActiveMindIndex] = useState<number | null>(null);
@@ -129,7 +130,11 @@ export const ARViewer = ({
   const [videoMode, setVideoMode] = useState<VideoDisplayMode>('frame');
   const [mindBundle, setMindBundle] = useState<MindBundle | null>(initialMindBundle);
   const [prepareError, setPrepareError] = useState<string | null>(null);
-  const [statusDetail, setStatusDetail] = useState<string | null>(null);
+  const [statusDetail, setStatusDetail] = useState<string | null>(() =>
+    manifest.album.scansExhausted
+      ? (manifest.branding.contactHint ?? 'Contact your photo studio to renew this album.')
+      : null,
+  );
   const [progress, setProgress] = useState(hasPreparedMind ? 0.72 : 0.05);
   const [scanSeconds, setScanSeconds] = useState(0);
   const [matchPercent, setMatchPercent] = useState(0);
@@ -225,7 +230,12 @@ export const ARViewer = ({
     if (status === 'loading') return 'loading';
     if (status === 'scanning' || status === 'move_closer') return 'scanning';
     if (status === 'match_found' || status === 'recognized') return 'done';
-    if (status === 'compile_failed' || status === 'camera_required' || status === 'no_match') {
+    if (
+      status === 'compile_failed' ||
+      status === 'camera_required' ||
+      status === 'no_match' ||
+      status === 'scans_exhausted'
+    ) {
       return 'error';
     }
     return 'loading';
@@ -290,11 +300,44 @@ export const ARViewer = ({
           sessionId,
           ...deviceInfo,
         });
-      } catch {
-        // Analytics should not block viewer UX
+      } catch (error) {
+        const message = getErrorMessage(error, '');
+        const code =
+          typeof error === 'object' &&
+          error &&
+          'response' in error &&
+          typeof (error as { response?: { data?: { error?: { code?: string } } } }).response?.data
+            ?.error?.code === 'string'
+            ? (error as { response: { data: { error: { code: string } } } }).response.data.error
+                .code
+            : '';
+        if (
+          eventType === ScanEventType.SCAN_SUCCESS &&
+          (code === 'MAPPING_SCAN_LIMIT_EXCEEDED' ||
+            code === 'ALBUM_SCAN_LIMIT_EXCEEDED' ||
+            /scan limit|Scan limit|plays are over/i.test(message))
+        ) {
+          if (target) {
+            target.scansExhausted = true;
+            target.scansRemaining = 0;
+          }
+          const allDone = targetsRef.current.every((item) => item.scansExhausted);
+          if (allDone) {
+            scanningEnabledRef.current = false;
+            statusRef.current = 'scans_exhausted';
+            setStatus('scans_exhausted');
+            setStatusDetail(
+              manifest.branding.contactHint ?? 'Contact your photo studio to renew this album.',
+            );
+          } else {
+            setStatusDetail(
+              'This photo’s plays are over. Point at another photo, or contact the studio.',
+            );
+          }
+        }
       }
     },
-    [albumSlug, deviceInfo, sessionId],
+    [albumSlug, deviceInfo, sessionId, manifest.branding.contactHint],
   );
 
   recordEventRef.current = recordEvent;
@@ -312,6 +355,10 @@ export const ARViewer = ({
   }, [recordEvent]);
 
   useEffect(() => {
+    if (manifest.album.scansExhausted || statusRef.current === 'scans_exhausted') {
+      return undefined;
+    }
+
     if (skipWarmupPrepareRef.current) {
       skipWarmupPrepareRef.current = false;
       return undefined;
@@ -409,6 +456,9 @@ export const ARViewer = ({
   }, [status]);
 
   useEffect(() => {
+    if (manifest.album.scansExhausted || status === 'scans_exhausted') {
+      return undefined;
+    }
     if (!mindBundle || mindBundle.cacheKey !== mindCacheKey || !containerRef.current) {
       return undefined;
     }
@@ -619,9 +669,32 @@ export const ARViewer = ({
           }
 
           const group = mappingsForMindIndex(targetsRef.current, mindIndex);
-          const nextTarget = group.find((item) => item.videoAvailable) ?? group[0];
+          const nextTarget =
+            group.find((item) => item.videoAvailable && !item.scansExhausted) ??
+            group.find((item) => item.videoAvailable) ??
+            group[0];
           if (!nextTarget) {
             viewerLog('warn', 'confirmTargetMatch — no target for mind index', { mindIndex });
+            return;
+          }
+
+          if (nextTarget.scansExhausted) {
+            viewerLog('warn', 'confirmTargetMatch — mapping scan limit exhausted', {
+              mindIndex,
+              target: nextTarget.targetName,
+            });
+            setStatusDetail(
+              'This photo’s plays are over. Point at another photo, or contact the studio.',
+            );
+            const allDone = targetsRef.current.every((item) => item.scansExhausted);
+            if (allDone) {
+              scanningEnabledRef.current = false;
+              statusRef.current = 'scans_exhausted';
+              setStatus('scans_exhausted');
+              setStatusDetail(
+                manifest.branding.contactHint ?? 'Contact your photo studio to renew this album.',
+              );
+            }
             return;
           }
 

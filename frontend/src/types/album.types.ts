@@ -33,6 +33,15 @@ export interface Album {
   arScanFileError: string | null;
   arScanFileCompiledAt: string | null;
   arScanFileBuildStartedAt: string | null;
+  packCreditId: string | null;
+  packCode: string | null;
+  packName: string | null;
+  maxMappings: number;
+  scansPerMapping: number;
+  scanLimit: number;
+  scanUsage: number;
+  scansRemaining: number;
+  scansExhausted: boolean;
   createdBy: string;
   createdAt: string | null;
   updatedAt: string | null;
@@ -62,6 +71,7 @@ export interface CreateAlbumPayload {
   albumName: string;
   customerName: string;
   coverImage?: string;
+  packCreditId?: string;
 }
 
 export type UpdateAlbumPayload = Partial<CreateAlbumPayload>;

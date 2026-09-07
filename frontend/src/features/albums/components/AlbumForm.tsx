@@ -1,48 +1,57 @@
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
-import { Alert, Button, Form, Input } from 'antd';
+import { Alert, Button, Form, Input, Select } from 'antd';
 import type { CreateAlbumPayload, UpdateAlbumPayload } from '@/types/album.types';
+import type { StudioPackCredit } from '@/types/pack.types';
 
-const schema = z.object({
+const createSchema = z.object({
+  albumName: z.string().min(2, 'Album name is required'),
+  customerName: z.string().min(2, 'Client name is required'),
+  packCreditId: z.string().min(1, 'Select a pack credit'),
+});
+
+const editSchema = z.object({
   albumName: z.string().min(2, 'Album name is required'),
   customerName: z.string().min(2, 'Client name is required'),
 });
 
-type FormValues = z.infer<typeof schema>;
+type CreateFormValues = z.infer<typeof createSchema>;
+type EditFormValues = z.infer<typeof editSchema>;
 
 type AlbumFormProps =
   | {
       mode: 'create';
-      initialValues?: Partial<FormValues>;
+      packCredits?: StudioPackCredit[];
+      initialValues?: Partial<CreateFormValues>;
       onSubmit: (values: CreateAlbumPayload) => Promise<void>;
       isSubmitting?: boolean;
       errorMessage?: string;
     }
   | {
       mode: 'edit';
-      initialValues?: Partial<FormValues>;
+      packCredits?: StudioPackCredit[];
+      initialValues?: Partial<EditFormValues>;
       onSubmit: (values: UpdateAlbumPayload) => Promise<void>;
       isSubmitting?: boolean;
       errorMessage?: string;
     };
 
-export const AlbumForm = ({
-  mode,
-  initialValues,
-  onSubmit,
-  isSubmitting,
-  errorMessage,
-}: AlbumFormProps) => {
+export const AlbumForm = (props: AlbumFormProps) => {
+  const { mode, initialValues, onSubmit, isSubmitting, errorMessage } = props;
+  const packCredits = mode === 'create' ? (props.packCredits ?? []) : [];
+  const availableCredits = packCredits.filter((credit) => credit.remainingCredits > 0);
+
   const {
     control,
     handleSubmit,
     formState: { errors },
-  } = useForm<FormValues>({
-    resolver: zodResolver(schema),
+  } = useForm<CreateFormValues | EditFormValues>({
+    resolver: zodResolver(mode === 'create' ? createSchema : editSchema),
     defaultValues: {
       albumName: '',
       customerName: '',
+      ...(mode === 'create' ? { packCreditId: availableCredits[0]?.id ?? '' } : {}),
       ...initialValues,
     },
   });
@@ -57,11 +66,21 @@ export const AlbumForm = ({
         <Alert type="error" message={errorMessage} className="mb-4" showIcon />
       ) : null}
 
+      {mode === 'create' && availableCredits.length === 0 ? (
+        <Alert
+          type="warning"
+          showIcon
+          className="mb-4"
+          message="No album pack credits left"
+          description="Ask Story-PIX admin to enable a Minimal, Standard, Professional, or Volume pack for your studio."
+        />
+      ) : null}
+
       <Form.Item
         label="Album name"
         extra="The event you are delivering — so you can find it later."
-        validateStatus={errors.albumName ? 'error' : ''}
-        help={errors.albumName?.message}
+        validateStatus={'albumName' in errors && errors.albumName ? 'error' : ''}
+        help={'albumName' in errors ? errors.albumName?.message : undefined}
       >
         <Controller
           name="albumName"
@@ -73,18 +92,57 @@ export const AlbumForm = ({
       <Form.Item
         label="Client name"
         extra="Who this album is for."
-        validateStatus={errors.customerName ? 'error' : ''}
-        help={errors.customerName?.message}
+        validateStatus={'customerName' in errors && errors.customerName ? 'error' : ''}
+        help={'customerName' in errors ? errors.customerName?.message : undefined}
       >
         <Controller
           name="customerName"
           control={control}
-          render={({ field }) => <Input {...field} placeholder="Client name" />}
+          render={({ field }) => <Input {...field} placeholder="Rahul" />}
         />
       </Form.Item>
 
-      <Button type="primary" htmlType="submit" loading={isSubmitting}>
-        {mode === 'create' ? 'Next: add photos' : 'Save'}
+      {mode === 'create' ? (
+        <Form.Item
+          label="Pack credit"
+          extra="Consumes 1 album credit. Limits (mappings + scans) come from this pack."
+          validateStatus={
+            'packCreditId' in errors &&
+            (errors as { packCreditId?: { message?: string } }).packCreditId
+              ? 'error'
+              : ''
+          }
+          help={
+            'packCreditId' in errors
+              ? (errors as { packCreditId?: { message?: string } }).packCreditId?.message
+              : undefined
+          }
+        >
+          <Controller
+            name="packCreditId"
+            control={control}
+            render={({ field }) => (
+              <Select
+                {...field}
+                placeholder="Select pack"
+                options={availableCredits.map((credit) => ({
+                  value: credit.id,
+                  label: `${credit.packName} · up to ${credit.maxMappings} photos · 1,000 plays/photo · ${credit.remainingCredits} left`,
+                }))}
+                disabled={availableCredits.length === 0}
+              />
+            )}
+          />
+        </Form.Item>
+      ) : null}
+
+      <Button
+        type="primary"
+        htmlType="submit"
+        loading={isSubmitting}
+        disabled={mode === 'create' && availableCredits.length === 0}
+      >
+        {mode === 'create' ? 'Create album' : 'Save changes'}
       </Button>
     </Form>
   );

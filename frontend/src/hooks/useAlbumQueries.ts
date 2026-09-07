@@ -1,6 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { albumService } from '@/services/album.service';
-import { AlbumStatus, type AlbumQueryParams, type CreateAlbumPayload, type UpdateAlbumPayload } from '@/types/album.types';
+import {
+  AlbumStatus,
+  type AlbumQueryParams,
+  type CreateAlbumPayload,
+  type UpdateAlbumPayload,
+} from '@/types/album.types';
 
 export const albumKeys = {
   all: ['albums'] as const,
@@ -43,7 +48,10 @@ export const useCreateAlbumMutation = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: CreateAlbumPayload) => albumService.createAlbum(payload),
-    onSuccess: () => qc.invalidateQueries({ queryKey: albumKeys.all }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: albumKeys.all });
+      void qc.invalidateQueries({ queryKey: ['packs'] });
+    },
   });
 };
 

@@ -68,11 +68,13 @@ export const DashboardLayout = () => {
               path: ROUTES.ADMIN_DASHBOARD,
             },
             { key: 'studios', label: 'Studios', icon: <TeamOutlined />, path: ROUTES.STUDIOS },
+            { key: 'packs', label: 'Packs', icon: <CrownOutlined />, path: ROUTES.PACKS },
             { key: 'plans', label: 'Plans', icon: <CrownOutlined />, path: ROUTES.PLANS },
           ]
         : [
             { key: 'home', label: 'Home', icon: <DashboardOutlined />, path: ROUTES.DASHBOARD },
             { key: 'albums', label: 'Albums', icon: <PictureOutlined />, path: ROUTES.ALBUMS },
+            { key: 'packs', label: 'Packs', icon: <CrownOutlined />, path: ROUTES.STUDIO_PACKS },
           ],
     [isSuperAdmin],
   );
@@ -86,6 +88,12 @@ export const DashboardLayout = () => {
               label: 'Subscriptions',
               icon: <CrownOutlined />,
               path: ROUTES.SUBSCRIPTIONS,
+            },
+            {
+              key: 'pack-ledger',
+              label: 'Pack history',
+              icon: <CrownOutlined />,
+              path: ROUTES.PACK_LEDGER,
             },
             {
               key: 'billing',

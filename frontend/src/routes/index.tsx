@@ -41,6 +41,9 @@ import { SubscriptionRevenuePage } from '@/pages/admin/SubscriptionRevenuePage';
 import { JobMonitoringPage } from '@/pages/admin/JobMonitoringPage';
 import { AdminNotificationMonitoringPage } from '@/pages/admin/AdminNotificationMonitoringPage';
 import { NotificationCenterPage } from '@/pages/studio/NotificationCenterPage';
+import { PacksListPage } from '@/pages/admin/PacksListPage';
+import { PackLedgerPage } from '@/pages/admin/PackLedgerPage';
+import { StudioPacksPage } from '@/pages/studio/StudioPacksPage';
 import { ROUTES } from '@/routes/paths';
 import { UserRole } from '@/types/auth.types';
 import { LandingPage } from '@/pages/LandingPage';
@@ -66,6 +69,7 @@ export const AppRoutes = () => {
               element={<Navigate to={ROUTES.STUDIO_BILLING} replace />}
             />
             <Route path={ROUTES.STUDIO_BILLING} element={<BillingDashboardPage />} />
+            <Route path={ROUTES.STUDIO_PACKS} element={<StudioPacksPage />} />
             <Route path={ROUTES.ALBUMS} element={<AlbumsListPage />} />
             <Route path={ROUTES.ALBUM_CREATE} element={<CreateAlbumPage />} />
             <Route path={ROUTES.ALBUM_EDIT} element={<EditAlbumPage />} />
@@ -105,6 +109,8 @@ export const AppRoutes = () => {
             <Route path={ROUTES.PLAN_CREATE} element={<CreatePlanPage />} />
             <Route path={ROUTES.PLAN_EDIT} element={<EditPlanPage />} />
             <Route path={ROUTES.PLAN_DETAILS} element={<PlanDetailsPage />} />
+            <Route path={ROUTES.PACKS} element={<PacksListPage />} />
+            <Route path={ROUTES.PACK_LEDGER} element={<PackLedgerPage />} />
             <Route path={ROUTES.SUBSCRIPTIONS} element={<SubscriptionsListPage />} />
             <Route path={ROUTES.SUBSCRIPTION_DETAILS} element={<SubscriptionDetailsPage />} />
             <Route path={ROUTES.ADMIN_ANALYTICS} element={<PlatformAnalyticsPage />} />

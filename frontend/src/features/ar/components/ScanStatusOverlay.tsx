@@ -58,6 +58,12 @@ const STATUS_COPY: Partial<Record<ScanOverlayMessage, StatusCopy>> = {
     body: 'This album does not have scannable photos yet.',
     tone: 'info',
   },
+  scans_exhausted: {
+    title: 'Plays finished for this album',
+    body: 'Every photo in this album has used its guest plays. Please contact your photo studio to renew.',
+    tone: 'error',
+    tips: ['Ask the studio that made this album', 'They can top up plays and restore access'],
+  },
 };
 
 const FALLBACK_COPY: StatusCopy = {
@@ -120,11 +126,11 @@ export const ScanStatusOverlay = ({
   const copy = STATUS_COPY[status] ?? FALLBACK_COPY;
   const showDetail =
     Boolean(detail) &&
-    detail !== copy.body &&
     (status === 'compile_failed' ||
       status === 'camera_required' ||
       status === 'no_match' ||
-      status === 'video_unavailable');
+      status === 'video_unavailable' ||
+      status === 'scans_exhausted');
 
   const canRetry = Boolean(showRetry && onRetry && copy.action);
 

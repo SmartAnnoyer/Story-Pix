@@ -60,7 +60,7 @@ export class ArTargetsService {
   }
 
   async create(studioId: string, dto: CreateArTargetDto) {
-    await this.albumsService.findById(studioId, dto.albumId);
+    const { album } = await this.albumsService.assertMappingCapacity(studioId, dto.albumId);
     await this.validateMediaPair(studioId, dto.albumId, dto.photoMediaId, dto.videoMediaId);
     await this.ensureUniquePair(studioId, dto.albumId, dto.photoMediaId, dto.videoMediaId);
 
@@ -69,6 +69,8 @@ export class ArTargetsService {
       dto.photoMediaId,
       dto.overlayFrame,
     );
+
+    const scansPerMapping = album.scansPerMapping ?? 1000;
 
     const target = await this.arTargetModel.create({
       studioId,
@@ -79,6 +81,8 @@ export class ArTargetsService {
       status: ArTargetStatus.DRAFT,
       targetIndex: null,
       overlayFrame,
+      scanLimit: scansPerMapping,
+      scanUsage: 0,
     });
 
     return this.serializeWithMedia(studioId, target);
@@ -360,6 +364,10 @@ export class ArTargetsService {
       status: target.status,
       mindFileUrl: target.mindFileUrl ?? null,
       overlayFrame: clampOverlayFrame(target.overlayFrame ?? photo?.overlayFrame),
+      scanLimit: target.scanLimit ?? 1000,
+      scanUsage: target.scanUsage ?? 0,
+      scansRemaining: Math.max(0, (target.scanLimit ?? 1000) - (target.scanUsage ?? 0)),
+      scansExhausted: (target.scanUsage ?? 0) >= (target.scanLimit ?? 1000),
       photo: photo
         ? {
             id: photo.id,

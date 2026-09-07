@@ -25,6 +25,11 @@ export class CreateAlbumDto {
   @IsOptional()
   @IsString()
   coverImage?: string;
+
+  /** Studio pack credit batch to consume for this album. */
+  @IsOptional()
+  @IsString()
+  packCreditId?: string;
 }
 
 export class UpdateAlbumDto {

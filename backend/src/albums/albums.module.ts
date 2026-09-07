@@ -4,6 +4,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { MindArModule } from '../mind-ar/mind-ar.module';
+import { PacksModule } from '../packs/packs.module';
 import { Album, AlbumSchema } from './schemas/album.schema';
 import { ArTarget, ArTargetSchema } from '../ar-targets/schemas/ar-target.schema';
 import { AlbumsService } from './albums.service';
@@ -18,6 +19,7 @@ import { AlbumsService } from './albums.service';
     AnalyticsModule,
     forwardRef(() => NotificationsModule),
     MindArModule,
+    PacksModule,
   ],
   providers: [AlbumsService],
   exports: [AlbumsService, MongooseModule],

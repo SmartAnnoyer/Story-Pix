@@ -1,4 +1,10 @@
-import { BadGatewayException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import type { Request } from 'express';
@@ -17,6 +23,7 @@ import { Studio, StudioDocument } from '../studios/schemas/studio.schema';
 import { Media, MediaDocument } from '../media/schemas/media.schema';
 import { mapLegacyScanEventType } from '../analytics/utils/analytics.util';
 import { clampOverlayFrame } from '../common/dto/overlay-frame.dto';
+import { SCANS_PER_MAPPING } from '../common/constants/pack.constants';
 
 @Injectable()
 export class ViewerService {
@@ -96,6 +103,13 @@ export class ViewerService {
         videoAvailable: Boolean(video?.r2ObjectKey || videoUrl),
         hasTrackingPhoto: Boolean(photo?.r2ObjectKey || photoUrl),
         overlayFrame: clampOverlayFrame(target.overlayFrame ?? photo?.overlayFrame),
+        scanLimit: target.scanLimit ?? SCANS_PER_MAPPING,
+        scanUsage: target.scanUsage ?? 0,
+        scansRemaining: Math.max(
+          0,
+          (target.scanLimit ?? SCANS_PER_MAPPING) - (target.scanUsage ?? 0),
+        ),
+        scansExhausted: (target.scanUsage ?? 0) >= (target.scanLimit ?? SCANS_PER_MAPPING),
       };
     });
 
@@ -107,17 +121,33 @@ export class ViewerService {
       void this.mindArCompilerService.scheduleAlbumMindRebuild(albumDoc._id.toString());
     }
 
+    const activeTargets = filteredTargets;
+    const allMappingsExhausted =
+      activeTargets.length > 0 && activeTargets.every((target) => target.scansExhausted);
+
     return {
       album: {
         id: album.id,
         albumName: album.albumName,
         slug: album.slug,
         coverImage: album.coverImage,
+        maxMappings: albumDoc.maxMappings ?? 25,
+        scansPerMapping: albumDoc.scansPerMapping ?? SCANS_PER_MAPPING,
+        scanLimit:
+          albumDoc.scanLimit ??
+          (albumDoc.maxMappings ?? 25) * (albumDoc.scansPerMapping ?? SCANS_PER_MAPPING),
+        scanUsage: albumDoc.scanUsage ?? 0,
+        scansRemaining: activeTargets.reduce((sum, t) => sum + (t.scansRemaining ?? 0), 0),
+        scansExhausted: allMappingsExhausted,
+        packName: albumDoc.packName ?? null,
       },
       targets: filteredTargets,
       branding: {
         studioName: studio?.studioName ?? null,
         logoUrl: studio?.logo ?? null,
+        contactHint: studio?.studioName
+          ? `Contact ${studio.studioName} to renew this album.`
+          : 'Contact your photo studio to renew this album.',
       },
       mindFile: albumDoc.mindFileUrl
         ? {
@@ -257,8 +287,18 @@ export class ViewerService {
       eventType === AnalyticsEventType.SCAN_SUCCESS ||
       dto.eventType === ScanEventType.SCAN_SUCCESS
     ) {
-      await this.limitValidationService.checkScanLimit(studioId);
-      await this.usageService.incrementScanUsage(studioId);
+      if (!dto.arTargetId) {
+        throw new BadRequestException('arTargetId is required for scan success');
+      }
+      await this.albumsService.assertMappingScanAvailable(dto.arTargetId);
+      await this.albumsService.incrementMappingScanUsage(dto.arTargetId, albumId);
+      // Keep studio subscription counters for platform analytics.
+      try {
+        await this.limitValidationService.checkScanLimit(studioId);
+        await this.usageService.incrementScanUsage(studioId);
+      } catch {
+        // Album pack quota is the guest-facing gate; studio monthly soft-fails.
+      }
     }
 
     return this.analyticsIngestionService.recordEvent({
