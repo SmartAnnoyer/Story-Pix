@@ -4,11 +4,9 @@ import { BrandLogo } from '@/components/BrandLogo';
 import {
   AppstoreOutlined,
   BarChartOutlined,
-  BellOutlined,
   CrownOutlined,
   DashboardOutlined,
   DollarOutlined,
-  LockOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -21,12 +19,6 @@ import {
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/auth.store';
 import { useLogoutMutation } from '@/hooks/useAuthQueries';
-import {
-  useUnreadNotificationsQuery,
-  useMarkNotificationReadMutation,
-} from '@/hooks/useNotificationQueries';
-import { NotificationBell } from '@/features/notifications/components/NotificationBell';
-import { NotificationDrawer } from '@/features/notifications/components/NotificationDrawer';
 import { ROUTES } from '@/routes/paths';
 import { UserRole } from '@/types/auth.types';
 import type { MenuProps } from 'antd';
@@ -45,7 +37,6 @@ type NavItem = {
 export const DashboardLayout = () => {
   const [desktopCollapsed, setDesktopCollapsed] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuthStore();
@@ -53,8 +44,6 @@ export const DashboardLayout = () => {
   const { token } = theme.useToken();
   const screens = useBreakpoint();
   const isMobile = !screens.md;
-  const { data: unreadNotifications = [] } = useUnreadNotificationsQuery();
-  const markReadMutation = useMarkNotificationReadMutation();
   const isSuperAdmin = user?.role === UserRole.SUPER_ADMIN;
 
   const primaryTabs: NavItem[] = useMemo(
@@ -101,24 +90,11 @@ export const DashboardLayout = () => {
               icon: <DollarOutlined />,
               path: ROUTES.ADMIN_BILLING,
             },
-            { key: 'jobs', label: 'Jobs', icon: <BellOutlined />, path: ROUTES.ADMIN_JOBS },
-            {
-              key: 'notifications',
-              label: 'Notifications',
-              icon: <BellOutlined />,
-              path: ROUTES.ADMIN_NOTIFICATIONS,
-            },
             {
               key: 'analytics',
               label: 'Analytics',
               icon: <BarChartOutlined />,
               path: ROUTES.ADMIN_ANALYTICS,
-            },
-            {
-              key: 'password',
-              label: 'Change password',
-              icon: <LockOutlined />,
-              path: ROUTES.CHANGE_PASSWORD,
             },
           ]
         : [
@@ -133,12 +109,6 @@ export const DashboardLayout = () => {
               label: 'Plan',
               icon: <CrownOutlined />,
               path: ROUTES.STUDIO_BILLING,
-            },
-            {
-              key: 'password',
-              label: 'Change password',
-              icon: <LockOutlined />,
-              path: ROUTES.CHANGE_PASSWORD,
             },
           ],
     [isSuperAdmin],
@@ -240,23 +210,31 @@ export const DashboardLayout = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            {!isSuperAdmin ? <NotificationBell onClick={() => setDrawerOpen(true)} /> : null}
             <Dropdown
               menu={{
-                items: [
-                  {
-                    key: 'password',
-                    icon: <LockOutlined />,
-                    label: 'Change password',
-                    onClick: () => navigate(ROUTES.CHANGE_PASSWORD),
-                  },
-                  {
-                    key: 'logout',
-                    icon: <LogoutOutlined />,
-                    label: 'Log out',
-                    onClick: () => void handleLogout(),
-                  },
-                ],
+                items: isSuperAdmin
+                  ? [
+                      {
+                        key: 'logout',
+                        icon: <LogoutOutlined />,
+                        label: 'Log out',
+                        onClick: () => void handleLogout(),
+                      },
+                    ]
+                  : [
+                      {
+                        key: 'profile',
+                        icon: <ShopOutlined />,
+                        label: 'Studio profile',
+                        onClick: () => navigate(ROUTES.STUDIO_PROFILE),
+                      },
+                      {
+                        key: 'logout',
+                        icon: <LogoutOutlined />,
+                        label: 'Log out',
+                        onClick: () => void handleLogout(),
+                      },
+                    ],
               }}
               placement="bottomRight"
             >
@@ -332,13 +310,6 @@ export const DashboardLayout = () => {
           Log out
         </button>
       </Drawer>
-
-      <NotificationDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        notifications={unreadNotifications}
-        onMarkRead={(id) => markReadMutation.mutate(id)}
-      />
     </Layout>
   );
 };

@@ -38,9 +38,6 @@ import { RevenueDashboardPage } from '@/pages/admin/RevenueDashboardPage';
 import { AdminPaymentsListPage } from '@/pages/admin/AdminPaymentsListPage';
 import { AdminInvoicesListPage } from '@/pages/admin/AdminInvoicesListPage';
 import { SubscriptionRevenuePage } from '@/pages/admin/SubscriptionRevenuePage';
-import { JobMonitoringPage } from '@/pages/admin/JobMonitoringPage';
-import { AdminNotificationMonitoringPage } from '@/pages/admin/AdminNotificationMonitoringPage';
-import { NotificationCenterPage } from '@/pages/studio/NotificationCenterPage';
 import { PacksListPage } from '@/pages/admin/PacksListPage';
 import { PackLedgerPage } from '@/pages/admin/PackLedgerPage';
 import { StudioPacksPage } from '@/pages/studio/StudioPacksPage';
@@ -87,13 +84,12 @@ export const AppRoutes = () => {
               element={<Navigate to={ROUTES.DASHBOARD} replace />}
             />
             <Route path={ROUTES.ALBUM_INSIGHTS} element={<AlbumInsightsPage />} />
-            <Route path={ROUTES.NOTIFICATIONS} element={<NotificationCenterPage />} />
+            <Route path={ROUTES.CHANGE_PASSWORD} element={<ChangePasswordPage />} />
           </Route>
         </Route>
 
         <Route element={<ProtectedRoute />}>
           <Route element={<DashboardLayout />}>
-            <Route path={ROUTES.CHANGE_PASSWORD} element={<ChangePasswordPage />} />
             <Route path={ROUTES.UNAUTHORIZED} element={<UnauthorizedPage />} />
           </Route>
         </Route>
@@ -121,11 +117,6 @@ export const AppRoutes = () => {
             <Route
               path={ROUTES.ADMIN_BILLING_SUBSCRIPTIONS}
               element={<SubscriptionRevenuePage />}
-            />
-            <Route path={ROUTES.ADMIN_JOBS} element={<JobMonitoringPage />} />
-            <Route
-              path={ROUTES.ADMIN_NOTIFICATIONS}
-              element={<AdminNotificationMonitoringPage />}
             />
           </Route>
         </Route>

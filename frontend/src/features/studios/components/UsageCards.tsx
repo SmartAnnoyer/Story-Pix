@@ -1,6 +1,7 @@
 import { Card, Col, Progress, Row, Statistic, Typography } from 'antd';
 import type { StudioUsage } from '@/types/studio.types';
 import { StatusBadge } from './StatusBadge';
+import { formatStorageGb } from '@/utils/format-storage';
 
 const { Text } = Typography;
 
@@ -10,14 +11,17 @@ interface UsageCardsProps {
 }
 
 export const UsageCards = ({ usage, showSubscription = true }: UsageCardsProps) => {
+  const used = Number(formatStorageGb(usage.storageUsedGB));
+  const limit = Number(formatStorageGb(usage.storageLimitGB, 0));
+
   return (
     <Row gutter={[16, 16]}>
       <Col xs={24} sm={12} lg={6}>
         <Card>
-          <Statistic title="Storage Used" suffix="GB" value={usage.storageUsedGB} precision={2} />
+          <Statistic title="Storage Used" suffix="GB" value={used} precision={2} />
           <Progress percent={usage.storageUsedPercent} size="small" className="mt-2" />
           <Text type="secondary" className="text-xs">
-            of {usage.storageLimitGB} GB
+            of {limit} GB
           </Text>
         </Card>
       </Col>

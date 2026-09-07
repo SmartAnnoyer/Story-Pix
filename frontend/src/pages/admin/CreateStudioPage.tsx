@@ -29,7 +29,7 @@ export const CreateStudioPage = () => {
         Create Studio
       </Title>
       <Paragraph type="secondary" className="!mb-6">
-        A Studio Admin account and trial plan will be created automatically.
+        A Studio Admin account will be created automatically. Assign album packs after setup.
       </Paragraph>
 
       <Card className="max-w-4xl">
@@ -37,7 +37,7 @@ export const CreateStudioPage = () => {
           type="info"
           showIcon
           className="mb-6"
-          message="Auto setup includes trial plan assignment and admin account creation."
+          message="Auto setup creates the studio and admin login."
           description="Welcome emails need a verified Resend domain. Until then, open the studio details page anytime to copy the admin login email and temporary password (while unchanged)."
         />
         <StudioForm

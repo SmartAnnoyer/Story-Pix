@@ -42,9 +42,6 @@ export const ROUTES = {
   ADMIN_BILLING_PAYMENTS: '/admin/billing/payments',
   ADMIN_BILLING_INVOICES: '/admin/billing/invoices',
   ADMIN_BILLING_SUBSCRIPTIONS: '/admin/billing/subscriptions',
-  NOTIFICATIONS: '/studio/notifications',
-  ADMIN_JOBS: '/admin/jobs',
-  ADMIN_NOTIFICATIONS: '/admin/notifications',
 } as const;
 
 export type AppRoute = (typeof ROUTES)[keyof typeof ROUTES];

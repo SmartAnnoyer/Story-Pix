@@ -1,89 +1,123 @@
-import { Card, Col, Row, Statistic, Typography } from 'antd';
+import { Link } from 'react-router-dom';
 import { useAdminDashboardQuery } from '@/hooks/useStudioQueries';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-
-const { Title, Paragraph } = Typography;
+import { ROUTES } from '@/routes/paths';
+import { brand } from '@/styles/brand';
+import './AdminDashboardPage.css';
 
 export const AdminDashboardPage = () => {
   const { data, isLoading, isError } = useAdminDashboardQuery();
 
   if (isLoading) return <LoadingSpinner />;
   if (isError || !data) {
-    return <Paragraph type="danger">Unable to load dashboard statistics.</Paragraph>;
+    return <p className="admin-home__error">Unable to load dashboard statistics.</p>;
   }
 
+  const studioTotal = Math.max(data.totalStudios, 1);
+  const activePct = Math.round((data.activeStudios / studioTotal) * 100);
+  const suspendedPct = Math.round((data.suspendedStudios / studioTotal) * 100);
+
   return (
-    <div>
-      <Title level={3} className="!mb-1">
-        Overview
-      </Title>
-      <Paragraph type="secondary" className="!mb-6">
-        Studios, usage, and billing at a glance.
-      </Paragraph>
+    <div className="admin-home">
+      <header className="admin-home__hero">
+        <div className="admin-home__hero-glow" aria-hidden />
+        <p className="admin-home__eyebrow">{brand.name} control</p>
+        <h1>Platform pulse</h1>
+        <p className="admin-home__lede">
+          Live studio health, scan volume, and storage — tuned for Story-PIX ops.
+        </p>
+        <div className="admin-home__actions">
+          <Link className="admin-home__btn admin-home__btn--primary" to={ROUTES.STUDIOS}>
+            Manage studios
+          </Link>
+          <Link className="admin-home__btn admin-home__btn--ghost" to={ROUTES.PACKS}>
+            Album packs
+          </Link>
+        </div>
+      </header>
 
-      <Row gutter={[16, 16]} className="mb-6">
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic title="Total Studios" value={data.totalStudios} />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title="Active"
-              value={data.activeStudios}
-              valueStyle={{ color: '#16a34a' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title="Suspended"
-              value={data.suspendedStudios}
-              valueStyle={{ color: '#dc2626' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic title="Trial" value={data.trialStudios} valueStyle={{ color: '#0284c7' }} />
-          </Card>
-        </Col>
-      </Row>
+      <section className="admin-home__strip" aria-label="Studio status">
+        <article className="admin-home__stat admin-home__stat--ink">
+          <span className="admin-home__stat-label">Studios</span>
+          <strong className="admin-home__stat-value">{data.totalStudios}</strong>
+          <span className="admin-home__stat-meta">All accounts</span>
+        </article>
+        <article className="admin-home__stat admin-home__stat--live">
+          <span className="admin-home__stat-label">Active</span>
+          <strong className="admin-home__stat-value">{data.activeStudios}</strong>
+          <div className="admin-home__meter" aria-hidden>
+            <i style={{ width: `${activePct}%` }} />
+          </div>
+          <span className="admin-home__stat-meta">{activePct}% of network</span>
+        </article>
+        <article className="admin-home__stat admin-home__stat--warn">
+          <span className="admin-home__stat-label">Suspended</span>
+          <strong className="admin-home__stat-value">{data.suspendedStudios}</strong>
+          <div className="admin-home__meter admin-home__meter--warn" aria-hidden>
+            <i style={{ width: `${suspendedPct}%` }} />
+          </div>
+          <span className="admin-home__stat-meta">{suspendedPct}% paused</span>
+        </article>
+      </section>
 
-      <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title="Total Storage Used"
-              suffix="GB"
-              value={data.totalStorageUsedGB}
-              precision={2}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic title="Total Monthly Scans" value={data.totalMonthlyScans} />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic title="Revenue (Placeholder)" prefix="₹" value={data.revenuePlaceholder} />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <div className="mb-2 text-sm text-gray-500">Subscription Summary</div>
-            <div className="space-y-1 text-sm">
-              <div>Trial: {data.subscriptionSummary.trial}</div>
-              <div>Active: {data.subscriptionSummary.active}</div>
-              <div>Expired: {data.subscriptionSummary.expired}</div>
+      <section className="admin-home__grid">
+        <article className="admin-home__panel admin-home__panel--wide">
+          <h2>Usage now</h2>
+          <div className="admin-home__usage">
+            <div>
+              <span>Storage</span>
+              <strong>
+                {data.totalStorageUsedGB.toFixed(2)} <small>GB</small>
+              </strong>
             </div>
-          </Card>
-        </Col>
-      </Row>
+            <div>
+              <span>Monthly scans</span>
+              <strong>{data.totalMonthlyScans.toLocaleString('en-IN')}</strong>
+            </div>
+            <div>
+              <span>Revenue (placeholder)</span>
+              <strong>₹{data.revenuePlaceholder.toLocaleString('en-IN')}</strong>
+            </div>
+          </div>
+        </article>
+
+        <article className="admin-home__panel">
+          <h2>Subscriptions</h2>
+          <ul className="admin-home__list">
+            <li>
+              <span>Active</span>
+              <strong>{data.subscriptionSummary.active}</strong>
+            </li>
+            <li>
+              <span>Expired</span>
+              <strong>{data.subscriptionSummary.expired}</strong>
+            </li>
+            <li>
+              <span>Suspended</span>
+              <strong>{data.subscriptionSummary.suspended}</strong>
+            </li>
+          </ul>
+          <Link className="admin-home__text-link" to={ROUTES.SUBSCRIPTIONS}>
+            Open subscriptions →
+          </Link>
+        </article>
+
+        <article className="admin-home__panel admin-home__panel--cta">
+          <h2>Ship albums faster</h2>
+          <p>Enable Mini, Standard, or Bundle packs on a studio, then track credit history.</p>
+          <div className="admin-home__actions">
+            <Link className="admin-home__btn admin-home__btn--light" to={ROUTES.PACK_LEDGER}>
+              Pack history
+            </Link>
+            <Link
+              className="admin-home__btn admin-home__btn--ghost-light"
+              to={ROUTES.ADMIN_BILLING}
+            >
+              Billing
+            </Link>
+          </div>
+        </article>
+      </section>
     </div>
   );
 };

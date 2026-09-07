@@ -1,8 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Button, Input, Select, Space, Typography } from 'antd';
-import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
-import { StudioTable } from '@/features/studios/components/StudioTable';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   useActivateStudioMutation,
   useDeleteStudioMutation,
@@ -12,13 +9,21 @@ import {
 import { StudioStatus } from '@/types/studio.types';
 import { ROUTES } from '@/routes/paths';
 import { message } from 'antd';
+import { StudioTable } from '@/features/studios/components/StudioTable';
+import { brand } from '@/styles/brand';
+import './StudiosListPage.css';
 
-const { Title, Paragraph } = Typography;
+const STATUS_FILTERS: { label: string; value: StudioStatus }[] = [
+  { label: 'Active', value: StudioStatus.ACTIVE },
+  { label: 'Suspended', value: StudioStatus.SUSPENDED },
+  { label: 'Expired', value: StudioStatus.EXPIRED },
+];
 
 export const StudiosListPage = () => {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
+  const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<StudioStatus | undefined>();
 
@@ -31,6 +36,11 @@ export const StudiosListPage = () => {
   const suspendMutation = useSuspendStudioMutation();
   const activateMutation = useActivateStudioMutation();
   const deleteMutation = useDeleteStudioMutation();
+
+  const applySearch = () => {
+    setSearch(searchInput.trim());
+    setPage(1);
+  };
 
   const handleSuspend = async (id: string) => {
     await suspendMutation.mutateAsync(id);
@@ -47,58 +57,92 @@ export const StudiosListPage = () => {
     message.success('Studio deleted');
   };
 
-  return (
-    <div>
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <Title level={3} className="!mb-1">
-            Studios
-          </Title>
-          <Paragraph type="secondary" className="!mb-0">
-            Manage all studios on the platform.
-          </Paragraph>
-        </div>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          block
-          className="md:!w-auto"
-          onClick={() => navigate(ROUTES.STUDIO_CREATE)}
-        >
-          New studio
-        </Button>
-      </div>
+  const total = data?.pagination.total ?? 0;
 
-      <Space direction="vertical" size="middle" className="mb-4 w-full">
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <Input
-            placeholder="Search studios..."
-            prefix={<SearchOutlined />}
-            allowClear
-            className="sm:max-w-xs"
-            onPressEnter={(e) => {
-              setSearch((e.target as HTMLInputElement).value);
-              setPage(1);
-            }}
+  return (
+    <div className="studios-page">
+      <header className="studios-page__hero">
+        <div className="studios-page__hero-glow" aria-hidden />
+        <p className="studios-page__eyebrow">{brand.name} network</p>
+        <div className="studios-page__hero-row">
+          <div>
+            <h1>Studios</h1>
+            <p className="studios-page__lede">
+              Search, filter, and manage every studio on the platform.
+            </p>
+          </div>
+          <Link className="studios-page__btn studios-page__btn--primary" to={ROUTES.STUDIO_CREATE}>
+            New studio
+          </Link>
+        </div>
+        <div className="studios-page__stats" aria-label="List summary">
+          <div>
+            <span>Showing</span>
+            <strong>{data?.items.length ?? 0}</strong>
+          </div>
+          <div>
+            <span>Total</span>
+            <strong>{total}</strong>
+          </div>
+          <div>
+            <span>Page</span>
+            <strong>
+              {data?.pagination.page ?? page}
+              <small> / {Math.max(1, Math.ceil(total / (data?.pagination.limit ?? limit)))}</small>
+            </strong>
+          </div>
+        </div>
+      </header>
+
+      <section className="studios-page__toolbar" aria-label="Filters">
+        <label className="studios-page__search">
+          <span className="visually-hidden">Search studios</span>
+          <input
+            type="search"
+            placeholder="Search by name, code, email…"
+            value={searchInput}
             onChange={(e) => {
+              setSearchInput(e.target.value);
               if (!e.target.value) {
                 setSearch('');
                 setPage(1);
               }
             }}
-          />
-          <Select
-            allowClear
-            placeholder="Filter by status"
-            className="w-full sm:w-48"
-            options={Object.values(StudioStatus).map((value) => ({ label: value, value }))}
-            onChange={(value) => {
-              setStatus(value);
-              setPage(1);
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') applySearch();
             }}
           />
+          <button type="button" onClick={applySearch}>
+            Search
+          </button>
+        </label>
+
+        <div className="studios-page__filters" role="group" aria-label="Status filter">
+          <button
+            type="button"
+            className={`studios-page__chip${!status ? ' studios-page__chip--on' : ''}`}
+            onClick={() => {
+              setStatus(undefined);
+              setPage(1);
+            }}
+          >
+            All
+          </button>
+          {STATUS_FILTERS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={`studios-page__chip${status === option.value ? ' studios-page__chip--on' : ''}`}
+              onClick={() => {
+                setStatus(option.value);
+                setPage(1);
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
         </div>
-      </Space>
+      </section>
 
       <StudioTable
         studios={data?.items ?? []}
@@ -106,7 +150,7 @@ export const StudiosListPage = () => {
         pagination={{
           page: data?.pagination.page ?? page,
           limit: data?.pagination.limit ?? limit,
-          total: data?.pagination.total ?? 0,
+          total,
         }}
         onPageChange={(nextPage, pageSize) => {
           setPage(nextPage);
@@ -115,6 +159,8 @@ export const StudiosListPage = () => {
         onSuspend={handleSuspend}
         onActivate={handleActivate}
         onDelete={handleDelete}
+        onOpen={(id) => navigate(ROUTES.STUDIO_DETAILS.replace(':id', id))}
+        onEdit={(id) => navigate(ROUTES.STUDIO_EDIT.replace(':id', id))}
       />
     </div>
   );
