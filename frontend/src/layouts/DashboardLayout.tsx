@@ -1,130 +1,82 @@
-import { useMemo, useState } from 'react';
-import { Avatar, Button, Drawer, Dropdown, Layout, Menu, theme, Grid } from 'antd';
+import { useMemo } from 'react';
+import { Avatar, Button, Dropdown, Layout } from 'antd';
 import { BrandLogo } from '@/components/BrandLogo';
-import {
-  ArrowLeftOutlined,
-  CrownOutlined,
-  DashboardOutlined,
-  LogoutOutlined,
-  MenuFoldOutlined,
-  MenuUnfoldOutlined,
-  MoreOutlined,
-  PictureOutlined,
-  ShopOutlined,
-  TeamOutlined,
-  UserOutlined,
-} from '@ant-design/icons';
+import { ArrowLeftOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/auth.store';
 import { useLogoutMutation } from '@/hooks/useAuthQueries';
 import { ROUTES } from '@/routes/paths';
 import { UserRole } from '@/types/auth.types';
-import type { MenuProps } from 'antd';
 import './app-shell.css';
 
-const { Header, Sider, Content } = Layout;
-const { useBreakpoint } = Grid;
+const { Header, Content } = Layout;
 
 type NavItem = {
   key: string;
   label: string;
-  icon: React.ReactNode;
   path: string;
 };
 
-function getAdminBackTarget(pathname: string): { label: string; path: string } | null {
-  if (pathname === ROUTES.ADMIN_DASHBOARD) return null;
+function getBackTarget(
+  pathname: string,
+  isSuperAdmin: boolean,
+): { label: string; path: string } | null {
+  if (isSuperAdmin) {
+    if (pathname === ROUTES.ADMIN_DASHBOARD) return null;
 
-  if (pathname.startsWith(ROUTES.CATALOG) || pathname.startsWith('/admin/packs')) {
+    if (pathname.startsWith(ROUTES.CATALOG) || pathname.startsWith('/admin/packs')) {
+      return { label: 'Home', path: ROUTES.ADMIN_DASHBOARD };
+    }
+
+    if (pathname === ROUTES.STUDIOS || pathname === ROUTES.STUDIO_CREATE) {
+      return { label: 'Home', path: ROUTES.ADMIN_DASHBOARD };
+    }
+
+    if (pathname.startsWith('/admin/studios/')) {
+      return { label: 'Studios', path: ROUTES.STUDIOS };
+    }
+
     return { label: 'Home', path: ROUTES.ADMIN_DASHBOARD };
   }
 
-  if (pathname === ROUTES.STUDIOS || pathname === ROUTES.STUDIO_CREATE) {
-    return { label: 'Home', path: ROUTES.ADMIN_DASHBOARD };
+  if (pathname === ROUTES.DASHBOARD || pathname === ROUTES.ALBUMS) return null;
+
+  if (pathname.startsWith('/studio/albums')) {
+    return { label: 'Albums', path: ROUTES.ALBUMS };
   }
 
-  if (pathname.startsWith('/admin/studios/')) {
-    return { label: 'Studios', path: ROUTES.STUDIOS };
+  if (pathname.startsWith('/settings')) {
+    return { label: 'Home', path: ROUTES.DASHBOARD };
   }
 
-  return { label: 'Home', path: ROUTES.ADMIN_DASHBOARD };
+  return { label: 'Home', path: ROUTES.DASHBOARD };
 }
 
 export const DashboardLayout = () => {
-  const [desktopCollapsed, setDesktopCollapsed] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuthStore();
   const logoutMutation = useLogoutMutation();
-  const { token } = theme.useToken();
-  const screens = useBreakpoint();
-  const isMobile = !screens.md;
   const isSuperAdmin = user?.role === UserRole.SUPER_ADMIN;
 
   const primaryTabs: NavItem[] = useMemo(
     () =>
       isSuperAdmin
         ? [
-            {
-              key: 'home',
-              label: 'Home',
-              icon: <DashboardOutlined />,
-              path: ROUTES.ADMIN_DASHBOARD,
-            },
-            { key: 'studios', label: 'Studios', icon: <TeamOutlined />, path: ROUTES.STUDIOS },
-            { key: 'catalog', label: 'Catalog', icon: <CrownOutlined />, path: ROUTES.CATALOG },
+            { key: 'home', label: 'Home', path: ROUTES.ADMIN_DASHBOARD },
+            { key: 'studios', label: 'Studios', path: ROUTES.STUDIOS },
+            { key: 'catalog', label: 'Catalog', path: ROUTES.CATALOG },
           ]
         : [
-            { key: 'home', label: 'Home', icon: <DashboardOutlined />, path: ROUTES.DASHBOARD },
-            { key: 'albums', label: 'Albums', icon: <PictureOutlined />, path: ROUTES.ALBUMS },
-            { key: 'packs', label: 'Packs', icon: <CrownOutlined />, path: ROUTES.STUDIO_PACKS },
+            { key: 'home', label: 'Home', path: ROUTES.DASHBOARD },
+            { key: 'albums', label: 'Albums', path: ROUTES.ALBUMS },
           ],
     [isSuperAdmin],
   );
 
-  const moreItems: NavItem[] = useMemo(
-    () =>
-      isSuperAdmin
-        ? []
-        : [
-            {
-              key: 'profile',
-              label: 'Studio',
-              icon: <ShopOutlined />,
-              path: ROUTES.STUDIO_PROFILE,
-            },
-          ],
-    [isSuperAdmin],
-  );
-
-  const desktopMenuItems: MenuProps['items'] = useMemo(
-    () =>
-      [...primaryTabs, ...moreItems].map((item) => ({
-        key: item.path,
-        icon: item.icon,
-        label: item.label,
-        onClick: () => navigate(item.path),
-      })),
-    [primaryTabs, moreItems, navigate],
-  );
-
-  const allNav = [...primaryTabs, ...moreItems];
   const catalogRelated =
     isSuperAdmin &&
     (location.pathname.startsWith('/admin/packs') || location.pathname.startsWith(ROUTES.CATALOG));
-
-  const selectedPath =
-    allNav
-      .filter(
-        (item) => location.pathname === item.path || location.pathname.startsWith(`${item.path}/`),
-      )
-      .sort((a, b) => b.path.length - a.path.length)[0]?.path ??
-    (catalogRelated
-      ? ROUTES.CATALOG
-      : location.pathname.startsWith('/studio/albums')
-        ? ROUTES.ALBUMS
-        : undefined);
 
   const activeTab =
     primaryTabs.find(
@@ -136,51 +88,29 @@ export const DashboardLayout = () => {
         ? 'albums'
         : undefined);
 
-  const headerTitle = isSuperAdmin ? 'Admin' : 'Studio';
-  const headerName = user ? user.firstName : 'Story-PIX';
-  const showMore = moreItems.length > 0;
-  const adminBack = isSuperAdmin ? getAdminBackTarget(location.pathname) : null;
+  const back = getBackTarget(location.pathname, isSuperAdmin);
+  const homePath = isSuperAdmin ? ROUTES.ADMIN_DASHBOARD : ROUTES.DASHBOARD;
+  const navLabel = isSuperAdmin ? 'Admin' : 'Studio';
 
   const handleLogout = async () => {
     try {
       await logoutMutation.mutateAsync();
     } finally {
-      setMoreOpen(false);
       navigate(ROUTES.LOGIN);
     }
-  };
-
-  const go = (path: string) => {
-    setMoreOpen(false);
-    navigate(path);
   };
 
   const userMenu = (
     <Dropdown
       menu={{
-        items: isSuperAdmin
-          ? [
-              {
-                key: 'logout',
-                icon: <LogoutOutlined />,
-                label: 'Log out',
-                onClick: () => void handleLogout(),
-              },
-            ]
-          : [
-              {
-                key: 'profile',
-                icon: <ShopOutlined />,
-                label: 'Studio profile',
-                onClick: () => navigate(ROUTES.STUDIO_PROFILE),
-              },
-              {
-                key: 'logout',
-                icon: <LogoutOutlined />,
-                label: 'Log out',
-                onClick: () => void handleLogout(),
-              },
-            ],
+        items: [
+          {
+            key: 'logout',
+            icon: <LogoutOutlined />,
+            label: 'Log out',
+            onClick: () => void handleLogout(),
+          },
+        ],
       }}
       placement="bottomRight"
     >
@@ -188,177 +118,45 @@ export const DashboardLayout = () => {
     </Dropdown>
   );
 
-  if (isSuperAdmin) {
-    return (
-      <Layout className="app-shell app-shell--admin min-h-screen">
-        <Header className="app-shell__header app-shell__header--admin !h-auto !leading-none">
-          <div className="app-shell__admin-left">
-            <Link to={ROUTES.ADMIN_DASHBOARD} className="app-shell__brand-link" aria-label="Home">
-              <BrandLogo variant="nav" height={40} />
-            </Link>
-            <nav className="app-shell__admin-nav" aria-label="Admin">
-              {primaryTabs.map((item) => (
-                <Link
-                  key={item.key}
-                  to={item.path}
-                  className={`app-shell__admin-link${
-                    activeTab === item.key ? ' app-shell__admin-link--on' : ''
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-          </div>
-          <div className="app-shell__admin-right">
-            {adminBack ? (
-              <Button
-                type="text"
-                className="app-shell__back"
-                icon={<ArrowLeftOutlined />}
-                onClick={() => navigate(adminBack.path)}
-              >
-                {adminBack.label}
-              </Button>
-            ) : null}
-            {userMenu}
-          </div>
-        </Header>
-
-        <Content className="app-shell__content app-shell__content--admin">
-          <Outlet />
-        </Content>
-      </Layout>
-    );
-  }
-
   return (
-    <Layout className="app-shell min-h-screen">
-      {!isMobile ? (
-        <Sider
-          trigger={null}
-          collapsible
-          collapsed={desktopCollapsed}
-          collapsedWidth={64}
-          width={220}
-          className="!fixed bottom-0 left-0 top-0 z-20 h-screen overflow-auto"
-          style={{ background: token.colorBgContainer }}
-        >
-          <div className="app-shell__sider-brand">
-            {desktopCollapsed ? (
-              <BrandLogo variant="mark" height={36} />
-            ) : (
-              <BrandLogo variant="nav" height={40} />
-            )}
-          </div>
-          <Menu
-            mode="inline"
-            selectedKeys={selectedPath ? [selectedPath] : []}
-            items={desktopMenuItems}
-          />
-        </Sider>
-      ) : null}
-
-      <Layout
-        className={`bg-transparent transition-all ${
-          !isMobile && !desktopCollapsed ? 'lg:ml-[220px]' : !isMobile ? 'lg:ml-[64px]' : ''
-        }`}
-      >
-        <Header
-          className="app-shell__header !h-auto !leading-none"
-          style={{ background: 'transparent', paddingInline: 0 }}
-        >
-          <div className="flex items-center gap-3">
-            {!isMobile ? (
-              <Button
-                type="text"
-                aria-label={desktopCollapsed ? 'Expand menu' : 'Collapse menu'}
-                icon={desktopCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-                onClick={() => setDesktopCollapsed((value) => !value)}
-              />
-            ) : (
-              <BrandLogo variant="nav" height={32} />
-            )}
-            <div>
-              <p className="app-shell__title">{headerName}</p>
-              <p className="app-shell__subtitle">{headerTitle}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">{userMenu}</div>
-        </Header>
-
-        <Content className={isMobile ? 'app-shell__content' : 'app-shell__content--desktop'}>
-          <Outlet />
-        </Content>
-      </Layout>
-
-      {isMobile ? (
-        <nav className="app-tabbar" aria-label="Main">
-          {primaryTabs.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              className={`app-tabbar__item${activeTab === tab.key ? ' app-tabbar__item--active' : ''}`}
-              onClick={() => go(tab.path)}
+    <Layout className="app-shell app-shell--admin min-h-screen">
+      <Header className="app-shell__header app-shell__header--admin !h-auto !leading-none">
+        <div className="app-shell__admin-left">
+          <Link to={homePath} className="app-shell__brand-link" aria-label="Home">
+            <BrandLogo variant="nav" height={40} />
+          </Link>
+          <nav className="app-shell__admin-nav" aria-label={navLabel}>
+            {primaryTabs.map((item) => (
+              <Link
+                key={item.key}
+                to={item.path}
+                className={`app-shell__admin-link${
+                  activeTab === item.key ? ' app-shell__admin-link--on' : ''
+                }`}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+        <div className="app-shell__admin-right">
+          {back ? (
+            <Button
+              type="text"
+              className="app-shell__back"
+              icon={<ArrowLeftOutlined />}
+              onClick={() => navigate(back.path)}
             >
-              <span className="app-tabbar__icon">{tab.icon}</span>
-              {tab.label}
-            </button>
-          ))}
-          {showMore ? (
-            <button
-              type="button"
-              className={`app-tabbar__item${
-                moreOpen ||
-                moreItems.some(
-                  (item) =>
-                    location.pathname === item.path ||
-                    location.pathname.startsWith(`${item.path}/`),
-                )
-                  ? ' app-tabbar__item--active'
-                  : ''
-              }`}
-              onClick={() => setMoreOpen(true)}
-            >
-              <span className="app-tabbar__icon">
-                <MoreOutlined />
-              </span>
-              More
-            </button>
+              {back.label}
+            </Button>
           ) : null}
-        </nav>
-      ) : null}
+          {userMenu}
+        </div>
+      </Header>
 
-      {showMore ? (
-        <Drawer
-          title="More"
-          placement="bottom"
-          height="auto"
-          open={moreOpen}
-          onClose={() => setMoreOpen(false)}
-          styles={{ body: { paddingTop: 8, paddingBottom: 24 } }}
-        >
-          {moreItems.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              className="app-more-item"
-              onClick={() => go(item.path)}
-            >
-              {item.icon}
-              {item.label}
-            </button>
-          ))}
-          <button
-            type="button"
-            className="app-more-item app-more-item--danger"
-            onClick={() => void handleLogout()}
-          >
-            <LogoutOutlined />
-            Log out
-          </button>
-        </Drawer>
-      ) : null}
+      <Content className="app-shell__content app-shell__content--admin">
+        <Outlet />
+      </Content>
     </Layout>
   );
 };

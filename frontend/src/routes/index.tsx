@@ -15,7 +15,6 @@ import { StudiosListPage } from '@/pages/admin/StudiosListPage';
 import { CreateStudioPage } from '@/pages/admin/CreateStudioPage';
 import { EditStudioPage } from '@/pages/admin/EditStudioPage';
 import { StudioDetailsPage } from '@/pages/admin/StudioDetailsPage';
-import { StudioProfilePage } from '@/pages/studio/StudioProfilePage';
 import { AlbumsListPage } from '@/pages/studio/AlbumsListPage';
 import { CreateAlbumPage } from '@/pages/studio/CreateAlbumPage';
 import { EditAlbumPage } from '@/pages/studio/EditAlbumPage';
@@ -25,7 +24,6 @@ import { ArMappingsPage } from '@/pages/studio/ArMappingsPage';
 import { CreateMappingPage } from '@/pages/studio/CreateMappingPage';
 import { EditMappingPage } from '@/pages/studio/EditMappingPage';
 import { AlbumInsightsPage } from '@/pages/studio/AlbumInsightsPage';
-import { StudioPacksPage } from '@/pages/studio/StudioPacksPage';
 import { AdminCatalogPage } from '@/pages/admin/AdminCatalogPage';
 import { ROUTES } from '@/routes/paths';
 import { UserRole } from '@/types/auth.types';
@@ -46,12 +44,15 @@ export const AppRoutes = () => {
         <Route element={<ProtectedRoute allowedRoles={[UserRole.STUDIO_ADMIN]} />}>
           <Route element={<DashboardLayout />}>
             <Route path={ROUTES.DASHBOARD} element={<DashboardPage />} />
-            <Route path={ROUTES.STUDIO_PROFILE} element={<StudioProfilePage />} />
             <Route
-              path={ROUTES.STUDIO_PLAN}
-              element={<Navigate to={ROUTES.STUDIO_PACKS} replace />}
+              path={ROUTES.STUDIO_PROFILE}
+              element={<Navigate to={ROUTES.DASHBOARD} replace />}
             />
-            <Route path={ROUTES.STUDIO_PACKS} element={<StudioPacksPage />} />
+            <Route path={ROUTES.STUDIO_PLAN} element={<Navigate to={ROUTES.DASHBOARD} replace />} />
+            <Route
+              path={ROUTES.STUDIO_PACKS}
+              element={<Navigate to={ROUTES.DASHBOARD} replace />}
+            />
             <Route path={ROUTES.ALBUMS} element={<AlbumsListPage />} />
             <Route path={ROUTES.ALBUM_CREATE} element={<CreateAlbumPage />} />
             <Route path={ROUTES.ALBUM_EDIT} element={<EditAlbumPage />} />

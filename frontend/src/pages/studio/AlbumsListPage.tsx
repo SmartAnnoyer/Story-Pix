@@ -1,14 +1,14 @@
 import { useMemo, useState } from 'react';
-import { Button, Input, Select, Tabs, Typography, message } from 'antd';
-import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+import { Alert, Input, Select, Tabs, message } from 'antd';
+import { SearchOutlined } from '@ant-design/icons';
+import { Link, useNavigate } from 'react-router-dom';
 import { AlbumTable } from '@/features/albums/components/AlbumTable';
 import { useAlbumActionMutation, useAlbumsQuery } from '@/hooks/useAlbumQueries';
+import { useStudioPackSummaryQuery } from '@/hooks/usePackQueries';
 import { AlbumStatus } from '@/types/album.types';
 import { ROUTES } from '@/routes/paths';
 import { getErrorMessage } from '@/api/client';
-
-const { Title, Paragraph } = Typography;
+import '../DashboardPage.css';
 
 export const AlbumsListPage = () => {
   const navigate = useNavigate();
@@ -17,6 +17,7 @@ export const AlbumsListPage = () => {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<AlbumStatus | undefined>();
   const [activeTab, setActiveTab] = useState<'all' | 'archived'>('all');
+  const { data: packs } = useStudioPackSummaryQuery();
 
   const queryParams = useMemo(
     () => ({
@@ -30,6 +31,7 @@ export const AlbumsListPage = () => {
 
   const { data, isLoading } = useAlbumsQuery(queryParams);
   const actionMutation = useAlbumActionMutation();
+  const canCreateAlbum = (packs?.remainingAlbumCredits ?? 0) > 0;
 
   const handleArchive = async (id: string) => {
     try {
@@ -50,26 +52,38 @@ export const AlbumsListPage = () => {
   };
 
   return (
-    <div>
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <Title level={3} className="!mb-1">
-            Albums
-          </Title>
-          <Paragraph type="secondary" className="!mb-0">
-            Each album is one client delivery: photos, mapping, then QR.
-          </Paragraph>
+    <div className="studio-home">
+      <header className="studio-home__hero">
+        <p className="studio-home__eyebrow">Studio</p>
+        <h1>Albums</h1>
+        <p className="studio-home__lede">
+          Each album uses 1 pack credit. Credits left: {packs?.remainingAlbumCredits ?? '—'}. Guest
+          plays are counted per mapped photo (see album details), not as a studio monthly total.
+        </p>
+        <div className="studio-home__actions">
+          <button
+            type="button"
+            className="studio-home__btn studio-home__btn--primary"
+            disabled={!canCreateAlbum}
+            onClick={() => navigate(ROUTES.ALBUM_CREATE)}
+          >
+            {canCreateAlbum ? 'New album' : 'No credits left'}
+          </button>
+          <Link className="studio-home__btn studio-home__btn--ghost" to={ROUTES.DASHBOARD}>
+            Home
+          </Link>
         </div>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          block
-          className="md:!w-auto"
-          onClick={() => navigate(ROUTES.ALBUM_CREATE)}
-        >
-          New album
-        </Button>
-      </div>
+      </header>
+
+      {!canCreateAlbum ? (
+        <Alert
+          className="!mb-4"
+          type="warning"
+          showIcon
+          message="Album creation blocked"
+          description="Your pack credits are used up. Ask Story-PIX admin to enable Mini, Standard, or a Bundle. Current pack status is on Home."
+        />
+      ) : null}
 
       <Tabs
         activeKey={activeTab}

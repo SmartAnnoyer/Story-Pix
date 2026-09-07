@@ -70,7 +70,7 @@ export const AdminDashboardPage = () => {
               </strong>
             </div>
             <div>
-              <span>Monthly scans</span>
+              <span>Guest plays (all studios, this month)</span>
               <strong>{data.totalMonthlyScans.toLocaleString('en-IN')}</strong>
             </div>
           </div>
