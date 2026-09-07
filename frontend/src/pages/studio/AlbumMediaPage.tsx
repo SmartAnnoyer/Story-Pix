@@ -161,12 +161,16 @@ export const AlbumMediaPage = () => {
             </div>
             <span className="album-media__count">{readyPhotos.length} ready</span>
           </div>
-          {isArchived ? null : (
-            <UploadArea
-              albumId={id}
-              mediaType={MediaType.PHOTO}
-              onComplete={() => void refetch()}
-            />
+          {isArchived ? (
+            <div className="album-media__upload-slot" />
+          ) : (
+            <div className="album-media__upload-slot">
+              <UploadArea
+                albumId={id}
+                mediaType={MediaType.PHOTO}
+                onComplete={() => void refetch()}
+              />
+            </div>
           )}
           <div className="album-media__gallery">
             <PhotoGallery
@@ -186,12 +190,16 @@ export const AlbumMediaPage = () => {
             </div>
             <span className="album-media__count">{readyVideos.length} ready</span>
           </div>
-          {isArchived ? null : (
-            <UploadArea
-              albumId={id}
-              mediaType={MediaType.VIDEO}
-              onComplete={() => void refetch()}
-            />
+          {isArchived ? (
+            <div className="album-media__upload-slot" />
+          ) : (
+            <div className="album-media__upload-slot">
+              <UploadArea
+                albumId={id}
+                mediaType={MediaType.VIDEO}
+                onComplete={() => void refetch()}
+              />
+            </div>
           )}
           <div className="album-media__gallery">
             <VideoGallery

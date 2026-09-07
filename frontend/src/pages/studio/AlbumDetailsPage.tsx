@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { Alert, Button, Card, Dropdown, Space, Typography, message } from 'antd';
+import { Dropdown, message } from 'antd';
 import {
   useAlbumActionMutation,
   useAlbumQuery,
@@ -21,8 +21,9 @@ import { AlbumViewerQrCard } from '@/features/studio/components/AlbumViewerQrCar
 import { getErrorMessage } from '@/api/client';
 import { AlbumStatus } from '@/types/album.types';
 import { ROUTES } from '@/routes/paths';
-
-const { Title, Paragraph, Text } = Typography;
+import '@/pages/DashboardPage.css';
+import './AlbumStudioPages.css';
+import './AlbumDetailsPage.css';
 
 export const AlbumDetailsPage = () => {
   const { id = '' } = useParams();
@@ -92,195 +93,147 @@ export const AlbumDetailsPage = () => {
   const sharing = actionMutation.isPending || publishMappingMutation.isPending;
   const canShare = mediaDone && (mapDone || drafts.length > 0);
 
+  let statusTitle = 'Ready to deliver';
+  let statusBody = 'Print the QR or send the link.';
+  let statusAction: { label: string; onClick: () => void; loading?: boolean } | null = null;
+  let statusTone: 'accent' | 'muted' = 'accent';
+
+  if (!mediaDone) {
+    statusTitle = 'Add photos & videos';
+    statusBody = 'Upload the print and the video first.';
+    statusTone = 'muted';
+    statusAction = {
+      label: 'Photos & videos',
+      onClick: () => navigate(albumMediaPath(id)),
+    };
+  } else if (!mapDone && drafts.length === 0) {
+    statusTitle = 'Map to video';
+    statusBody = 'Link each printed photo to a video.';
+    statusTone = 'muted';
+    statusAction = {
+      label: 'Map to video',
+      onClick: () => navigate(albumMapPath(id, total > 0)),
+    };
+  } else if (!published) {
+    statusTitle = 'Share with client';
+    statusBody = 'Turn the album on to unlock the QR.';
+    statusTone = 'accent';
+    statusAction = {
+      label: 'Share with client',
+      onClick: () => void handleShare(),
+      loading: sharing,
+    };
+  } else if (!shareDone) {
+    statusTitle = 'Preparing scan file';
+    statusBody = 'QR appears when this finishes — usually a few minutes.';
+    statusTone = 'muted';
+  } else {
+    statusTitle = 'Ready to deliver';
+    statusBody = 'Print the QR or send the link.';
+    statusTone = 'accent';
+  }
+
   return (
-    <div>
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <Title level={3} className="!mb-1">
-            {album.albumName}
-          </Title>
-          <Paragraph type="secondary" className="!mb-2">
-            For {album.customerName}
-          </Paragraph>
-          <Space wrap>
-            <AlbumStatusBadge status={album.status} />
-          </Space>
+    <div className="studio-home album-studio album-details">
+      <header className="studio-home__hero">
+        <p className="studio-home__eyebrow">Album</p>
+        <div className="album-details__hero-row">
+          <div>
+            <h1>{album.albumName}</h1>
+            <p className="album-details__client">For {album.customerName}</p>
+            <div className="album-details__badge">
+              <AlbumStatusBadge status={album.status} />
+            </div>
+          </div>
+          <Dropdown
+            menu={{
+              items: [
+                album.status !== AlbumStatus.ARCHIVED
+                  ? {
+                      key: 'edit',
+                      label: 'Edit album details',
+                      onClick: () => navigate(ROUTES.ALBUM_EDIT.replace(':id', id)),
+                    }
+                  : null,
+                {
+                  key: 'insights',
+                  label: 'Scan counts',
+                  onClick: () => navigate(ROUTES.ALBUM_INSIGHTS.replace(':id', id)),
+                },
+                published
+                  ? {
+                      key: 'unpublish',
+                      label: 'Stop sharing',
+                      onClick: () => void handleUnpublish(),
+                    }
+                  : null,
+                album.status !== AlbumStatus.ARCHIVED
+                  ? { key: 'archive', label: 'Archive', onClick: () => void handleArchive() }
+                  : null,
+                {
+                  key: 'delete',
+                  label: 'Delete',
+                  danger: true,
+                  onClick: () => void handleDelete(),
+                },
+              ].filter(Boolean),
+            }}
+          >
+            <button type="button" className="studio-home__btn studio-home__btn--ghost">
+              More
+            </button>
+          </Dropdown>
         </div>
-        <Dropdown
-          menu={{
-            items: [
-              album.status !== AlbumStatus.ARCHIVED
-                ? {
-                    key: 'edit',
-                    label: 'Edit album details',
-                    onClick: () => navigate(ROUTES.ALBUM_EDIT.replace(':id', id)),
-                  }
-                : null,
-              {
-                key: 'insights',
-                label: 'Scan counts',
-                onClick: () => navigate(ROUTES.ALBUM_INSIGHTS.replace(':id', id)),
-              },
-              published
-                ? {
-                    key: 'unpublish',
-                    label: 'Stop sharing',
-                    onClick: () => void handleUnpublish(),
-                  }
-                : null,
-              album.status !== AlbumStatus.ARCHIVED
-                ? { key: 'archive', label: 'Archive', onClick: () => void handleArchive() }
-                : null,
-              {
-                key: 'delete',
-                label: 'Delete',
-                danger: true,
-                onClick: () => void handleDelete(),
-              },
-            ].filter(Boolean),
-          }}
-        >
-          <Button>More</Button>
-        </Dropdown>
-      </div>
+      </header>
 
       <AlbumDeliveryGuide albumId={id} current="share" />
 
-      <Card className="!mb-4" size="small">
-        <Space wrap size="large">
-          <Text>
-            Pack: <Text strong>{album.packName ?? album.packCode ?? '—'}</Text>
-          </Text>
-          <Text>
-            Photos: up to <Text strong>{album.maxMappings ?? 25}</Text>
-          </Text>
-          <Text>
-            Plays per photo:{' '}
-            <Text strong>{(album.scansPerMapping ?? 1000).toLocaleString('en-IN')}</Text>
-          </Text>
-          <Text>
-            Total plays used (all photos):{' '}
-            <Text strong>{(album.scanUsage ?? 0).toLocaleString('en-IN')}</Text>
-          </Text>
-          {album.scansExhausted ? (
-            <Text type="danger">All photo plays used — guests see contact message</Text>
-          ) : null}
-        </Space>
-      </Card>
+      <section className="album-studio__strip" aria-label="Album capacity">
+        <article className="album-studio__stat">
+          <span>Pack</span>
+          <strong className="album-studio__stat-text">
+            {album.packName ?? album.packCode ?? '—'}
+          </strong>
+        </article>
+        <article className="album-studio__stat">
+          <span>Photos max</span>
+          <strong>{album.maxMappings ?? 25}</strong>
+        </article>
+        <article className="album-studio__stat">
+          <span>Plays used</span>
+          <strong>
+            {(album.scanUsage ?? 0).toLocaleString('en-IN')}
+            <small>
+              {' '}
+              /{' '}
+              {((album.scansPerMapping ?? 1000) * (album.maxMappings ?? 25)).toLocaleString(
+                'en-IN',
+              )}
+            </small>
+          </strong>
+        </article>
+      </section>
 
-      {!mediaDone ? (
-        <Alert
-          className="!mb-4"
-          type="info"
-          showIcon
-          message="Step 1 — add a photo and a video"
-          description="Upload the printed photo the client will hold, then the video that should play on it."
-          action={
-            <Button type="primary" onClick={() => navigate(albumMediaPath(id))}>
-              Add photos & videos
-            </Button>
-          }
-        />
-      ) : !mapDone && drafts.length === 0 ? (
-        <Alert
-          className="!mb-4"
-          type="info"
-          showIcon
-          message="Step 2 — link photo to video"
-          description="Choose which video plays when a guest points their phone at that print."
-          action={
-            <Button type="primary" onClick={() => navigate(albumMapPath(id, total > 0))}>
-              Map to video
-            </Button>
-          }
-        />
-      ) : !published ? (
-        <Alert
-          className="!mb-4"
-          type="success"
-          showIcon
-          message="Step 3 — share with your client"
-          description="Turn the album on. Then print the QR in the album or send the link. Guests open it on their phone and scan the photo."
-          action={
-            <Button
-              type="primary"
-              loading={sharing}
-              disabled={!canShare}
-              onClick={() => void handleShare()}
-            >
-              Share with client
-            </Button>
-          }
-        />
-      ) : !shareDone ? (
-        <Alert
-          className="!mb-4"
-          type="info"
-          showIcon
-          message="Preparing the scan"
-          description="Wait here. The QR appears when this finishes — usually a few minutes. Guests do not wait for this."
-        />
-      ) : (
-        <Alert
-          className="!mb-4"
-          type="success"
-          showIcon
-          message="Ready to deliver"
-          description="Print the QR or send the link. Guests open it on their phone and point the camera at the photo."
-        />
-      )}
+      <div className={`album-details__cta album-details__cta--${statusTone}`}>
+        <div>
+          <strong>{statusTitle}</strong>
+          <p>{statusBody}</p>
+        </div>
+        {statusAction ? (
+          <button
+            type="button"
+            className="studio-home__btn studio-home__btn--primary"
+            disabled={
+              statusAction.loading || (statusAction.label === 'Share with client' && !canShare)
+            }
+            onClick={statusAction.onClick}
+          >
+            {statusAction.loading ? 'Working…' : statusAction.label}
+          </button>
+        ) : null}
+      </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <Card title="What to do">
-          <ol className="m-0 list-decimal space-y-2 pl-5 text-sm text-neutral-600">
-            <li>
-              <Text strong={!mediaDone}>Photos & videos</Text>
-              {' — '}
-              {mediaDone
-                ? `${readyPhotos.length} photo${readyPhotos.length === 1 ? '' : 's'}, ${readyVideos.length} video${readyVideos.length === 1 ? '' : 's'} ready.`
-                : 'Add the print and the video.'}{' '}
-              <Button type="link" className="!px-0" onClick={() => navigate(albumMediaPath(id))}>
-                Open
-              </Button>
-            </li>
-            <li>
-              <Text strong={mediaDone && !mapDone}>Map to video</Text>
-              {' — '}
-              {mapDone
-                ? `${live} live pairing${live === 1 ? '' : 's'}.`
-                : drafts.length
-                  ? 'Saved, but not live yet.'
-                  : 'Tell us which video plays on which photo.'}{' '}
-              <Button
-                type="link"
-                className="!px-0"
-                onClick={() => navigate(albumMapPath(id, total > 0))}
-              >
-                Open
-              </Button>
-            </li>
-            <li>
-              <Text strong={mapDone || drafts.length > 0}>Share</Text>
-              {' — '}
-              {shareDone
-                ? 'QR is ready to print.'
-                : published
-                  ? 'Scan file is building.'
-                  : 'Turn the album on, then print the QR.'}
-            </li>
-          </ol>
-          {canShare && !published ? (
-            <Button
-              type="primary"
-              className="mt-4"
-              loading={sharing}
-              onClick={() => void handleShare()}
-            >
-              Share with client
-            </Button>
-          ) : null}
-        </Card>
-
+      <div className="album-details__layout">
         <AlbumViewerQrCard
           albumName={album.albumName}
           viewerUrl={album.publicViewerUrl}

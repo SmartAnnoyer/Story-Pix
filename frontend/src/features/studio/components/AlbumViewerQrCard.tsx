@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Card, QRCode, Typography, message } from 'antd';
-
-const { Paragraph, Text } = Typography;
+import { QRCode, message } from 'antd';
+import './AlbumViewerQrCard.css';
 
 interface AlbumViewerQrCardProps {
   albumName: string;
@@ -17,7 +16,7 @@ interface AlbumViewerQrCardProps {
 }
 
 const WAIT_TIPS = [
-  'We’re preparing landmarks so printed photos unlock video.',
+  'Preparing landmarks so printed photos unlock video.',
   'This build happens once — guests won’t wait for it.',
   'QR appears the moment the scan file is ready.',
 ];
@@ -67,82 +66,62 @@ export const AlbumViewerQrCard = ({
     link.download = `${albumName.replace(/\s+/g, '-').toLowerCase()}-storypix-qr.png`;
     link.href = canvas.toDataURL('image/png');
     link.click();
-    message.success('QR code downloaded — add it to your printed album');
+    message.success('QR code downloaded');
   };
 
   return (
-    <Card title="Give this to your client" className="mb-4">
+    <section className="album-qr">
+      <div className="album-qr__head">
+        <h2>Client QR</h2>
+      </div>
+
       {!published ? (
-        <>
-          <Paragraph type="secondary" className="text-sm">
-            After you share the album, a QR appears here. Print it in the album or send the link.
-            Guests open it on their phone and scan the photo.
-          </Paragraph>
-          <Text type="secondary" className="block text-xs">
-            Finish photos, mapping, then tap Share with client.
-          </Text>
-        </>
+        <p className="album-qr__muted">Share the album to unlock the QR here.</p>
       ) : failed ? (
-        <div className="py-4 text-center">
-          <Text type="danger" strong className="block">
-            Scan file build failed
-          </Text>
-          <Paragraph type="secondary" className="mt-2 text-sm">
-            Fix the issue and retry. QR stays hidden until the build succeeds.
-          </Paragraph>
+        <div className="album-qr__center">
+          <strong className="album-qr__warn">Scan file build failed</strong>
+          <p className="album-qr__muted">Retry after fixing the issue.</p>
           {onRetry ? (
-            <Button type="primary" danger loading={retrying} onClick={onRetry}>
-              Retry build
-            </Button>
+            <button
+              type="button"
+              className="album-qr__btn album-qr__btn--ghost"
+              disabled={retrying}
+              onClick={onRetry}
+            >
+              {retrying ? 'Retrying…' : 'Retry build'}
+            </button>
           ) : null}
         </div>
       ) : !arScanFileReady ? (
-        <div className="flex flex-col items-center gap-4 py-5 text-center">
-          <div className="relative flex h-28 w-28 items-center justify-center">
-            <div className="absolute inset-0 animate-pulse rounded-full bg-amber-100" />
-            <div className="absolute inset-3 rounded-full border-2 border-dashed border-amber-400 animate-[spin_8s_linear_infinite]" />
-            <div className="relative z-10 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-amber-800 shadow-sm">
-              QR soon
-            </div>
+        <div className="album-qr__center">
+          <div className="album-qr__pulse" aria-hidden>
+            <span />
           </div>
-
-          <div className="w-full max-w-xs">
-            <div className="mb-2 h-2 overflow-hidden rounded-full bg-amber-100">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-amber-500 to-orange-400 transition-all duration-500"
-                style={{ width: `${clamped}%` }}
-              />
-            </div>
-            <Text strong className="block text-sm">
-              {buildMessage ?? 'Building AR scan file…'}
-            </Text>
-            <Text type="secondary" className="mt-1 block text-xs">
-              {WAIT_TIPS[tipIndex]}
-            </Text>
-            <Text type="secondary" className="mt-2 block text-[11px] tabular-nums">
-              {clamped}%{elapsed ? ` · ${elapsed}` : ''}
-            </Text>
+          <div className="album-qr__meter" aria-hidden>
+            <i style={{ width: `${clamped}%` }} />
           </div>
+          <strong>{buildMessage ?? 'Building scan file…'}</strong>
+          <p className="album-qr__muted">{WAIT_TIPS[tipIndex]}</p>
+          <p className="album-qr__meta">
+            {clamped}%{elapsed ? ` · ${elapsed}` : ''}
+          </p>
         </div>
       ) : (
         <>
-          <Paragraph type="secondary" className="text-sm">
-            Print this QR once. Guests open it on their phone and point the camera at each print.
-          </Paragraph>
-
-          <div ref={qrWrapRef} className="mb-4 flex justify-center rounded-xl bg-white p-4">
+          <div ref={qrWrapRef} className="album-qr__code">
             <QRCode value={viewerUrl} size={196} bordered={false} errorLevel="M" />
           </div>
-
-          <Paragraph copyable className="!mb-3 text-xs">
-            {viewerUrl}
-          </Paragraph>
-
-          <Button block type="primary" onClick={downloadQr} disabled={!showQr}>
+          <p className="album-qr__link">{viewerUrl}</p>
+          <button
+            type="button"
+            className="album-qr__btn album-qr__btn--primary"
+            onClick={downloadQr}
+            disabled={!showQr}
+          >
             Download QR
-          </Button>
+          </button>
         </>
       )}
-    </Card>
+    </section>
   );
 };

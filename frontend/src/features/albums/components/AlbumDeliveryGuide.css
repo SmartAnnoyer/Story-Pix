@@ -1,94 +1,58 @@
 @import url('https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap');
 
-.album-guide {
-  --ag-ink: #1c1b22;
-  --ag-muted: #6a6772;
-  --ag-line: #e6e4ea;
-  --ag-paper: #f7f6f9;
-  --ag-accent: #5b2cdb;
-  --ag-live: #0f7a4f;
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0.5rem;
+.album-tabs {
+  --at-ink: #1c1b22;
+  --at-muted: #6a6772;
+  --at-line: #e6e4ea;
+  --at-paper: #f7f6f9;
+  --at-accent: #5b2cdb;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
   margin-bottom: 1.15rem;
+  padding: 0.3rem;
+  border-radius: 10px;
+  border: 1px solid var(--at-line);
+  background: #fff;
   font-family: Figtree, system-ui, sans-serif;
 }
 
-@media (min-width: 768px) {
-  .album-guide {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.65rem;
-  }
-}
-
-.album-guide__step {
-  display: flex;
-  width: 100%;
-  align-items: flex-start;
-  gap: 0.7rem;
-  padding: 0.85rem 0.95rem;
-  border: 1px solid var(--ag-line);
-  border-radius: 10px;
-  background: #fff;
-  text-align: left;
+.album-tabs__tab {
+  flex: 1 1 auto;
+  min-height: 2.35rem;
+  padding: 0.4rem 0.85rem;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 650;
+  color: var(--at-muted);
   cursor: pointer;
-  font-family: inherit;
+  text-align: center;
   transition:
-    border-color 0.15s ease,
     background 0.15s ease,
-    transform 0.15s ease;
+    color 0.15s ease;
 }
 
-.album-guide__step:hover {
-  border-color: #d4cfe0;
-  transform: translateY(-1px);
+.album-tabs__tab:hover {
+  color: var(--at-ink);
+  background: var(--at-paper);
 }
 
-.album-guide__step--current {
-  border-color: rgba(91, 44, 219, 0.35);
+.album-tabs__tab--on {
+  color: var(--at-accent);
   background: #f3eefc;
 }
 
-.album-guide__step--done {
-  border-color: #c6e9d6;
-  background: #f3fbf7;
+.album-tabs__tab--done {
+  color: var(--at-ink);
 }
 
-.album-guide__n {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: 999px;
-  background: var(--ag-paper);
-  color: var(--ag-muted);
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-
-.album-guide__step--current .album-guide__n {
-  background: var(--ag-accent);
-  color: #fff;
-}
-
-.album-guide__step--done .album-guide__n {
-  background: var(--ag-live);
-  color: #fff;
-}
-
-.album-guide__label {
-  display: block;
-  font-size: 0.88rem;
-  font-weight: 650;
-  color: var(--ag-ink);
-}
-
-.album-guide__hint {
-  display: block;
-  margin-top: 0.15rem;
-  font-size: 0.74rem;
-  line-height: 1.35;
-  color: var(--ag-muted);
+@media (max-width: 520px) {
+  .album-tabs__tab {
+    flex: 1 1 calc(50% - 0.35rem);
+    font-size: 0.82rem;
+    padding: 0.4rem 0.55rem;
+  }
 }
