@@ -186,8 +186,6 @@ export const AlbumDetailsPage = () => {
         </div>
       </header>
 
-      <AlbumDeliveryGuide albumId={id} current="share" />
-
       <section className="album-studio__strip" aria-label="Album capacity">
         <article className="album-studio__stat">
           <span>Pack</span>
@@ -213,6 +211,8 @@ export const AlbumDetailsPage = () => {
           </strong>
         </article>
       </section>
+
+      <AlbumDeliveryGuide albumId={id} current="share" />
 
       <div className={`album-details__cta album-details__cta--${statusTone}`}>
         <div>
