@@ -26,7 +26,17 @@ function storagePercent(used: number, limit: number): number {
 }
 
 function statusClass(status: StudioStatus): string {
+  if (status === StudioStatus.EXPIRED || status === StudioStatus.TRIAL) {
+    return 'studios-page__status studios-page__status--expired';
+  }
   return `studios-page__status studios-page__status--${status}`;
+}
+
+function statusLabel(status: StudioStatus): string {
+  if (status === StudioStatus.ACTIVE) return 'Active';
+  if (status === StudioStatus.SUSPENDED) return 'Suspended';
+  // Legacy plan/trial rows — no time-based expiry in the packs model.
+  return 'Needs activate';
 }
 
 export const StudioTable = ({
@@ -58,7 +68,9 @@ export const StudioTable = ({
         {studios.map((studio) => {
           const pct = storagePercent(studio.storageUsedGB, studio.storageLimitGB);
           const canActivate =
-            studio.status === StudioStatus.SUSPENDED || studio.status === StudioStatus.EXPIRED;
+            studio.status === StudioStatus.SUSPENDED ||
+            studio.status === StudioStatus.EXPIRED ||
+            studio.status === StudioStatus.TRIAL;
 
           return (
             <article key={studio.id} className="studio-card">
@@ -72,7 +84,7 @@ export const StudioTable = ({
                   <h2 className="studio-card__name">{studio.studioName}</h2>
                   <p className="studio-card__owner">{studio.ownerName}</p>
                 </button>
-                <span className={statusClass(studio.status)}>{studio.status}</span>
+                <span className={statusClass(studio.status)}>{statusLabel(studio.status)}</span>
               </div>
 
               <div className="studio-card__meta">
@@ -81,10 +93,13 @@ export const StudioTable = ({
                   <strong>{studio.email}</strong>
                 </div>
                 <div>
-                  <span>Scans</span>
+                  <span>Access</span>
                   <strong>
-                    {studio.monthlyScanUsage.toLocaleString('en-IN')} /{' '}
-                    {studio.monthlyScanLimit.toLocaleString('en-IN')}
+                    {studio.status === StudioStatus.SUSPENDED
+                      ? 'Paused'
+                      : studio.status === StudioStatus.ACTIVE
+                        ? 'Open'
+                        : 'Activate to open'}
                   </strong>
                 </div>
               </div>

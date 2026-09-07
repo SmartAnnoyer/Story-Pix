@@ -10,13 +10,10 @@ import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
 import { FilterQuery, Model } from 'mongoose';
 import { PaginatedResult, PaginationQueryDto } from '../common/dto/pagination.dto';
-import { Role, StudioStatus, SubscriptionStatus, UserStatus, DomainEventType } from '../common/enums';
+import { Role, StudioStatus, SubscriptionStatus, DomainEventType } from '../common/enums';
 import { LoggerService } from '../shared/services/logger.service';
 import { EventBusService } from '../notifications/services/event-bus.service';
-import {
-  IStorageService,
-  STORAGE_SERVICE,
-} from '../storage/interfaces/storage.interface';
+import { IStorageService, STORAGE_SERVICE } from '../storage/interfaces/storage.interface';
 import { UsersService } from '../users/users.service';
 import { SubscriptionService } from '../subscriptions/subscription.service';
 import { UsageService } from '../subscriptions/usage.service';
@@ -45,7 +42,9 @@ export class StudiosService {
     this.logger.setContext(StudiosService.name);
   }
 
-  async findAll(query: PaginationQueryDto): Promise<PaginatedResult<ReturnType<typeof this.serializeStudio>>> {
+  async findAll(
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResult<ReturnType<typeof this.serializeStudio>>> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const skip = (page - 1) * limit;
@@ -262,30 +261,16 @@ export class StudiosService {
       throw new NotFoundException('Studio not found');
     }
 
-    const subscriptionId =
-      studio.activeSubscriptionId?.toString() ?? studio.subscriptionId ?? null;
-
-    if (subscriptionId) {
-      const inactiveStatuses = [
-        SubscriptionStatus.SUSPENDED,
-        SubscriptionStatus.EXPIRED,
-        SubscriptionStatus.CANCELLED,
-      ];
-
-      if (
-        studio.subscriptionStatus &&
-        inactiveStatuses.includes(studio.subscriptionStatus as SubscriptionStatus)
-      ) {
-        await this.subscriptionService.activate(subscriptionId);
-        const refreshed = await this.studioModel.findOne({ _id: id, deletedAt: null }).exec();
-        return this.serializeStudio(refreshed ?? studio);
-      }
-    }
-
-    studio.status =
+    // Access control is independent of pack credits and plan end dates.
+    studio.status = StudioStatus.ACTIVE;
+    if (
+      studio.subscriptionStatus === SubscriptionStatus.SUSPENDED ||
+      studio.subscriptionStatus === SubscriptionStatus.EXPIRED ||
+      studio.subscriptionStatus === SubscriptionStatus.CANCELLED ||
       studio.subscriptionStatus === SubscriptionStatus.TRIAL
-        ? StudioStatus.TRIAL
-        : StudioStatus.ACTIVE;
+    ) {
+      studio.subscriptionStatus = SubscriptionStatus.ACTIVE;
+    }
     await studio.save();
 
     return this.serializeStudio(studio);
@@ -340,32 +325,26 @@ export class StudiosService {
   async getDashboardStats() {
     const notDeleted = { deletedAt: null };
 
-    const [
-      totalStudios,
-      activeStudios,
-      suspendedStudios,
-      trialStudios,
-      expiredStudios,
-      usageAgg,
-    ] = await Promise.all([
-      this.studioModel.countDocuments(notDeleted).exec(),
-      this.studioModel.countDocuments({ ...notDeleted, status: StudioStatus.ACTIVE }).exec(),
-      this.studioModel.countDocuments({ ...notDeleted, status: StudioStatus.SUSPENDED }).exec(),
-      this.studioModel.countDocuments({ ...notDeleted, status: StudioStatus.TRIAL }).exec(),
-      this.studioModel.countDocuments({ ...notDeleted, status: StudioStatus.EXPIRED }).exec(),
-      this.studioModel
-        .aggregate([
-          { $match: notDeleted },
-          {
-            $group: {
-              _id: null,
-              totalStorageUsedGB: { $sum: '$storageUsedGB' },
-              totalMonthlyScans: { $sum: '$monthlyScanUsage' },
+    const [totalStudios, activeStudios, suspendedStudios, trialStudios, expiredStudios, usageAgg] =
+      await Promise.all([
+        this.studioModel.countDocuments(notDeleted).exec(),
+        this.studioModel.countDocuments({ ...notDeleted, status: StudioStatus.ACTIVE }).exec(),
+        this.studioModel.countDocuments({ ...notDeleted, status: StudioStatus.SUSPENDED }).exec(),
+        this.studioModel.countDocuments({ ...notDeleted, status: StudioStatus.TRIAL }).exec(),
+        this.studioModel.countDocuments({ ...notDeleted, status: StudioStatus.EXPIRED }).exec(),
+        this.studioModel
+          .aggregate([
+            { $match: notDeleted },
+            {
+              $group: {
+                _id: null,
+                totalStorageUsedGB: { $sum: '$storageUsedGB' },
+                totalMonthlyScans: { $sum: '$monthlyScanUsage' },
+              },
             },
-          },
-        ])
-        .exec(),
-    ]);
+          ])
+          .exec(),
+      ]);
 
     const usage = usageAgg[0] ?? { totalStorageUsedGB: 0, totalMonthlyScans: 0 };
 

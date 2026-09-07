@@ -15,7 +15,6 @@ import './StudiosListPage.css';
 const STATUS_FILTERS: { label: string; value: StudioStatus }[] = [
   { label: 'Active', value: StudioStatus.ACTIVE },
   { label: 'Suspended', value: StudioStatus.SUSPENDED },
-  { label: 'Expired', value: StudioStatus.EXPIRED },
 ];
 
 export const StudiosListPage = () => {
@@ -67,7 +66,8 @@ export const StudiosListPage = () => {
           <div>
             <h1>All studios</h1>
             <p className="studios-page__lede">
-              Search, filter, activate, or suspend studios on the platform.
+              Access is Active or Suspended only — no plan expiry. When credits run out, open the
+              studio and add another pack.
             </p>
           </div>
           <Link className="studios-page__btn studios-page__btn--primary" to={ROUTES.STUDIO_CREATE}>

@@ -53,7 +53,9 @@ export const StudioDetailsPage = () => {
   if (isLoading || !studio) return <LoadingSpinner />;
 
   const canActivateStudio =
-    studio.status === StudioStatus.SUSPENDED || studio.status === StudioStatus.EXPIRED;
+    studio.status === StudioStatus.SUSPENDED ||
+    studio.status === StudioStatus.EXPIRED ||
+    studio.status === StudioStatus.TRIAL;
 
   const handleResetAdminPassword = async () => {
     const result = await resetPasswordMutation.mutateAsync(id);
@@ -154,7 +156,9 @@ export const StudioDetailsPage = () => {
 
       <Card title="Album packs" className="mb-6">
         <Paragraph type="secondary" className="!mb-2">
-          Add album credits after offline payment. Activate / Suspend above controls studio access.
+          Activate / Suspend controls login access only — there is no plan end date. When album
+          credits run out, the studio stays active; add another Mini, Standard, or Bundle pack after
+          offline payment to unlock more albums.
         </Paragraph>
         <Paragraph type="secondary" className="!mb-4">
           Remaining: <Text strong>{packSummary?.remainingAlbumCredits ?? 0}</Text> /{' '}
@@ -162,7 +166,7 @@ export const StudioDetailsPage = () => {
           {(packSummary?.remainingAlbumCredits ?? 0) <= 0 ? (
             <>
               {' '}
-              <Tag color="warning">Blocked from new albums</Tag>
+              <Tag color="warning">Out of credits — add a pack below</Tag>
             </>
           ) : (
             <>

@@ -38,7 +38,9 @@ export class SubscriptionService {
     private readonly analyticsIngestionService: AnalyticsIngestionService,
   ) {}
 
-  async findAll(query: PaginationQueryDto & { studioId?: string }): Promise<PaginatedResult<unknown>> {
+  async findAll(
+    query: PaginationQueryDto & { studioId?: string },
+  ): Promise<PaginatedResult<unknown>> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const skip = (page - 1) * limit;
@@ -95,7 +97,13 @@ export class SubscriptionService {
 
   async createTrialSubscription(studioId: string, studioEmail: string) {
     const starterPlan = await this.planService.findByCode(PlanCode.STARTER);
-    return this.assignPlanInternal(studioId, starterPlan, BillingCycle.MONTHLY, SubscriptionStatus.TRIAL, studioEmail);
+    return this.assignPlanInternal(
+      studioId,
+      starterPlan,
+      BillingCycle.MONTHLY,
+      SubscriptionStatus.TRIAL,
+      studioEmail,
+    );
   }
 
   async assignPlan(dto: AssignPlanDto) {
@@ -191,7 +199,8 @@ export class SubscriptionService {
     const subscription = await this.subscriptionModel.findById(subscriptionId).exec();
     if (!subscription) throw new NotFoundException('Subscription not found');
 
-    const baseDate = subscription.endDate && subscription.endDate > new Date() ? subscription.endDate : new Date();
+    const baseDate =
+      subscription.endDate && subscription.endDate > new Date() ? subscription.endDate : new Date();
     subscription.endDate = new Date(baseDate.getTime() + extendDays * 24 * 60 * 60 * 1000);
 
     if (subscription.status === SubscriptionStatus.EXPIRED) {
@@ -398,14 +407,18 @@ export class SubscriptionService {
     studio.monthlyScanLimit = plan.monthlyScanLimit;
     studio.monthlyScanUsage = subscription.scanUsage;
 
-    if (subscription.status === SubscriptionStatus.TRIAL) {
-      studio.status = StudioStatus.TRIAL;
-    } else if (subscription.status === SubscriptionStatus.ACTIVE) {
-      studio.status = StudioStatus.ACTIVE;
-    } else if (subscription.status === SubscriptionStatus.EXPIRED) {
-      studio.status = StudioStatus.EXPIRED;
-    } else if (subscription.status === SubscriptionStatus.SUSPENDED) {
+    // Studio access is admin Activate / Suspend only (packs model — no plan expiry).
+    // Subscription expiry must not flip the studio to "expired".
+    if (subscription.status === SubscriptionStatus.SUSPENDED) {
       studio.status = StudioStatus.SUSPENDED;
+    } else if (
+      subscription.status === SubscriptionStatus.ACTIVE ||
+      subscription.status === SubscriptionStatus.TRIAL ||
+      subscription.status === SubscriptionStatus.EXPIRED
+    ) {
+      if (studio.status !== StudioStatus.SUSPENDED) {
+        studio.status = StudioStatus.ACTIVE;
+      }
     }
 
     await studio.save();

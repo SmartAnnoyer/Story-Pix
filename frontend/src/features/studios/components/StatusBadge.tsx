@@ -1,14 +1,12 @@
 import { Tag } from 'antd';
 import { StudioStatus } from '@/types/studio.types';
 
-const STATUS_CONFIG: Record<
-  StudioStatus,
-  { color: string; label: string }
-> = {
+const STATUS_CONFIG: Record<StudioStatus, { color: string; label: string }> = {
   [StudioStatus.ACTIVE]: { color: 'success', label: 'Active' },
   [StudioStatus.SUSPENDED]: { color: 'error', label: 'Suspended' },
-  [StudioStatus.TRIAL]: { color: 'processing', label: 'Trial' },
-  [StudioStatus.EXPIRED]: { color: 'warning', label: 'Expired' },
+  // Legacy statuses from the old plan/trial model — treat as needing Activate.
+  [StudioStatus.TRIAL]: { color: 'warning', label: 'Needs activate' },
+  [StudioStatus.EXPIRED]: { color: 'warning', label: 'Needs activate' },
 };
 
 interface StatusBadgeProps {
