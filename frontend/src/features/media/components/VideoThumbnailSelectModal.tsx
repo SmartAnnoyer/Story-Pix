@@ -167,7 +167,7 @@ export const VideoThumbnailSelectModal = ({
         const ctx = exportCanvas.getContext('2d');
         if (!ctx) throw new Error('Canvas unavailable');
         ctx.drawImage(video, 0, 0, scaled.width, scaled.height);
-        blob = await new Promise((resolve, reject) => {
+        blob = await new Promise<Blob>((resolve, reject) => {
           exportCanvas.toBlob(
             (result) => (result ? resolve(result) : reject(new Error('Could not capture frame'))),
             'image/jpeg',
@@ -175,6 +175,8 @@ export const VideoThumbnailSelectModal = ({
           );
         });
       }
+
+      if (!blob) throw new Error('Could not capture frame');
 
       const thumbnailBase64 = await blobToDataUrl(blob);
       onConfirm({
