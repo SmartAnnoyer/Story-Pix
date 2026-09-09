@@ -1,19 +1,20 @@
-import {
-  BadRequestException,
-  Inject,
-  Injectable,
-  NotFoundException,
-  forwardRef,
-} from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { randomUUID } from 'crypto';
 import { extname } from 'path';
-import { FilterQuery, Model, SortOrder } from 'mongoose';
+import { FilterQuery, Model, SortOrder, Types } from 'mongoose';
 import { AlbumsService } from '../albums/albums.service';
-import { ArTargetsService } from '../ar-targets/ar-targets.service';
-import { MediaStatus, MediaType, AnalyticsEventType, DomainEventType } from '../common/enums';
+import { ArTarget, ArTargetDocument } from '../ar-targets/schemas/ar-target.schema';
+import {
+  MediaStatus,
+  MediaType,
+  AnalyticsEventType,
+  DomainEventType,
+  ArTargetStatus,
+} from '../common/enums';
 import { AnalyticsIngestionService } from '../analytics/analytics-ingestion.service';
 import { EventBusService } from '../notifications/services/event-bus.service';
+import { MindArCompilerService } from '../mind-ar/mind-ar-compiler.service';
 import { IStorageService, STORAGE_SERVICE } from '../storage/interfaces/storage.interface';
 import { UsageService } from '../subscriptions/usage.service';
 import { clampOverlayFrame } from '../common/dto/overlay-frame.dto';
@@ -35,6 +36,7 @@ import { Media, MediaDocument } from './schemas/media.schema';
 export class MediaService {
   constructor(
     @InjectModel(Media.name) private readonly mediaModel: Model<MediaDocument>,
+    @InjectModel(ArTarget.name) private readonly arTargetModel: Model<ArTargetDocument>,
     @Inject(STORAGE_SERVICE) private readonly storageService: IStorageService,
     private readonly albumsService: AlbumsService,
     private readonly mediaLimitService: MediaLimitService,
@@ -43,8 +45,7 @@ export class MediaService {
     private readonly usageService: UsageService,
     private readonly analyticsIngestionService: AnalyticsIngestionService,
     private readonly eventBus: EventBusService,
-    @Inject(forwardRef(() => ArTargetsService))
-    private readonly arTargetsService: ArTargetsService,
+    private readonly mindArCompilerService: MindArCompilerService,
   ) {}
 
   async initiateUpload(studioId: string, userId: string, dto: InitiateUploadDto) {
@@ -328,7 +329,7 @@ export class MediaService {
       throw new BadRequestException('Media already deleted');
     }
 
-    const linked = await this.arTargetsService.softDeleteLinkedToMedia(studioId, id);
+    const linked = await this.softDeleteLinkedTargets(studioId, id);
 
     if (media.status === MediaStatus.READY) {
       await this.storageService.deleteObject(media.r2ObjectKey);
@@ -360,6 +361,49 @@ export class MediaService {
       .catch(() => undefined);
 
     return { id: media._id.toString(), deleted: true, removedLinks: linked.removed };
+  }
+
+  /** Soft-delete every photo→video link that uses this media. */
+  private async softDeleteLinkedTargets(studioId: string, mediaId: string) {
+    const studioFilter = Types.ObjectId.isValid(studioId)
+      ? { $in: [studioId, new Types.ObjectId(studioId)] }
+      : studioId;
+    const mediaFilter = Types.ObjectId.isValid(mediaId)
+      ? { $in: [mediaId, new Types.ObjectId(mediaId)] }
+      : mediaId;
+
+    const targets = await this.arTargetModel
+      .find({
+        studioId: studioFilter,
+        $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
+        $and: [
+          {
+            $or: [{ photoMediaId: mediaFilter }, { videoMediaId: mediaFilter }],
+          },
+        ],
+      })
+      .exec();
+
+    let removed = 0;
+    const albumsToRebuild = new Set<string>();
+
+    for (const target of targets) {
+      const wasActive = target.status === ArTargetStatus.ACTIVE;
+      target.deletedAt = new Date();
+      target.status = ArTargetStatus.ARCHIVED;
+      target.targetIndex = null;
+      await target.save();
+      removed += 1;
+      if (wasActive) {
+        albumsToRebuild.add(target.albumId.toString());
+      }
+    }
+
+    for (const albumId of albumsToRebuild) {
+      void this.mindArCompilerService.scheduleAlbumMindRebuild(albumId);
+    }
+
+    return { removed };
   }
 
   private buildFilter(studioId: string, query: QueryMediaDto): FilterQuery<MediaDocument> {
