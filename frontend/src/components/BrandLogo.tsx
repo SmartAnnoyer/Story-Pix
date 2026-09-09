@@ -17,7 +17,7 @@ const srcByVariant: Record<BrandLogoVariant, string> = {
   nav: brand.logos.nav,
 };
 
-export const BrandLogo = ({ variant = 'nav', className = '', height = 36 }: BrandLogoProps) => {
+export const BrandLogo = ({ variant = 'nav', className = '', height = 32 }: BrandLogoProps) => {
   const src = srcByVariant[variant];
   const wide = variant === 'full' || variant === 'nav';
 
