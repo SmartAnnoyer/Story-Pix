@@ -8,7 +8,7 @@ import type { StudioPackCredit } from '@/types/pack.types';
 const createSchema = z.object({
   albumName: z.string().min(2, 'Album name is required'),
   customerName: z.string().min(2, 'Client name is required'),
-  packCreditId: z.string().min(1, 'Select a pack credit'),
+  packCreditId: z.string().min(1, 'Select a plan'),
 });
 
 const editSchema = z.object({
@@ -41,6 +41,7 @@ export const AlbumForm = (props: AlbumFormProps) => {
   const { mode, initialValues, onSubmit, isSubmitting, errorMessage } = props;
   const packCredits = mode === 'create' ? (props.packCredits ?? []) : [];
   const availableCredits = packCredits.filter((credit) => credit.remainingCredits > 0);
+  const singlePlan = availableCredits.length === 1;
 
   const {
     control,
@@ -71,8 +72,8 @@ export const AlbumForm = (props: AlbumFormProps) => {
           type="warning"
           showIcon
           className="mb-4"
-          message="No album pack credits left"
-          description="Ask Story-PIX admin to enable a Minimal, Standard, Professional, or Volume pack for your studio."
+          message="No albums left on your plan"
+          description="Contact Story-PIX to add Mini, Standard, or a Bundle for your studio."
         />
       ) : null}
 
@@ -102,10 +103,20 @@ export const AlbumForm = (props: AlbumFormProps) => {
         />
       </Form.Item>
 
-      {mode === 'create' ? (
+      {mode === 'create' && singlePlan ? (
+        <Alert
+          type="info"
+          showIcon
+          className="mb-4"
+          message={`Using ${availableCredits[0].packName}`}
+          description={`Up to ${availableCredits[0].maxMappings} photos · about ${(availableCredits[0].scansPerMapping ?? 1000).toLocaleString('en-IN')} guest views each · ${availableCredits[0].remainingCredits} album${availableCredits[0].remainingCredits === 1 ? '' : 's'} left`}
+        />
+      ) : null}
+
+      {mode === 'create' && !singlePlan ? (
         <Form.Item
-          label="Pack credit"
-          extra="Consumes 1 album credit. Limits (mappings + scans) come from this pack."
+          label="Which plan?"
+          extra="Uses 1 album from that plan. Photo limit comes from the plan."
           validateStatus={
             'packCreditId' in errors &&
             (errors as { packCreditId?: { message?: string } }).packCreditId
@@ -124,16 +135,24 @@ export const AlbumForm = (props: AlbumFormProps) => {
             render={({ field }) => (
               <Select
                 {...field}
-                placeholder="Select pack"
+                placeholder="Select plan"
                 options={availableCredits.map((credit) => ({
                   value: credit.id,
-                  label: `${credit.packName} · up to ${credit.maxMappings} photos · 1,000 plays/photo · ${credit.remainingCredits} left`,
+                  label: `${credit.packName} · up to ${credit.maxMappings} photos · ${credit.remainingCredits} left`,
                 }))}
                 disabled={availableCredits.length === 0}
               />
             )}
           />
         </Form.Item>
+      ) : null}
+
+      {mode === 'create' && singlePlan ? (
+        <Controller
+          name="packCreditId"
+          control={control}
+          render={({ field }) => <input type="hidden" {...field} />}
+        />
       ) : null}
 
       <Button

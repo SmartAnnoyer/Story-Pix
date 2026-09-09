@@ -38,7 +38,11 @@ export const useDeleteMediaMutation = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => mediaService.deleteMedia(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: mediaKeys.all }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: mediaKeys.all });
+      void qc.invalidateQueries({ queryKey: ['ar-targets'] });
+      void qc.invalidateQueries({ queryKey: ['albums'] });
+    },
   });
 };
 

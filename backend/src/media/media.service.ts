@@ -1,9 +1,16 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  forwardRef,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { randomUUID } from 'crypto';
 import { extname } from 'path';
 import { FilterQuery, Model, SortOrder } from 'mongoose';
 import { AlbumsService } from '../albums/albums.service';
+import { ArTargetsService } from '../ar-targets/ar-targets.service';
 import { MediaStatus, MediaType, AnalyticsEventType, DomainEventType } from '../common/enums';
 import { AnalyticsIngestionService } from '../analytics/analytics-ingestion.service';
 import { EventBusService } from '../notifications/services/event-bus.service';
@@ -36,6 +43,8 @@ export class MediaService {
     private readonly usageService: UsageService,
     private readonly analyticsIngestionService: AnalyticsIngestionService,
     private readonly eventBus: EventBusService,
+    @Inject(forwardRef(() => ArTargetsService))
+    private readonly arTargetsService: ArTargetsService,
   ) {}
 
   async initiateUpload(studioId: string, userId: string, dto: InitiateUploadDto) {
@@ -319,6 +328,8 @@ export class MediaService {
       throw new BadRequestException('Media already deleted');
     }
 
+    const linked = await this.arTargetsService.softDeleteLinkedToMedia(studioId, id);
+
     if (media.status === MediaStatus.READY) {
       await this.storageService.deleteObject(media.r2ObjectKey);
       if (media.thumbnailUrl) {
@@ -340,11 +351,15 @@ export class MediaService {
         studioId,
         albumId: media.albumId.toString(),
         eventType: AnalyticsEventType.MEDIA_DELETED,
-        metadata: { mediaId: media._id.toString(), mediaType: media.mediaType },
+        metadata: {
+          mediaId: media._id.toString(),
+          mediaType: media.mediaType,
+          removedLinks: linked.removed,
+        },
       })
       .catch(() => undefined);
 
-    return { id: media._id.toString(), deleted: true };
+    return { id: media._id.toString(), deleted: true, removedLinks: linked.removed };
   }
 
   private buildFilter(studioId: string, query: QueryMediaDto): FilterQuery<MediaDocument> {

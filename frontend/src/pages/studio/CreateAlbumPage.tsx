@@ -40,7 +40,7 @@ export const CreateAlbumPage = () => {
         New album
       </Title>
       <Paragraph type="secondary" className="!mb-6">
-        Name the event, pick a pack credit, then add photo and video mappings.
+        Name the event, then upload the print and the video that plays on it.
       </Paragraph>
       <Card>
         <AlbumForm

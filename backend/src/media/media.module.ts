@@ -6,6 +6,7 @@ import { StorageModule } from '../storage/storage.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { ArTargetsModule } from '../ar-targets/ar-targets.module';
 import { MediaController } from './media.controller';
 import { MediaLimitService } from './media-limit.service';
 import { MediaProcessingService } from './media-processing.service';
@@ -22,14 +23,10 @@ import { Media, MediaSchema } from './schemas/media.schema';
     AlbumsModule,
     AnalyticsModule,
     forwardRef(() => NotificationsModule),
+    forwardRef(() => ArTargetsModule),
   ],
   controllers: [MediaController],
-  providers: [
-    MediaService,
-    MediaValidationService,
-    MediaLimitService,
-    MediaProcessingService,
-  ],
+  providers: [MediaService, MediaValidationService, MediaLimitService, MediaProcessingService],
   exports: [MediaService, MongooseModule],
 })
 export class MediaModule {}

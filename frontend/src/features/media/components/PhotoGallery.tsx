@@ -6,11 +6,18 @@ import { FilePreviewModal } from './FilePreviewModal';
 interface PhotoGalleryProps {
   items: MediaItem[];
   loading?: boolean;
-  onDelete?: (id: string) => void;
+  onDelete?: (id: string) => void | Promise<void>;
+  getLinkedLinkCount?: (id: string) => number;
   onMediaUpdated?: () => void;
 }
 
-export const PhotoGallery = ({ items, loading, onDelete, onMediaUpdated }: PhotoGalleryProps) => {
+export const PhotoGallery = ({
+  items,
+  loading,
+  onDelete,
+  getLinkedLinkCount,
+  onMediaUpdated,
+}: PhotoGalleryProps) => {
   const [preview, setPreview] = useState<MediaItem | null>(null);
   const [search, setSearch] = useState('');
 
@@ -52,6 +59,7 @@ export const PhotoGallery = ({ items, loading, onDelete, onMediaUpdated }: Photo
         open={Boolean(preview)}
         onClose={() => setPreview(null)}
         onDelete={onDelete}
+        linkedLinkCount={preview ? (getLinkedLinkCount?.(preview.id) ?? 0) : 0}
         onUpdated={() => {
           onMediaUpdated?.();
         }}

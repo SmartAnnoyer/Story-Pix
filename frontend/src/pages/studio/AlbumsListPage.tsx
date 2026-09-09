@@ -5,6 +5,7 @@ import { AlbumTable } from '@/features/albums/components/AlbumTable';
 import { useAlbumActionMutation, useAlbumsQuery } from '@/hooks/useAlbumQueries';
 import { useStudioPackSummaryQuery } from '@/hooks/usePackQueries';
 import { AlbumStatus } from '@/types/album.types';
+import { albumStatusFilterLabel } from '@/features/albums/utils/studio-labels';
 import { ROUTES } from '@/routes/paths';
 import { getErrorMessage } from '@/api/client';
 import '../DashboardPage.css';
@@ -14,9 +15,9 @@ type AlbumFilter = 'all' | AlbumStatus.DRAFT | AlbumStatus.PUBLISHED | AlbumStat
 
 const FILTERS: { label: string; value: AlbumFilter }[] = [
   { label: 'All', value: 'all' },
-  { label: 'Draft', value: AlbumStatus.DRAFT },
-  { label: 'Published', value: AlbumStatus.PUBLISHED },
-  { label: 'Archived', value: AlbumStatus.ARCHIVED },
+  { label: albumStatusFilterLabel(AlbumStatus.DRAFT), value: AlbumStatus.DRAFT },
+  { label: albumStatusFilterLabel(AlbumStatus.PUBLISHED), value: AlbumStatus.PUBLISHED },
+  { label: albumStatusFilterLabel(AlbumStatus.ARCHIVED), value: AlbumStatus.ARCHIVED },
 ];
 
 export const AlbumsListPage = () => {
@@ -51,7 +52,7 @@ export const AlbumsListPage = () => {
   const handleArchive = async (id: string) => {
     try {
       await actionMutation.mutateAsync({ id, action: 'archive' });
-      message.success('Album archived — guests can no longer scan it');
+      message.success('Album archived — guests can no longer open it');
     } catch (error) {
       message.error(getErrorMessage(error, 'Archive failed'));
     }
@@ -78,7 +79,7 @@ export const AlbumsListPage = () => {
             disabled={!canCreateAlbum}
             onClick={() => navigate(ROUTES.ALBUM_CREATE)}
           >
-            {canCreateAlbum ? 'New album' : 'No credits left'}
+            {canCreateAlbum ? 'Start album' : 'No albums left'}
           </button>
         </div>
       </header>
@@ -88,8 +89,8 @@ export const AlbumsListPage = () => {
           className="!mb-4 albums-page__alert"
           type="warning"
           showIcon
-          message="Album creation blocked"
-          description="Your pack credits are used up. Ask Story-PIX admin to enable Mini, Standard, or a Bundle. Current pack status is on Home."
+          message="Cannot create more albums"
+          description="Your plan is used up. Contact Story-PIX to add Mini, Standard, or a Bundle. Check Home for what's left."
         />
       ) : null}
 

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AlbumsModule } from '../albums/albums.module';
 import { MediaModule } from '../media/media.module';
@@ -11,7 +11,7 @@ import { ArTarget, ArTargetSchema } from './schemas/ar-target.schema';
   imports: [
     MongooseModule.forFeature([{ name: ArTarget.name, schema: ArTargetSchema }]),
     AlbumsModule,
-    MediaModule,
+    forwardRef(() => MediaModule),
     MindArModule,
   ],
   controllers: [ArTargetsController],

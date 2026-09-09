@@ -1,13 +1,13 @@
-import { Tag } from 'antd';
 import { AlbumStatus } from '@/types/album.types';
+import { albumStatusLabel } from '../utils/studio-labels';
+import { Tag } from 'antd';
 
-const CONFIG: Record<AlbumStatus, { color: string; label: string }> = {
-  [AlbumStatus.DRAFT]: { color: 'default', label: 'Draft' },
-  [AlbumStatus.PUBLISHED]: { color: 'success', label: 'Published' },
-  [AlbumStatus.ARCHIVED]: { color: 'warning', label: 'Archived' },
+const COLORS: Record<AlbumStatus, string> = {
+  [AlbumStatus.DRAFT]: 'default',
+  [AlbumStatus.PUBLISHED]: 'success',
+  [AlbumStatus.ARCHIVED]: 'warning',
 };
 
 export const AlbumStatusBadge = ({ status }: { status: AlbumStatus }) => {
-  const config = CONFIG[status] ?? { color: 'default', label: status };
-  return <Tag color={config.color}>{config.label}</Tag>;
+  return <Tag color={COLORS[status] ?? 'default'}>{albumStatusLabel(status)}</Tag>;
 };

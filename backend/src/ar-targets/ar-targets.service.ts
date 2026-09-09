@@ -92,17 +92,17 @@ export class ArTargetsService {
     const target = await this.findDocument(studioId, id);
 
     if (target.status === ArTargetStatus.ARCHIVED) {
-      throw new BadRequestException('Archived mappings cannot be edited');
+      throw new BadRequestException(
+        'Hidden links cannot be edited — create a new photo → video pair',
+      );
     }
 
-    if (target.status === ArTargetStatus.ACTIVE) {
-      throw new BadRequestException('Published mappings must be archived before editing');
-    }
-
+    const wasActive = target.status === ArTargetStatus.ACTIVE;
     const albumId = target.albumId.toString();
     const previousPhotoId = target.photoMediaId.toString();
+    const previousVideoId = target.videoMediaId.toString();
     const photoMediaId = dto.photoMediaId ?? previousPhotoId;
-    const videoMediaId = dto.videoMediaId ?? target.videoMediaId.toString();
+    const videoMediaId = dto.videoMediaId ?? previousVideoId;
 
     if (dto.photoMediaId || dto.videoMediaId) {
       await this.validateMediaPair(studioId, albumId, photoMediaId, videoMediaId);
@@ -128,6 +128,14 @@ export class ArTargetsService {
     }
 
     await target.save();
+
+    const photoChanged = photoMediaId !== previousPhotoId;
+    const videoChanged = videoMediaId !== previousVideoId;
+    const frameChanged = Boolean(dto.overlayFrame);
+    if (wasActive && (photoChanged || videoChanged || frameChanged)) {
+      void this.mindArCompilerService.scheduleAlbumMindRebuild(albumId);
+    }
+
     return this.serializeWithMedia(studioId, target);
   }
 
@@ -145,6 +153,70 @@ export class ArTargetsService {
     }
 
     return { id: target._id.toString(), deleted: true };
+  }
+
+  /** Soft-delete every photo→video link that uses this media (used when deleting a file). */
+  async softDeleteLinkedToMedia(studioId: string, mediaId: string) {
+    const studioFilter = Types.ObjectId.isValid(studioId)
+      ? { $in: [studioId, new Types.ObjectId(studioId)] }
+      : studioId;
+    const mediaFilter = Types.ObjectId.isValid(mediaId)
+      ? { $in: [mediaId, new Types.ObjectId(mediaId)] }
+      : mediaId;
+
+    const targets = await this.arTargetModel
+      .find({
+        studioId: studioFilter,
+        $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
+        $and: [
+          {
+            $or: [{ photoMediaId: mediaFilter }, { videoMediaId: mediaFilter }],
+          },
+        ],
+      })
+      .exec();
+
+    let removed = 0;
+    const albumsToRebuild = new Set<string>();
+
+    for (const target of targets) {
+      const wasActive = target.status === ArTargetStatus.ACTIVE;
+      target.deletedAt = new Date();
+      target.status = ArTargetStatus.ARCHIVED;
+      target.targetIndex = null;
+      await target.save();
+      removed += 1;
+      if (wasActive) {
+        albumsToRebuild.add(target.albumId.toString());
+      }
+    }
+
+    for (const albumId of albumsToRebuild) {
+      void this.mindArCompilerService.scheduleAlbumMindRebuild(albumId);
+    }
+
+    return { removed, albumIds: [...albumsToRebuild] };
+  }
+
+  async countLinkedToMedia(studioId: string, mediaId: string) {
+    const studioFilter = Types.ObjectId.isValid(studioId)
+      ? { $in: [studioId, new Types.ObjectId(studioId)] }
+      : studioId;
+    const mediaFilter = Types.ObjectId.isValid(mediaId)
+      ? { $in: [mediaId, new Types.ObjectId(mediaId)] }
+      : mediaId;
+
+    return this.arTargetModel
+      .countDocuments({
+        studioId: studioFilter,
+        $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
+        $and: [
+          {
+            $or: [{ photoMediaId: mediaFilter }, { videoMediaId: mediaFilter }],
+          },
+        ],
+      })
+      .exec();
   }
 
   async publish(studioId: string, id: string) {

@@ -15,7 +15,9 @@ interface FilePreviewModalProps {
   item: MediaItem | null;
   open: boolean;
   onClose: () => void;
-  onDelete?: (id: string) => void;
+  /** Return a promise so the confirm waits and the modal can close when done. */
+  onDelete?: (id: string) => void | Promise<void>;
+  linkedLinkCount?: number;
   onUpdated?: (item: MediaItem) => void;
 }
 
@@ -24,11 +26,13 @@ export const FilePreviewModal = ({
   open,
   onClose,
   onDelete,
+  linkedLinkCount = 0,
   onUpdated,
 }: FilePreviewModalProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [thumbPickerFile, setThumbPickerFile] = useState<File | null>(null);
   const [previewSrc, setPreviewSrc] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   if (!item) return null;
 
@@ -42,6 +46,27 @@ export const FilePreviewModal = ({
     setPreviewSrc(blobUrl);
   };
 
+  const kind = item.mediaType === MediaType.VIDEO ? 'video' : 'photo';
+  const deleteTitle =
+    linkedLinkCount > 0
+      ? `Delete this ${kind} and ${linkedLinkCount} linked print → video?`
+      : `Delete this ${kind}?`;
+  const deleteDescription =
+    linkedLinkCount > 0
+      ? 'Related links will also be removed. Guests will no longer unlock video from this print.'
+      : 'This cannot be undone.';
+
+  const handleDelete = async () => {
+    if (!onDelete) return;
+    setDeleting(true);
+    try {
+      await onDelete(item.id);
+      onClose();
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <>
       <Modal
@@ -53,8 +78,17 @@ export const FilePreviewModal = ({
         }}
         footer={
           onDelete ? (
-            <Popconfirm title="Delete this file?" onConfirm={() => onDelete(item.id)}>
-              <Button danger>Delete</Button>
+            <Popconfirm
+              title={deleteTitle}
+              description={deleteDescription}
+              okText="Delete"
+              okButtonProps={{ danger: true, loading: deleting }}
+              cancelText="Cancel"
+              onConfirm={handleDelete}
+            >
+              <Button danger loading={deleting}>
+                Delete
+              </Button>
             </Popconfirm>
           ) : null
         }
@@ -111,6 +145,14 @@ export const FilePreviewModal = ({
             <>
               <dt className="text-neutral-500">Duration</dt>
               <dd>{item.duration}s</dd>
+            </>
+          ) : null}
+          {linkedLinkCount > 0 ? (
+            <>
+              <dt className="text-neutral-500">Linked</dt>
+              <dd>
+                {linkedLinkCount} print → video link{linkedLinkCount === 1 ? '' : 's'}
+              </dd>
             </>
           ) : null}
         </dl>

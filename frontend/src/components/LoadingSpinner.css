@@ -1,0 +1,25 @@
+.loading-spinner {
+  display: flex;
+  width: 100%;
+  min-height: min(60vh, calc(100dvh - 8rem));
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+  box-sizing: border-box;
+}
+
+.loading-spinner--fullscreen {
+  min-height: 100dvh;
+  min-height: 100vh;
+}
+
+.loading-spinner--compact {
+  min-height: 10rem;
+  padding: 1.5rem 0.75rem;
+}
+
+/* Ant Design tip needs a child — keep it visually empty but sized. */
+.loading-spinner__slot {
+  width: 2.5rem;
+  height: 2.5rem;
+}

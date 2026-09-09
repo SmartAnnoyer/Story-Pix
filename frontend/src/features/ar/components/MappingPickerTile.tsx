@@ -91,7 +91,7 @@ export const MappingPickerTile = ({
         ) : null}
         {mappedCount > 0 ? (
           <Tag color="purple" className="mapping-picker-tile__badge">
-            {mappedCount} mapped
+            {mappedCount} linked
           </Tag>
         ) : null}
         {selected ? <span className="mapping-picker-tile__selected-ring" aria-hidden /> : null}

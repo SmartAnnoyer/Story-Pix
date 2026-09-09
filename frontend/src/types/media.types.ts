@@ -96,7 +96,7 @@ export interface UploadTask {
   file: File;
   mediaType: MediaType;
   progress: number;
-  status: 'pending' | 'uploading' | 'confirming' | 'done' | 'failed' | 'cancelled';
+  status: 'pending' | 'compressing' | 'uploading' | 'confirming' | 'done' | 'failed' | 'cancelled';
   error?: string;
   mediaId?: string;
 }

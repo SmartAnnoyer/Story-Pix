@@ -6,11 +6,18 @@ import { FilePreviewModal } from './FilePreviewModal';
 interface VideoGalleryProps {
   items: MediaItem[];
   loading?: boolean;
-  onDelete?: (id: string) => void;
+  onDelete?: (id: string) => void | Promise<void>;
+  getLinkedLinkCount?: (id: string) => number;
   onMediaUpdated?: () => void;
 }
 
-export const VideoGallery = ({ items, loading, onDelete, onMediaUpdated }: VideoGalleryProps) => {
+export const VideoGallery = ({
+  items,
+  loading,
+  onDelete,
+  getLinkedLinkCount,
+  onMediaUpdated,
+}: VideoGalleryProps) => {
   const [preview, setPreview] = useState<MediaItem | null>(null);
 
   if (!loading && !items.length) {
@@ -29,6 +36,7 @@ export const VideoGallery = ({ items, loading, onDelete, onMediaUpdated }: Video
         open={Boolean(preview)}
         onClose={() => setPreview(null)}
         onDelete={onDelete}
+        linkedLinkCount={preview ? (getLinkedLinkCount?.(preview.id) ?? 0) : 0}
         onUpdated={() => {
           onMediaUpdated?.();
         }}

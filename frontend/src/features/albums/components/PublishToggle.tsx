@@ -30,7 +30,7 @@ export const PublishToggle = ({
           disabled={isDisabled}
           onChange={(checked) => onToggle(checked)}
         />
-        <Text type="secondary">{isPublished ? 'Published' : 'Draft'}</Text>
+        <Text type="secondary">{isPublished ? 'Shared with client' : 'Working on'}</Text>
       </div>
       {!isPublished && disabledReason ? (
         <Text type="warning" className="mt-2 block text-xs">

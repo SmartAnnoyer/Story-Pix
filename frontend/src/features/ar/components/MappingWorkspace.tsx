@@ -67,7 +67,7 @@ export const MappingWorkspace = ({
   videos,
   initialMappings = [],
   loading,
-  submitLabel = 'Save mappings',
+  submitLabel = 'Save links',
   singleMapping = false,
   onSubmit,
   onCancel,
@@ -168,12 +168,12 @@ export const MappingWorkspace = ({
 
   const handleSubmit = () => {
     if (!pendingMappings.length) {
-      message.warning('Map at least one photo to a video.');
+      message.warning('Link at least one photo to a video.');
       return;
     }
     const invalid = pendingMappings.find((item) => !item.targetName.trim());
     if (invalid) {
-      message.warning('Give each mapping a name.');
+      message.warning('Add a short label for each link (or keep the suggested name).');
       setActiveMappingKey(invalid.key);
       return;
     }
@@ -267,14 +267,15 @@ export const MappingWorkspace = ({
       <aside className="mapping-workspace__mapped">
         <div className="mapping-workspace__section-head">
           <Title level={5} className="mapping-workspace__section-title">
-            Mapped
+            Linked
           </Title>
           <Text type="secondary" className="text-xs">
             {pendingMappings.length} pair{pendingMappings.length === 1 ? '' : 's'}
           </Text>
         </div>
         <p className="mapping-workspace__hint">
-          One photo can map to several videos. Tap a pair to adjust the playback frame.
+          One photo can link to several videos. Tap a pair to adjust where video appears on the
+          print.
         </p>
 
         {pendingMappings.length ? (
@@ -317,7 +318,7 @@ export const MappingWorkspace = ({
                     danger
                     size="small"
                     icon={<DeleteOutlined />}
-                    aria-label="Remove mapping"
+                    aria-label="Remove link"
                     onClick={(event) => {
                       event.stopPropagation();
                       removeMapping(mapping.key);
@@ -331,7 +332,7 @@ export const MappingWorkspace = ({
                       className="mapping-pair-card__name"
                       value={mapping.targetName}
                       maxLength={120}
-                      placeholder="Mapping name"
+                      placeholder="Label (optional)"
                       onChange={(event) =>
                         updateMapping(mapping.key, { targetName: event.target.value })
                       }
@@ -355,7 +356,7 @@ export const MappingWorkspace = ({
           })
         ) : (
           <div className="mapping-workspace__empty">
-            Mapped pairs appear here after you connect a photo and video.
+            Linked pairs appear here after you connect a photo and video.
           </div>
         )}
 

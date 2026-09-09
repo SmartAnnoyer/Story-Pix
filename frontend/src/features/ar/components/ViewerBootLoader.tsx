@@ -13,10 +13,13 @@ interface ViewerBootLoaderProps {
 /** Radius math for SVG ring — viewBox 120, stroke centered on r=52. */
 const RING_R = 52;
 const RING_C = 2 * Math.PI * RING_R;
+/** Indeterminate arc length (~28% of circle). */
+const SPIN_ARC = RING_C * 0.28;
 
 export const ViewerBootLoader = ({ percent, message, mode }: ViewerBootLoaderProps) => {
   const clamped = Math.min(100, Math.max(0, percent));
   const dashOffset = RING_C * (1 - clamped / 100);
+  const showIndeterminate = mode === 'loading' || mode === 'starting';
   const showRingPulse = mode === 'starting' || mode === 'tap' || mode === 'ready';
 
   return (
@@ -29,8 +32,23 @@ export const ViewerBootLoader = ({ percent, message, mode }: ViewerBootLoaderPro
               <stop offset="45%" stopColor="#6B2CDB" />
               <stop offset="100%" stopColor="#FF4FA3" />
             </linearGradient>
+            <linearGradient id="sp-boot-ring-spin" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#5B4CF0" stopOpacity="0.15" />
+              <stop offset="35%" stopColor="#6B2CDB" />
+              <stop offset="70%" stopColor="#E93A8A" />
+              <stop offset="100%" stopColor="#FF4FA3" />
+            </linearGradient>
           </defs>
           <circle className="viewer-boot-loader__ring-track" cx="60" cy="60" r={RING_R} />
+          {showIndeterminate ? (
+            <circle
+              className="viewer-boot-loader__ring-spin"
+              cx="60"
+              cy="60"
+              r={RING_R}
+              strokeDasharray={`${SPIN_ARC} ${RING_C - SPIN_ARC}`}
+            />
+          ) : null}
           <circle
             className={`viewer-boot-loader__ring-value${showRingPulse ? ' viewer-boot-loader__ring-value--pulse' : ''}`}
             cx="60"
@@ -38,6 +56,7 @@ export const ViewerBootLoader = ({ percent, message, mode }: ViewerBootLoaderPro
             r={RING_R}
             strokeDasharray={RING_C}
             strokeDashoffset={dashOffset}
+            opacity={showIndeterminate && clamped < 8 ? 0 : 1}
           />
         </svg>
 

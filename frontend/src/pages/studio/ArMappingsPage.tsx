@@ -1,10 +1,9 @@
-import { Navigate, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { message } from 'antd';
 import {
   useAlbumArTargetsQuery,
   useArchiveArTargetMutation,
   useDeleteArTargetMutation,
-  usePublishArTargetMutation,
 } from '@/hooks/useArTargetQueries';
 import { useAlbumQuery } from '@/hooks/useAlbumQueries';
 import { MappingTable } from '@/features/ar/components/MappingTable';
@@ -23,15 +22,10 @@ export const ArMappingsPage = () => {
   const navigate = useNavigate();
   const { data: album, isLoading: albumLoading } = useAlbumQuery(id);
   const { data, isLoading, refetch } = useAlbumArTargetsQuery(id, { limit: 100 });
-  const publishMutation = usePublishArTargetMutation();
   const archiveMutation = useArchiveArTargetMutation();
   const deleteMutation = useDeleteArTargetMutation();
 
   if (albumLoading || !album) return <LoadingSpinner />;
-
-  if (!isLoading && (data?.items.length ?? 0) === 0) {
-    return <Navigate to={ROUTES.ALBUM_AR_MAPPING_CREATE.replace(':id', id)} replace />;
-  }
 
   const mappingCount = data?.items.length ?? 0;
   const maxMappings = album.maxMappings ?? MAX_AR_ITEMS_PER_ALBUM;
@@ -39,24 +33,15 @@ export const ArMappingsPage = () => {
   const liveCount = (data?.items ?? []).filter(
     (item) => item.status === ArTargetStatus.ACTIVE,
   ).length;
-
-  const handlePublish = async (mappingId: string) => {
-    try {
-      await publishMutation.mutateAsync(mappingId);
-      message.success('This photo is now live for guests');
-      void refetch();
-    } catch (error) {
-      message.error(getErrorMessage(error, 'Could not turn on'));
-    }
-  };
+  const isEmpty = !isLoading && mappingCount === 0;
 
   const handleArchive = async (mappingId: string) => {
     try {
       await archiveMutation.mutateAsync(mappingId);
-      message.success('Turned off');
+      message.success('Hidden from guests');
       void refetch();
     } catch (error) {
-      message.error(getErrorMessage(error, 'Could not turn off'));
+      message.error(getErrorMessage(error, 'Could not hide'));
     }
   };
 
@@ -67,13 +52,14 @@ export const ArMappingsPage = () => {
       void refetch();
     } catch (error) {
       message.error(getErrorMessage(error, 'Delete failed'));
+      throw error;
     }
   };
 
   return (
     <div className="studio-home album-studio">
       <header className="studio-home__hero">
-        <p className="studio-home__eyebrow">Map to video</p>
+        <p className="studio-home__eyebrow">Link print → video</p>
         <h1>{album.albumName}</h1>
         <div className="studio-home__actions">
           <button
@@ -82,48 +68,70 @@ export const ArMappingsPage = () => {
             disabled={atMappingCap}
             onClick={() => navigate(ROUTES.ALBUM_AR_MAPPING_CREATE.replace(':id', id))}
           >
-            {atMappingCap ? `Limit reached (${maxMappings})` : 'Map another photo'}
+            {atMappingCap
+              ? `Album full (${maxMappings} photos)`
+              : isEmpty
+                ? 'Link your first photo'
+                : 'Link another photo'}
           </button>
           <button
             type="button"
             className="studio-home__btn studio-home__btn--ghost"
             onClick={() => navigate(albumSharePath(id))}
           >
-            Album
+            Share
           </button>
         </div>
       </header>
 
-      <section className="album-studio__strip" aria-label="Mapping status">
+      <section className="album-studio__strip" aria-label="Link status">
         <article className="album-studio__stat">
-          <span>Mapped</span>
+          <span>Linked</span>
           <strong>
             {mappingCount}
             <small> / {maxMappings}</small>
           </strong>
         </article>
         <article className="album-studio__stat album-studio__stat--live">
-          <span>Live</span>
+          <span>Live for guests</span>
           <strong>{liveCount}</strong>
         </article>
         <article className="album-studio__stat">
-          <span>Plays / photo</span>
+          <span>Views / photo</span>
           <strong>{(album.scansPerMapping ?? 1000).toLocaleString('en-IN')}</strong>
         </article>
       </section>
 
       <AlbumDeliveryGuide albumId={id} current="map" />
 
-      <MappingTable
-        items={data?.items ?? []}
-        loading={isLoading}
-        onEdit={(mappingId) =>
-          navigate(ROUTES.ALBUM_AR_MAPPING_EDIT.replace(':id', id).replace(':mappingId', mappingId))
-        }
-        onDelete={handleDelete}
-        onPublish={handlePublish}
-        onArchive={handleArchive}
-      />
+      {isEmpty ? (
+        <div className="album-studio__notice">
+          <strong>Link your first photo</strong>
+          <p>
+            Choose the printed photo and the video that should play when guests point their phone at
+            it.
+          </p>
+          <button
+            type="button"
+            className="studio-home__btn studio-home__btn--primary"
+            onClick={() => navigate(ROUTES.ALBUM_AR_MAPPING_CREATE.replace(':id', id))}
+          >
+            Link print → video
+          </button>
+        </div>
+      ) : (
+        <MappingTable
+          items={data?.items ?? []}
+          loading={isLoading}
+          onEdit={(mappingId) =>
+            navigate(
+              ROUTES.ALBUM_AR_MAPPING_EDIT.replace(':id', id).replace(':mappingId', mappingId),
+            )
+          }
+          onDelete={handleDelete}
+          onArchive={handleArchive}
+        />
+      )}
     </div>
   );
 };

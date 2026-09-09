@@ -42,11 +42,16 @@ const PACKS = [
   },
   {
     name: 'Album Bundles',
-    price: '5 / 10 / 20',
-    blurb: 'Multiple album credits for busy shops',
-    detail: 'Same Standard limits per album, with volume pricing when you buy several.',
+    price: null,
+    blurb: 'Multiple Standard albums for busy shops',
+    detail: 'Same Standard limits per album (up to 25 photos · 1,000 plays each).',
+    bundlePrices: [
+      { albums: 5, price: '₹11,249' },
+      { albums: 10, price: '₹19,999' },
+      { albums: 20, price: '₹34,999' },
+    ],
   },
-];
+] as const;
 
 export const LandingPage = () => {
   const { isAuthenticated, isInitialized, user } = useAuthStore();
@@ -65,7 +70,6 @@ export const LandingPage = () => {
         <nav className="sp-land__links" aria-label="Page">
           <a href="#how-it-works">How it works</a>
           <a href="#packs">Packs</a>
-          <a href="#studios">For studios</a>
         </nav>
         {showDashboard ? (
           <Link className="sp-land__btn sp-land__btn--nav" to={studioHome}>
@@ -143,34 +147,27 @@ export const LandingPage = () => {
               <article
                 key={pack.name}
                 role="listitem"
-                className={`sp-land__pack${pack.featured ? ' sp-land__pack--featured' : ''}`}
+                className={`sp-land__pack${'featured' in pack && pack.featured ? ' sp-land__pack--featured' : ''}`}
               >
-                {pack.featured ? <span className="sp-land__pack-tag">Most chosen</span> : null}
+                {'featured' in pack && pack.featured ? (
+                  <span className="sp-land__pack-tag">Most chosen</span>
+                ) : null}
                 <h3>{pack.name}</h3>
-                <p className="sp-land__pack-price">{pack.price}</p>
+                {pack.price ? <p className="sp-land__pack-price">{pack.price}</p> : null}
+                {'bundlePrices' in pack && pack.bundlePrices ? (
+                  <ul className="sp-land__bundle-prices">
+                    {pack.bundlePrices.map((row) => (
+                      <li key={row.albums}>
+                        <span>{row.albums} albums</span>
+                        <strong>{row.price}</strong>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
                 <p className="sp-land__pack-blurb">{pack.blurb}</p>
                 <p className="sp-land__pack-detail">{pack.detail}</p>
               </article>
             ))}
-          </div>
-        </section>
-
-        <section className="sp-land__section" id="studios">
-          <h2>For studios</h2>
-          <p className="sp-land__sub">
-            Map a photo to a video, share a QR, and deliver living albums for weddings, schools, and
-            frames.
-          </p>
-          <div className="sp-land__cta">
-            {showDashboard ? (
-              <Link className="sp-land__btn sp-land__btn--primary" to={studioHome}>
-                Continue in studio
-              </Link>
-            ) : (
-              <Link className="sp-land__btn sp-land__btn--primary" to={ROUTES.LOGIN}>
-                Log in to your studio
-              </Link>
-            )}
           </div>
         </section>
       </main>

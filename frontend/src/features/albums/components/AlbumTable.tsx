@@ -2,6 +2,7 @@ import { Popconfirm } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import type { Album } from '@/types/album.types';
 import { AlbumStatus } from '@/types/album.types';
+import { albumStatusLabel } from '@/features/albums/utils/studio-labels';
 import { ROUTES } from '@/routes/paths';
 import './AlbumCards.css';
 
@@ -16,12 +17,6 @@ interface AlbumTableProps {
 
 function statusClass(status: AlbumStatus): string {
   return `album-card__status album-card__status--${status}`;
-}
-
-function statusLabel(status: AlbumStatus): string {
-  if (status === AlbumStatus.PUBLISHED) return 'Published';
-  if (status === AlbumStatus.ARCHIVED) return 'Archived';
-  return 'Draft';
 }
 
 export const AlbumTable = ({
@@ -60,16 +55,16 @@ export const AlbumTable = ({
                 <h2 className="album-card__name">{album.albumName}</h2>
                 <p className="album-card__client">{album.customerName}</p>
               </button>
-              <span className={statusClass(album.status)}>{statusLabel(album.status)}</span>
+              <span className={statusClass(album.status)}>{albumStatusLabel(album.status)}</span>
             </div>
 
             <div className="album-card__meta">
               <div>
-                <span>Photos capacity</span>
+                <span>Photos</span>
                 <strong>Up to {album.maxMappings}</strong>
               </div>
               <div>
-                <span>Guest plays used</span>
+                <span>Guest views used</span>
                 <strong>
                   {(album.scanUsage ?? 0).toLocaleString('en-IN')} /{' '}
                   {(

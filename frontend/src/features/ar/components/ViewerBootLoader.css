@@ -26,8 +26,19 @@
 
 .viewer-boot-loader__ring-track {
   fill: none;
-  stroke: rgba(255, 255, 255, 0.1);
+  stroke: rgba(255, 255, 255, 0.14);
   stroke-width: 5;
+}
+
+.viewer-boot-loader__ring-spin {
+  fill: none;
+  stroke: url(#sp-boot-ring-spin);
+  stroke-width: 5.5;
+  stroke-linecap: round;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: boot-ring-spin 1.05s linear infinite;
+  filter: drop-shadow(0 0 8px rgba(233, 58, 138, 0.55));
 }
 
 .viewer-boot-loader__ring-value {
@@ -35,7 +46,9 @@
   stroke: url(#sp-boot-ring);
   stroke-width: 5.5;
   stroke-linecap: round;
-  transition: stroke-dashoffset 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+  transition:
+    stroke-dashoffset 0.65s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.35s ease;
 }
 
 .viewer-boot-loader__ring-value--pulse {
@@ -303,6 +316,15 @@
   }
 }
 
+@keyframes boot-ring-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @keyframes boot-ring-glow {
   0%,
   100% {
@@ -355,6 +377,7 @@
   .viewer-boot-loader__photo,
   .viewer-boot-loader__play,
   .viewer-boot-loader__ring-value--pulse,
+  .viewer-boot-loader__ring-spin,
   .viewer-boot-loader__stage--active .viewer-boot-loader__stage-dot {
     animation: none;
   }

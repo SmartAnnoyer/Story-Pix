@@ -16,9 +16,9 @@ interface AlbumViewerQrCardProps {
 }
 
 const WAIT_TIPS = [
-  'Preparing landmarks so printed photos unlock video.',
-  'This build happens once — guests won’t wait for it.',
-  'QR appears the moment the scan file is ready.',
+  'Getting the album ready so phones unlock video from the print.',
+  'This happens once on our side — guests won’t wait for it.',
+  'When this finishes, print or send the QR.',
 ];
 
 const formatElapsed = (startedAt: string | null | undefined) => {
@@ -76,11 +76,11 @@ export const AlbumViewerQrCard = ({
       </div>
 
       {!published ? (
-        <p className="album-qr__muted">Share the album to unlock the QR here.</p>
+        <p className="album-qr__muted">Share with your client to unlock the QR here.</p>
       ) : failed ? (
         <div className="album-qr__center">
-          <strong className="album-qr__warn">Scan file build failed</strong>
-          <p className="album-qr__muted">Retry after fixing the issue.</p>
+          <strong className="album-qr__warn">Couldn’t finish setup</strong>
+          <p className="album-qr__muted">Try again — usually a few minutes.</p>
           {onRetry ? (
             <button
               type="button"
@@ -88,7 +88,7 @@ export const AlbumViewerQrCard = ({
               disabled={retrying}
               onClick={onRetry}
             >
-              {retrying ? 'Retrying…' : 'Retry build'}
+              {retrying ? 'Trying again…' : 'Try again'}
             </button>
           ) : null}
         </div>
@@ -100,7 +100,7 @@ export const AlbumViewerQrCard = ({
           <div className="album-qr__meter" aria-hidden>
             <i style={{ width: `${clamped}%` }} />
           </div>
-          <strong>{buildMessage ?? 'Building scan file…'}</strong>
+          <strong>{buildMessage ?? 'Getting album ready for phones…'}</strong>
           <p className="album-qr__muted">{WAIT_TIPS[tipIndex]}</p>
           <p className="album-qr__meta">
             {clamped}%{elapsed ? ` · ${elapsed}` : ''}

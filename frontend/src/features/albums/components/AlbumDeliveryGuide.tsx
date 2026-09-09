@@ -47,7 +47,7 @@ export const AlbumDeliveryGuide = ({ albumId, current }: AlbumDeliveryGuideProps
     },
     {
       key: 'map',
-      label: 'Map to video',
+      label: 'Link print → video',
       done: mapDone,
       path: albumMapPath(albumId, total > 0),
     },

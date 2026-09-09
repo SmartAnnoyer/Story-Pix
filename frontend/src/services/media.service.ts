@@ -89,10 +89,10 @@ export const mediaService = {
     return data.data;
   },
 
-  async deleteMedia(id: string): Promise<{ id: string; deleted: boolean }> {
-    const { data } = await apiClient.delete<ApiResponse<{ id: string; deleted: boolean }>>(
-      `/media/${id}`,
-    );
+  async deleteMedia(id: string): Promise<{ id: string; deleted: boolean; removedLinks?: number }> {
+    const { data } = await apiClient.delete<
+      ApiResponse<{ id: string; deleted: boolean; removedLinks?: number }>
+    >(`/media/${id}`);
     return data.data;
   },
 };

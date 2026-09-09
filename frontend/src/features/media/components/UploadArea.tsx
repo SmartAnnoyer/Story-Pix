@@ -7,6 +7,8 @@ import { MediaType } from '@/types/media.types';
 import type { ConfirmUploadPayload, OverlayFrame } from '@/types/media.types';
 import { getErrorMessage } from '@/api/client';
 import { readImageDimensions } from '@/features/media/utils/video-frame-capture';
+import { compressImageFile } from '@/features/media/utils/compress-image';
+import { assertVideoWithinLimits, formatMb } from '@/features/media/utils/video-limits';
 import { PhotoCaptureModal } from './PhotoCaptureModal';
 import { PhotoCropModal } from './PhotoCropModal';
 import { PhotoFrameSelectModal } from './PhotoFrameSelectModal';
@@ -48,19 +50,37 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
       });
 
       try {
-        updateTask(taskId, { status: 'uploading' });
+        let uploadFile = file;
+
+        if (mediaType === MediaType.PHOTO) {
+          updateTask(taskId, { status: 'compressing', progress: 5 });
+          uploadFile = await compressImageFile(file);
+          updateTask(taskId, { file: uploadFile, progress: 15 });
+          if (uploadFile.size < file.size) {
+            message.success(
+              `Photo compressed ${formatMb(file.size)} → ${formatMb(uploadFile.size)}`,
+              2,
+            );
+          }
+        }
+
+        if (mediaType === MediaType.VIDEO) {
+          await assertVideoWithinLimits(file);
+        }
+
+        updateTask(taskId, { status: 'uploading', progress: 20 });
         const initiated = await mediaService.initiateUpload({
           albumId,
           mediaType,
-          originalFileName: file.name,
-          mimeType: file.type || 'application/octet-stream',
-          fileSize: file.size,
+          originalFileName: uploadFile.name,
+          mimeType: uploadFile.type || 'application/octet-stream',
+          fileSize: uploadFile.size,
         });
 
         updateTask(taskId, { mediaId: initiated.media.id });
 
-        await mediaService.uploadToStorage(initiated.upload.uploadUrl, file, (percent) =>
-          updateTask(taskId, { progress: percent }),
+        await mediaService.uploadToStorage(initiated.upload.uploadUrl, uploadFile, (percent) =>
+          updateTask(taskId, { progress: Math.max(20, Math.round(percent * 0.75 + 20)) }),
         );
 
         updateTask(taskId, { status: 'confirming', progress: 95 });
@@ -103,9 +123,14 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
     setPendingPhoto(null);
   };
 
-  const openVideoThumbnail = (file: File) => {
-    setPendingVideo(file);
-    setVideoThumbOpen(true);
+  const openVideoThumbnail = async (file: File) => {
+    try {
+      await assertVideoWithinLimits(file);
+      setPendingVideo(file);
+      setVideoThumbOpen(true);
+    } catch (error) {
+      message.error(getErrorMessage(error, 'Video not accepted'));
+    }
   };
 
   const closeVideoThumbnail = () => {
@@ -117,8 +142,8 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
     return (
       <div className="media-upload">
         <p className="media-upload__hint">
-          Take a photo or pick from gallery. Keep the full image or trim edges, then mark where the
-          video should play.
+          Take a photo or pick from gallery. Large photos are compressed automatically before
+          upload. Keep the full image or trim edges, then mark where the video should play.
         </p>
         <div className="media-upload__actions">
           <button
@@ -164,7 +189,7 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
             <InboxOutlined />
           </p>
           <p className="ant-upload-text">Or drop photos here</p>
-          <p className="ant-upload-hint">JPG, PNG, WEBP</p>
+          <p className="ant-upload-hint">JPG, PNG, WEBP — auto-compressed for upload</p>
         </Dragger>
 
         <PhotoCaptureModal
@@ -211,14 +236,17 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
 
   return (
     <div className="media-upload">
-      <p className="media-upload__hint">Drop or choose a video, then pick a cover frame.</p>
+      <p className="media-upload__hint">
+        Drop or choose a video, then pick a cover frame. Keep clips under 80 MB and about 90 seconds
+        — compress to 720p first if the file is larger.
+      </p>
       <Dragger
         multiple
         disabled={disabled}
         accept={VIDEO_ACCEPT}
         showUploadList={false}
         beforeUpload={(file) => {
-          openVideoThumbnail(file);
+          void openVideoThumbnail(file);
           return false;
         }}
       >
@@ -226,7 +254,7 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
           <InboxOutlined />
         </p>
         <p className="ant-upload-text">Drop videos here</p>
-        <p className="ant-upload-hint">MP4, MOV</p>
+        <p className="ant-upload-hint">MP4, MOV — max 80 MB, ~90s</p>
       </Dragger>
 
       <VideoThumbnailSelectModal

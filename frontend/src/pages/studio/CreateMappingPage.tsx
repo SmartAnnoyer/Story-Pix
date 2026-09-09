@@ -56,20 +56,20 @@ export const CreateMappingPage = () => {
 
       message.success(
         mappings.length === 1
-          ? 'Photo is linked. Now share the album with your client.'
-          : `${mappings.length} mappings saved. Now share the album with your client.`,
+          ? 'Photo linked. Next: share the album with your client.'
+          : `${mappings.length} photos linked. Next: share the album with your client.`,
       );
 
       navigate(albumSharePath(id));
     } catch (error) {
-      message.error(getErrorMessage(error, 'Could not save the mapping'));
+      message.error(getErrorMessage(error, 'Could not save the link'));
     }
   };
 
   return (
     <div className="studio-home album-studio">
       <header className="studio-home__hero">
-        <p className="studio-home__eyebrow">Map to video</p>
+        <p className="studio-home__eyebrow">Link print → video</p>
         <h1>{album.albumName}</h1>
         <div className="studio-home__actions">
           <button
@@ -77,7 +77,7 @@ export const CreateMappingPage = () => {
             className="studio-home__btn studio-home__btn--ghost"
             onClick={() => navigate(albumSharePath(id))}
           >
-            Album
+            Share
           </button>
         </div>
       </header>

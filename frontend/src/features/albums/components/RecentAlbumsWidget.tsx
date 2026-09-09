@@ -15,7 +15,7 @@ export const RecentAlbumsWidget = ({ hideHeader = false }: RecentAlbumsWidgetPro
   const navigate = useNavigate();
   const { data: albums, isLoading } = useRecentAlbumsQuery(4);
 
-  if (isLoading) return <LoadingSpinner />;
+  if (isLoading) return <LoadingSpinner compact />;
 
   return (
     <div>

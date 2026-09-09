@@ -54,7 +54,7 @@ export const AlbumDetailsPage = () => {
       if (album.status !== AlbumStatus.PUBLISHED) {
         await actionMutation.mutateAsync({ id, action: 'publish' });
       }
-      message.success('Album is on. The QR appears when the scan file is ready.');
+      message.success('Shared with client. QR appears when the album is ready for phones.');
     } catch (error) {
       message.error(getErrorMessage(error, 'Could not share yet'));
     }
@@ -63,15 +63,15 @@ export const AlbumDetailsPage = () => {
   const handleUnpublish = async () => {
     try {
       await actionMutation.mutateAsync({ id, action: 'unpublish' });
-      message.success('Album is off. Guests cannot scan it.');
+      message.success('Sharing stopped. Guests cannot open this album.');
     } catch (error) {
-      message.error(getErrorMessage(error, 'Could not turn off'));
+      message.error(getErrorMessage(error, 'Could not stop sharing'));
     }
   };
 
   const handleRetryArBuild = async () => {
     await rebuildMutation.mutateAsync(id);
-    message.success('Scan file rebuild started');
+    message.success('Trying again — usually a few minutes');
   };
 
   const handleArchive = async () => {
@@ -107,16 +107,16 @@ export const AlbumDetailsPage = () => {
       onClick: () => navigate(albumMediaPath(id)),
     };
   } else if (!mapDone && drafts.length === 0) {
-    statusTitle = 'Map to video';
-    statusBody = 'Link each printed photo to a video.';
+    statusTitle = 'Link print → video';
+    statusBody = 'Link each printed photo to the video that should play on it.';
     statusTone = 'muted';
     statusAction = {
-      label: 'Map to video',
+      label: 'Link print → video',
       onClick: () => navigate(albumMapPath(id, total > 0)),
     };
   } else if (!published) {
     statusTitle = 'Share with client';
-    statusBody = 'Turn the album on to unlock the QR.';
+    statusBody = 'One tap turns links on and unlocks the QR for your client.';
     statusTone = 'accent';
     statusAction = {
       label: 'Share with client',
@@ -124,8 +124,8 @@ export const AlbumDetailsPage = () => {
       loading: sharing,
     };
   } else if (!shareDone) {
-    statusTitle = 'Preparing scan file';
-    statusBody = 'QR appears when this finishes — usually a few minutes.';
+    statusTitle = 'Getting album ready for phones';
+    statusBody = 'Usually a few minutes — then print or send the QR.';
     statusTone = 'muted';
   } else {
     statusTitle = 'Ready to deliver';
@@ -157,7 +157,7 @@ export const AlbumDetailsPage = () => {
                   : null,
                 {
                   key: 'insights',
-                  label: 'Scan counts',
+                  label: 'Guest activity',
                   onClick: () => navigate(ROUTES.ALBUM_INSIGHTS.replace(':id', id)),
                 },
                 published
@@ -188,17 +188,17 @@ export const AlbumDetailsPage = () => {
 
       <section className="album-studio__strip" aria-label="Album capacity">
         <article className="album-studio__stat">
-          <span>Pack</span>
+          <span>Plan</span>
           <strong className="album-studio__stat-text">
             {album.packName ?? album.packCode ?? '—'}
           </strong>
         </article>
         <article className="album-studio__stat">
-          <span>Photos max</span>
-          <strong>{album.maxMappings ?? 25}</strong>
+          <span>Photos</span>
+          <strong>Up to {album.maxMappings ?? 25}</strong>
         </article>
         <article className="album-studio__stat">
-          <span>Plays used</span>
+          <span>Guest views used</span>
           <strong>
             {(album.scanUsage ?? 0).toLocaleString('en-IN')}
             <small>

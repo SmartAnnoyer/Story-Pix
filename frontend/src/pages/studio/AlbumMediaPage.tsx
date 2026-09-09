@@ -39,6 +39,15 @@ export const AlbumMediaPage = () => {
     [mediaData],
   );
 
+  const linkedCountByMediaId = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const mapping of mappings?.items ?? []) {
+      counts.set(mapping.photoMediaId, (counts.get(mapping.photoMediaId) ?? 0) + 1);
+      counts.set(mapping.videoMediaId, (counts.get(mapping.videoMediaId) ?? 0) + 1);
+    }
+    return counts;
+  }, [mappings]);
+
   if (albumLoading || !album) return <LoadingSpinner />;
 
   const isArchived = album.status === AlbumStatus.ARCHIVED;
@@ -50,11 +59,11 @@ export const AlbumMediaPage = () => {
     videos.some((item) => item.status !== MediaStatus.READY);
 
   const statusLabel = canMap
-    ? 'Ready to map'
+    ? 'Ready to link'
     : waiting
       ? 'Processing…'
       : photos.length === 0 && videos.length === 0
-        ? 'Add media'
+        ? 'Add photos & videos'
         : photos.length === 0
           ? 'Need a photo'
           : videos.length === 0
@@ -62,12 +71,17 @@ export const AlbumMediaPage = () => {
             : 'Waiting';
 
   const handleDelete = async (mediaId: string) => {
+    const linked = linkedCountByMediaId.get(mediaId) ?? 0;
     try {
-      await deleteMutation.mutateAsync(mediaId);
-      message.success('Removed');
+      const result = await deleteMutation.mutateAsync(mediaId);
+      const removed = result.removedLinks ?? linked;
+      message.success(
+        removed > 0 ? `Removed — also deleted ${removed} linked print → video` : 'Removed',
+      );
       void refetch();
     } catch (error) {
       message.error(getErrorMessage(error, 'Delete failed'));
+      throw error;
     }
   };
 
@@ -83,7 +97,7 @@ export const AlbumMediaPage = () => {
               className="studio-home__btn studio-home__btn--primary"
               onClick={() => navigate(albumMapPath(id, hasMappings))}
             >
-              Map to video
+              Link print → video
             </button>
           ) : null}
           <button
@@ -91,7 +105,7 @@ export const AlbumMediaPage = () => {
             className="studio-home__btn studio-home__btn--ghost"
             onClick={() => navigate(albumSharePath(id))}
           >
-            Album
+            Share
           </button>
         </div>
       </header>
@@ -122,15 +136,19 @@ export const AlbumMediaPage = () => {
       {canMap ? (
         <div className="album-media__cta">
           <div>
-            <strong>Ready for mapping</strong>
-            <p>Choose which video plays when a guest scans each printed photo.</p>
+            <strong>{hasMappings ? 'Ready to link more' : 'Add a living photo'}</strong>
+            <p>
+              {hasMappings
+                ? 'Link another printed photo to a video, or continue to Share.'
+                : 'Next step: connect the print to the video that should play on it.'}
+            </p>
           </div>
           <button
             type="button"
             className="studio-home__btn studio-home__btn--primary"
             onClick={() => navigate(albumMapPath(id, hasMappings))}
           >
-            Continue to map
+            {hasMappings ? 'Link another' : 'Link print → video'}
           </button>
         </div>
       ) : (
@@ -145,9 +163,9 @@ export const AlbumMediaPage = () => {
                     ? 'Add the video next'
                     : waiting
                       ? 'Wait until uploads finish'
-                      : 'Finish processing before mapping'}
+                      : 'Wait until uploads finish, then link'}
             </strong>
-            <p>The photo is what they print. The video is what plays on scan.</p>
+            <p>The photo is what they print. The video is what plays on the phone.</p>
           </div>
         </div>
       )}
@@ -177,6 +195,7 @@ export const AlbumMediaPage = () => {
               items={photos}
               loading={mediaLoading}
               onDelete={handleDelete}
+              getLinkedLinkCount={(mediaId) => linkedCountByMediaId.get(mediaId) ?? 0}
               onMediaUpdated={() => void refetch()}
             />
           </div>
@@ -206,6 +225,7 @@ export const AlbumMediaPage = () => {
               items={videos}
               loading={mediaLoading}
               onDelete={handleDelete}
+              getLinkedLinkCount={(mediaId) => linkedCountByMediaId.get(mediaId) ?? 0}
               onMediaUpdated={() => void refetch()}
             />
           </div>

@@ -18,16 +18,16 @@ interface ArScanFileStatusProps {
 
 const STORY_BEATS = [
   {
-    title: 'Teaching the camera your photos',
-    detail: 'We map unique landmarks so guests can scan the printed page.',
+    title: 'Teaching phones your photos',
+    detail: 'So guests can unlock video from the printed page.',
   },
   {
-    title: 'Building the magic layer',
-    detail: 'This runs once on our servers — customers never wait for this step.',
+    title: 'Finishing setup',
+    detail: 'This runs once on our side — customers never wait for it.',
   },
   {
-    title: 'Almost print-ready',
-    detail: 'When this finishes, your QR unlocks for printing and sharing.',
+    title: 'Almost ready',
+    detail: 'When this finishes, print or send the QR.',
   },
 ];
 
@@ -77,7 +77,7 @@ export const ArScanFileStatus = ({
   if (status !== AlbumStatus.PUBLISHED) {
     return (
       <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
-        Publish the album to build the customer scan file.
+        Share with your client to finish phone setup and unlock the QR.
       </div>
     );
   }
@@ -85,10 +85,10 @@ export const ArScanFileStatus = ({
   if (ready) {
     return (
       <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2">
-        <p className="text-sm font-medium text-green-800">AR scan file ready</p>
+        <p className="text-sm font-medium text-green-800">Ready for phones</p>
         {compiledAt ? (
           <p className="mt-0.5 text-xs text-green-700">
-            Built {new Date(compiledAt).toLocaleString()} — safe to print QR and share the link.
+            Ready {new Date(compiledAt).toLocaleString()} — safe to print QR and share the link.
           </p>
         ) : (
           <p className="mt-0.5 text-xs text-green-700">Safe to print QR and share the link.</p>
@@ -100,9 +100,9 @@ export const ArScanFileStatus = ({
   if (isFailed) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-3">
-        <p className="text-sm font-medium text-red-800">AR scan file failed</p>
+        <p className="text-sm font-medium text-red-800">Couldn’t finish setup</p>
         <p className="mt-1 text-xs text-red-700">
-          {error ?? 'Something went wrong while building the scan file.'}
+          {error ?? 'Something went wrong. Try again — usually a few minutes.'}
         </p>
         {onRetry ? (
           <Button
@@ -113,7 +113,7 @@ export const ArScanFileStatus = ({
             loading={retrying}
             onClick={onRetry}
           >
-            Retry build
+            Try again
           </Button>
         ) : null}
       </div>
@@ -135,15 +135,15 @@ export const ArScanFileStatus = ({
       </div>
 
       <div className="ar-scan-meta">
-        <span>{message ?? 'Building AR scan file…'}</span>
+        <span>{message ?? 'Getting album ready for phones…'}</span>
         <span className="ar-scan-elapsed">
           {clampedProgress}%{elapsed ? ` · ${elapsed}` : ''}
         </span>
       </div>
 
       <p className="ar-scan-footnote">
-        On shared hosting this can take 2–5 minutes (longer with more photos). It runs once on our
-        servers so wedding guests get a fast scan — not a phone wait.
+        This can take 2–5 minutes (longer with more photos). It runs once on our side so wedding
+        guests get a fast experience — not a phone wait.
       </p>
     </div>
   );

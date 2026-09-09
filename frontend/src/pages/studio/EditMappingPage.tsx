@@ -31,22 +31,22 @@ export const EditMappingPage = () => {
     return <LoadingSpinner />;
   }
 
-  if (mapping.status !== ArTargetStatus.DRAFT) {
+  if (mapping.status === ArTargetStatus.ARCHIVED) {
     return (
       <div className="studio-home album-studio">
         <header className="studio-home__hero">
-          <p className="studio-home__eyebrow">Map to video</p>
+          <p className="studio-home__eyebrow">Link print → video</p>
           <h1>Cannot edit</h1>
         </header>
         <div className="album-studio__notice">
-          <strong>Only saved (draft) mappings can be edited</strong>
-          <p>Turn this mapping off first, or create a new photo → video pair.</p>
+          <strong>This link is hidden</strong>
+          <p>Create a new photo → video link instead.</p>
           <button
             type="button"
             className="studio-home__btn studio-home__btn--primary"
             onClick={() => navigate(ROUTES.ALBUM_AR_MAPPINGS.replace(':id', id))}
           >
-            Back to mappings
+            Back to links
           </button>
         </div>
       </div>
@@ -61,7 +61,11 @@ export const EditMappingPage = () => {
   }) => {
     try {
       await updateMutation.mutateAsync({ id: mappingId, payload: values });
-      message.success('Mapping updated');
+      message.success(
+        mapping.status === ArTargetStatus.ACTIVE
+          ? 'Updated — guests will see the new video after phones refresh.'
+          : 'Link updated',
+      );
       navigate(ROUTES.ALBUM_AR_MAPPINGS.replace(':id', id));
     } catch (error) {
       message.error(getErrorMessage(error, 'Update failed'));
@@ -71,7 +75,7 @@ export const EditMappingPage = () => {
   return (
     <div className="studio-home album-studio">
       <header className="studio-home__hero">
-        <p className="studio-home__eyebrow">Edit mapping</p>
+        <p className="studio-home__eyebrow">Edit link</p>
         <h1>{mapping.targetName || album.albumName}</h1>
         <div className="studio-home__actions">
           <button
@@ -79,10 +83,17 @@ export const EditMappingPage = () => {
             className="studio-home__btn studio-home__btn--ghost"
             onClick={() => navigate(ROUTES.ALBUM_AR_MAPPINGS.replace(':id', id))}
           >
-            Mappings
+            Links
           </button>
         </div>
       </header>
+
+      {mapping.status === ArTargetStatus.ACTIVE ? (
+        <div className="album-studio__notice">
+          <strong>This link is live</strong>
+          <p>Saving changes updates what guests see. Phone setup may refresh for a few minutes.</p>
+        </div>
+      ) : null}
 
       <AlbumDeliveryGuide albumId={id} current="map" />
 

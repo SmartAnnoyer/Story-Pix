@@ -17,6 +17,8 @@ export const UploadProgressList = () => {
               <div className="media-uploads__row">
                 <span className="media-uploads__name" title={task.file.name}>
                   {task.file.name}
+                  {task.status === 'compressing' ? ' · Preparing' : ''}
+                  {task.status === 'confirming' ? ' · Finishing' : ''}
                 </span>
                 <div className="media-uploads__actions">
                   {failed ? (
@@ -28,7 +30,9 @@ export const UploadProgressList = () => {
                       Retry
                     </button>
                   ) : null}
-                  {task.status !== 'uploading' && task.status !== 'confirming' ? (
+                  {task.status !== 'uploading' &&
+                  task.status !== 'confirming' &&
+                  task.status !== 'compressing' ? (
                     <button
                       type="button"
                       className="media-uploads__btn"

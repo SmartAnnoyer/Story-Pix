@@ -41,8 +41,18 @@ function getBackTarget(
 
   if (pathname === ROUTES.DASHBOARD || pathname === ROUTES.ALBUMS) return null;
 
-  if (pathname.startsWith('/studio/albums')) {
+  if (pathname === ROUTES.ALBUM_CREATE) {
     return { label: 'Albums', path: ROUTES.ALBUMS };
+  }
+
+  const albumMatch = pathname.match(/^\/studio\/albums\/([^/]+)(\/.*)?$/);
+  if (albumMatch) {
+    const albumId = albumMatch[1];
+    const rest = albumMatch[2] ?? '';
+    if (!rest || rest === '/') {
+      return { label: 'Albums', path: ROUTES.ALBUMS };
+    }
+    return { label: 'Album', path: ROUTES.ALBUM_DETAILS.replace(':id', albumId) };
   }
 
   if (pathname.startsWith('/settings')) {

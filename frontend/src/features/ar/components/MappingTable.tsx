@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import { Popconfirm } from 'antd';
 import type { ArTarget } from '@/types/ar-target.types';
 import { ArTargetStatus } from '@/types/ar-target.types';
@@ -8,16 +9,17 @@ import './MappingCards.css';
 const statusLabels: Record<ArTargetStatus, string> = {
   [ArTargetStatus.DRAFT]: 'Saved',
   [ArTargetStatus.ACTIVE]: 'Live',
-  [ArTargetStatus.ARCHIVED]: 'Off',
+  [ArTargetStatus.ARCHIVED]: 'Hidden',
 };
 
 interface MappingTableProps {
   items: ArTarget[];
   loading?: boolean;
   onEdit: (id: string) => void;
-  onDelete: (id: string) => void;
-  onPublish: (id: string) => void;
+  onDelete: (id: string) => void | Promise<void>;
   onArchive: (id: string) => void;
+  /** Advanced: show per-photo hide control. Sharing the album turns links on. */
+  showAdvancedControls?: boolean;
 }
 
 export const MappingTable = ({
@@ -25,28 +27,39 @@ export const MappingTable = ({
   loading,
   onEdit,
   onDelete,
-  onPublish,
   onArchive,
+  showAdvancedControls = false,
 }: MappingTableProps) => {
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [removingIds, setRemovingIds] = useState<Set<string>>(() => new Set());
+
+  const visibleItems = useMemo(
+    () => items.filter((item) => !removingIds.has(item.id)),
+    [items, removingIds],
+  );
+
   if (loading && items.length === 0) {
-    return <p className="mapping-cards__loading">Loading mappings…</p>;
+    return <p className="mapping-cards__loading">Loading links…</p>;
   }
 
-  if (!loading && items.length === 0) {
+  if (!loading && visibleItems.length === 0) {
     return (
       <p className="mapping-cards__empty">
-        No mappings yet. Link a printed photo to the video that should play on it.
+        No links yet. Connect a printed photo to the video that should play on it.
       </p>
     );
   }
 
   return (
     <div className="mapping-cards">
-      {items.map((record) => {
+      {visibleItems.map((record) => {
         const used = record.scanUsage ?? 0;
         const limit = record.scanLimit ?? 1000;
         const over = Boolean(record.scansExhausted || used >= limit);
         const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+        const canEdit =
+          record.status === ArTargetStatus.DRAFT || record.status === ArTargetStatus.ACTIVE;
+        const deleting = pendingDeleteId === record.id;
 
         return (
           <article key={record.id} className="mapping-card">
@@ -75,7 +88,7 @@ export const MappingTable = ({
 
             <div className="mapping-card__plays">
               <div className="mapping-card__plays-row">
-                <span>Guest plays</span>
+                <span>Guest views</span>
                 <strong className={over ? 'mapping-card__plays--over' : undefined}>
                   {used.toLocaleString('en-IN')} / {limit.toLocaleString('en-IN')}
                   {over ? ' · Over' : ''}
@@ -90,34 +103,26 @@ export const MappingTable = ({
             </div>
 
             <div className="mapping-card__actions">
-              {record.status === ArTargetStatus.DRAFT ? (
-                <>
-                  <button
-                    type="button"
-                    className="mapping-card__btn mapping-card__btn--ghost"
-                    onClick={() => onEdit(record.id)}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="mapping-card__btn mapping-card__btn--primary"
-                    onClick={() => onPublish(record.id)}
-                  >
-                    Turn on
-                  </button>
-                </>
+              {canEdit ? (
+                <button
+                  type="button"
+                  className="mapping-card__btn mapping-card__btn--primary"
+                  onClick={() => onEdit(record.id)}
+                >
+                  Edit
+                </button>
               ) : null}
-              {record.status === ArTargetStatus.ACTIVE ? (
+              {showAdvancedControls && record.status === ArTargetStatus.ACTIVE ? (
                 <button
                   type="button"
                   className="mapping-card__btn mapping-card__btn--ghost"
                   onClick={() => onArchive(record.id)}
                 >
-                  Turn off
+                  Hide from guests
                 </button>
               ) : null}
               <Popconfirm
+                open={pendingDeleteId === record.id}
                 title="Remove this photo → video?"
                 description={
                   record.status === ArTargetStatus.ACTIVE
@@ -125,8 +130,25 @@ export const MappingTable = ({
                     : 'This cannot be undone.'
                 }
                 okText="Delete"
-                okButtonProps={{ danger: true }}
-                onConfirm={() => onDelete(record.id)}
+                okButtonProps={{ danger: true, loading: deleting }}
+                cancelText="Cancel"
+                onOpenChange={(open) => {
+                  if (!open && !deleting) setPendingDeleteId(null);
+                  if (open) setPendingDeleteId(record.id);
+                }}
+                onConfirm={async () => {
+                  setRemovingIds((current) => new Set(current).add(record.id));
+                  setPendingDeleteId(null);
+                  try {
+                    await onDelete(record.id);
+                  } catch {
+                    setRemovingIds((current) => {
+                      const next = new Set(current);
+                      next.delete(record.id);
+                      return next;
+                    });
+                  }
+                }}
               >
                 <button type="button" className="mapping-card__btn mapping-card__btn--danger">
                   Delete
