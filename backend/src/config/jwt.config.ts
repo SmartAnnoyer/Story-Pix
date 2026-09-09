@@ -4,5 +4,6 @@ export default registerAs('jwt', () => ({
   accessSecret: process.env.JWT_ACCESS_SECRET ?? 'change-me-access-secret',
   refreshSecret: process.env.JWT_REFRESH_SECRET ?? 'change-me-refresh-secret',
   accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? '15m',
-  refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '7d',
+  /** Keep studio clients signed in for a month unless they log out. */
+  refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '30d',
 }));

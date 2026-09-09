@@ -34,6 +34,10 @@ services:
         generateValue: true
       - key: JWT_REFRESH_SECRET
         generateValue: true
+      - key: JWT_ACCESS_EXPIRES_IN
+        value: 15m
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 30d
       # Required — Atlas URI with 0.0.0.0/0 or Render egress allowed
       - key: MONGODB_URI
         sync: false

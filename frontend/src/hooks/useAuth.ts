@@ -15,23 +15,23 @@ export const useAuthBootstrap = () => {
     const bootstrap = async () => {
       const existingToken = tokenStorage.getAccessToken();
 
-      if (!existingToken) {
-        setInitialized(true);
-        return;
-      }
-
       try {
-        const user = await authService.getProfile();
-        setAuth(user, existingToken);
-      } catch {
-        try {
-          const { accessToken } = await authService.refresh();
-          setAccessToken(accessToken);
-          const user = await authService.getProfile();
-          setUser(user);
-        } catch {
-          logout();
+        if (existingToken) {
+          try {
+            const user = await authService.getProfile();
+            setAuth(user, existingToken);
+            return;
+          } catch {
+            // Access token expired — fall through to cookie refresh
+          }
         }
+
+        const { accessToken } = await authService.refresh();
+        setAccessToken(accessToken);
+        const user = await authService.getProfile();
+        setUser(user);
+      } catch {
+        logout();
       } finally {
         setInitialized(true);
       }

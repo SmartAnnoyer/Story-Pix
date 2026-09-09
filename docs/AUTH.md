@@ -124,7 +124,7 @@ Content-Type: application/json
 - **Password policy:** 8+ chars, upper, lower, number, special
 - **Rate limiting** on auth endpoints
 - **httpOnly cookie** for refresh token
-- **Access token** in sessionStorage (short-lived)
+- **Access token** in localStorage (short-lived; refresh cookie restores session)
 
 ## Default Super Admin (Dev)
 
@@ -144,9 +144,9 @@ Reset links are logged to the backend console until email service is integrated.
 ## Frontend Auth Flow
 
 1. App bootstraps session via `/auth/me` or `/auth/refresh`
-2. Access token stored in sessionStorage
+2. Access token stored in localStorage (survives browser restart)
 3. Axios interceptor auto-refreshes on 401
-4. Logout clears cookie (server) and sessionStorage (client)
+4. Logout clears cookie (server) and localStorage (client)
 
 ## Folder Changes
 
