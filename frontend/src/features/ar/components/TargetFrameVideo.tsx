@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react';
 import { createPortal } from 'react-dom';
 import { clampOverlayFrame, type OverlayFrame } from '../utils/overlay-frame';
 import {
@@ -7,6 +14,7 @@ import {
   unlockPlaybackAudio,
   setPlaybackMuted,
 } from '../utils/camera-permission';
+import { clearVideoResumePosition } from '../utils/playback-resume';
 import {
   ensureTransparentRenderer,
   hideIosTrackingCanvas,
@@ -57,6 +65,10 @@ interface TargetFrameVideoProps {
   fallbackUrl?: string | null;
   active: boolean;
   mode: VideoDisplayMode;
+  /** Stable id for resume (usually videoMediaId). */
+  playbackKey?: string | null;
+  /** Soft-resume playhead after the same clip was briefly lost. */
+  resumeAtSeconds?: number | null;
   videoCount?: number;
   videoIndex?: number;
   onCycleVideo?: (direction: 1 | -1) => void;
@@ -83,6 +95,14 @@ const BLOB_WAIT_MS = 6_000;
 const IOS_LOAD_TIMEOUT_MS = 8_000;
 
 const isIOS = () => typeof navigator !== 'undefined' && /iP(hone|od|ad)/.test(navigator.userAgent);
+
+const formatClock = (seconds: number) => {
+  if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
+  const total = Math.floor(seconds);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+};
 
 const hideNativeVideoControls = (video: HTMLVideoElement) => {
   video.controls = false;
@@ -162,6 +182,8 @@ export const TargetFrameVideo = ({
   fallbackUrl,
   active,
   mode,
+  playbackKey = null,
+  resumeAtSeconds = null,
   videoCount: _videoCount = 1,
   videoIndex: _videoIndex = 0,
   onCycleVideo: _onCycleVideo,
@@ -186,22 +208,47 @@ export const TargetFrameVideo = ({
   const onEndedRef = useRef(onEnded);
   const hasNotifiedPlayRef = useRef(false);
   const overlayPlacedRef = useRef(false);
+  const resumeAtRef = useRef(resumeAtSeconds);
+  const playbackKeyRef = useRef(playbackKey);
+  const resumeAppliedRef = useRef(false);
+  const seekingRef = useRef(false);
   const [needsTap, setNeedsTap] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [, setIsPlaying] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [soundOn, setSoundOn] = useState(soundOnProp ?? true);
   const soundOnRef = useRef(soundOnProp ?? true);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
   const lastTapAtRef = useRef(0);
   const prevPrimaryUrlRef = useRef<string | null>(null);
   const modeRef = useRef(mode);
   modeRef.current = mode;
+  resumeAtRef.current = resumeAtSeconds;
+  playbackKeyRef.current = playbackKey;
 
   useEffect(() => {
     onPlayRef.current = onPlay;
     onErrorRef.current = onError;
     onEndedRef.current = onEnded;
   }, [onPlay, onError, onEnded]);
+
+  const applyResumeSeek = useCallback((video: HTMLVideoElement) => {
+    if (resumeAppliedRef.current) return;
+    const resumeAt = resumeAtRef.current;
+    resumeAppliedRef.current = true;
+    const key = playbackKeyRef.current;
+    if (key) clearVideoResumePosition(key);
+    if (resumeAt == null || !Number.isFinite(resumeAt) || resumeAt < 0.35) {
+      video.currentTime = 0;
+      return;
+    }
+    const max =
+      Number.isFinite(video.duration) && video.duration > 0
+        ? Math.max(0, video.duration - 0.05)
+        : resumeAt;
+    video.currentTime = Math.min(resumeAt, max);
+  }, []);
 
   const notifyPlay = useCallback(() => {
     if (hasNotifiedPlayRef.current) return;
@@ -808,9 +855,9 @@ export const TargetFrameVideo = ({
       video.preload = 'auto';
       hideNativeVideoControls(video);
       video.volume = 1;
-      const preferSound = soundOnProp !== false;
+      // Default to sound on; fall back muted only if autoplay blocks it in tryPlay.
+      const preferSound = soundOnRef.current !== false;
       video.muted = !preferSound;
-      soundOnRef.current = preferSound;
       setSoundOn(preferSound);
       let lastError: unknown;
       const uniqueSources = [...new Set(sources)];
@@ -864,9 +911,8 @@ export const TargetFrameVideo = ({
           applyVideoSrc(src, originalSource);
           hideNativeVideoControls(video);
           await waitForVideoReady(video, timeoutMs);
-        } else {
-          video.currentTime = 0;
         }
+        applyResumeSeek(video);
         const played = await tryPlay(soundOnRef.current);
         if (played || (!video.paused && video.videoWidth > 0)) {
           tryNotifyPlaybackReady();
@@ -907,7 +953,7 @@ export const TargetFrameVideo = ({
           if (isPlaybackElementPrimed(source)) {
             setPlaybackUrl(source);
             hideNativeVideoControls(video);
-            video.currentTime = 0;
+            applyResumeSeek(video);
             const played = await tryPlay(soundOnRef.current);
             if (played || (!video.paused && video.videoWidth > 0)) {
               tryNotifyPlaybackReady();
@@ -987,7 +1033,7 @@ export const TargetFrameVideo = ({
 
       throw lastError ?? new Error('Video did not start');
     },
-    [tryPlay, tryNotifyPlaybackReady, host, soundOnProp],
+    [tryPlay, tryNotifyPlaybackReady, host, applyResumeSeek],
   );
 
   useEffect(() => {
@@ -997,10 +1043,13 @@ export const TargetFrameVideo = ({
     if (!active) {
       hasNotifiedPlayRef.current = false;
       overlayPlacedRef.current = false;
+      resumeAppliedRef.current = false;
       setNeedsTap(false);
       setLoading(false);
       setIsPlaying(false);
       setPlaybackUrl(null);
+      setCurrentTime(0);
+      setDuration(0);
       video.pause();
       video.removeAttribute('src');
       video.load();
@@ -1021,6 +1070,7 @@ export const TargetFrameVideo = ({
       hasHost: Boolean(host),
       hasEntity: Boolean(targetEntity),
       overlayFrame,
+      resumeAtSeconds,
     });
     logViewerDiagnostics(
       'TargetFrameVideo active',
@@ -1031,6 +1081,7 @@ export const TargetFrameVideo = ({
         primaryUrl: primaryUrl?.slice(0, 120) ?? null,
         fallbackUrl: fallbackUrl?.slice(0, 120) ?? null,
         overlayFrame,
+        resumeAtSeconds,
       },
       'info',
     );
@@ -1039,7 +1090,10 @@ export const TargetFrameVideo = ({
     setLoading(true);
     setNeedsTap(false);
     hasNotifiedPlayRef.current = false;
+    resumeAppliedRef.current = false;
     setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
 
     const sources = buildSourceList(primaryUrl, fallbackUrl, preferDirectUrl);
     viewerLog('info', 'TargetFrameVideo sources', {
@@ -1064,18 +1118,7 @@ export const TargetFrameVideo = ({
     return () => {
       cancelled = true;
     };
-  }, [
-    active,
-    primaryUrl,
-    fallbackUrl,
-    preferDirectUrl,
-    loadAndPlay,
-    host,
-    mode,
-    title,
-    targetEntity,
-    overlayFrame,
-  ]);
+  }, [active, primaryUrl, fallbackUrl, preferDirectUrl, loadAndPlay, host, resumeAtSeconds]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -1090,13 +1133,33 @@ export const TargetFrameVideo = ({
 
     const onPlayEvt = () => setIsPlaying(true);
     const onPauseEvt = () => setIsPlaying(false);
+    const onTime = () => {
+      if (seekingRef.current) return;
+      setCurrentTime(video.currentTime);
+      if (Number.isFinite(video.duration) && video.duration > 0) {
+        setDuration(video.duration);
+      }
+    };
+    const onMeta = () => {
+      if (Number.isFinite(video.duration) && video.duration > 0) {
+        setDuration(video.duration);
+      }
+    };
     video.addEventListener('play', onPlayEvt);
     video.addEventListener('pause', onPauseEvt);
+    video.addEventListener('timeupdate', onTime);
+    video.addEventListener('loadedmetadata', onMeta);
+    video.addEventListener('durationchange', onMeta);
+    onMeta();
+    onTime();
     return () => {
       video.removeEventListener('play', onPlayEvt);
       video.removeEventListener('pause', onPauseEvt);
+      video.removeEventListener('timeupdate', onTime);
+      video.removeEventListener('loadedmetadata', onMeta);
+      video.removeEventListener('durationchange', onMeta);
     };
-  }, [active]);
+  }, [active, primaryUrl]);
 
   useEffect(() => {
     if (typeof soundOnProp !== 'boolean') return;
@@ -1105,13 +1168,20 @@ export const TargetFrameVideo = ({
     setSoundOn(soundOnProp);
     const video = videoRef.current;
     if (!video || !active) return;
+    const resumeAt = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+    const wasPlaying = !video.paused;
     if (soundOnProp) {
       unlockPlaybackAudio();
       video.muted = false;
       video.volume = 1;
-      if (video.paused) void video.play().catch(() => undefined);
     } else {
       video.muted = true;
+    }
+    if (Number.isFinite(resumeAt) && Math.abs(video.currentTime - resumeAt) > 0.05) {
+      video.currentTime = resumeAt;
+    }
+    if (wasPlaying && video.paused) {
+      void video.play().catch(() => undefined);
     }
   }, [soundOnProp, active]);
 
@@ -1119,13 +1189,54 @@ export const TargetFrameVideo = ({
     onModeChange(mode === 'fullscreen' ? 'frame' : 'fullscreen');
   }, [mode, onModeChange]);
 
+  const handleTogglePlayPause = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) {
+      void video.play().catch(() => undefined);
+    } else {
+      video.pause();
+    }
+  }, []);
+
+  const handleSeekInput = useCallback(
+    (value: number) => {
+      const video = videoRef.current;
+      if (!video || !Number.isFinite(value)) return;
+      const max =
+        Number.isFinite(video.duration) && video.duration > 0
+          ? video.duration
+          : Math.max(value, duration);
+      const next = Math.min(Math.max(0, value), max);
+      seekingRef.current = true;
+      setCurrentTime(next);
+      video.currentTime = next;
+    },
+    [duration],
+  );
+
+  const handleSeekCommit = useCallback(() => {
+    seekingRef.current = false;
+    const video = videoRef.current;
+    if (video) setCurrentTime(video.currentTime);
+  }, []);
+
   const handleMuteClick = useCallback(
     (event: { stopPropagation: () => void }) => {
       event.stopPropagation();
+      const video = videoRef.current;
+      const resumeAt = video && Number.isFinite(video.currentTime) ? video.currentTime : null;
+      const wasPlaying = Boolean(video && !video.paused);
       const next = !soundOnRef.current;
       setPlaybackMuted(!next);
       soundOnRef.current = next;
       setSoundOn(next);
+      if (video && resumeAt != null && Math.abs(video.currentTime - resumeAt) > 0.05) {
+        video.currentTime = resumeAt;
+      }
+      if (video && wasPlaying && video.paused) {
+        void video.play().catch(() => undefined);
+      }
       onSoundOnChange?.(next);
     },
     [onSoundOnChange],
@@ -1263,7 +1374,7 @@ export const TargetFrameVideo = ({
     </div>
   );
 
-  // Full-screen double-tap catcher — below chrome, above video.
+  // Full-screen double-tap catcher — below chrome/controls, above video.
   const doubleTapCatcher =
     active && !needsTap ? (
       <div
@@ -1279,6 +1390,54 @@ export const TargetFrameVideo = ({
         }}
         onPointerUp={handleStageDoubleTap}
       />
+    ) : null;
+
+  const fullscreenTransport =
+    showFullscreen && active && !needsTap ? (
+      <div
+        className="ar-video-fs-controls"
+        onPointerDown={(event) => event.stopPropagation()}
+        onPointerUp={(event) => event.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          className="ar-video-fs-controls__play"
+          aria-label={isPlaying ? 'Pause' : 'Play'}
+          onClick={handleTogglePlayPause}
+        >
+          {isPlaying ? (
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden>
+              <path d="M6 5h4v14H6V5zm8 0h4v14h-4V5z" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden>
+              <path d="M8 5v14l11-7L8 5z" />
+            </svg>
+          )}
+        </button>
+        <span className="ar-video-fs-controls__time">{formatClock(currentTime)}</span>
+        <input
+          className="ar-video-fs-controls__seek"
+          type="range"
+          min={0}
+          max={Math.max(duration || 0, currentTime, 0.1)}
+          step={0.05}
+          value={Math.min(currentTime, Math.max(duration || 0, currentTime))}
+          aria-label="Seek"
+          style={
+            {
+              '--seek-pct': `${duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0}%`,
+            } as CSSProperties
+          }
+          onChange={(event) => handleSeekInput(Number(event.target.value))}
+          onPointerUp={handleSeekCommit}
+          onTouchEnd={handleSeekCommit}
+          onMouseUp={handleSeekCommit}
+          onBlur={handleSeekCommit}
+        />
+        <span className="ar-video-fs-controls__time">{formatClock(duration)}</span>
+      </div>
     ) : null;
 
   return createPortal(
@@ -1346,6 +1505,7 @@ export const TargetFrameVideo = ({
       </div>
 
       {doubleTapCatcher}
+      {fullscreenTransport}
       {playbackChrome}
     </>,
     document.body,

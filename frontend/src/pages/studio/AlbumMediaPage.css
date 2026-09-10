@@ -137,12 +137,8 @@
   display: none;
 }
 
-.album-media__uploads:has(.media-uploads) {
-  margin-top: 0.25rem;
-  padding: 0.95rem 1rem;
-  border-radius: 12px;
-  border: 1px solid var(--am-line);
-  background: #fff;
+.album-media__uploads {
+  margin: 0 0 1rem;
 }
 
 /* Upload zone */
@@ -157,6 +153,17 @@
   font-size: 0.8rem;
   line-height: 1.4;
   color: var(--am-muted);
+}
+
+.album-media .media-upload__queue {
+  margin: 0;
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid rgba(91, 44, 219, 0.18);
+  background: linear-gradient(90deg, #f4f1ff, #fff5fb);
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: #4a22b5;
 }
 
 .album-media .media-upload__actions {
@@ -367,89 +374,6 @@
   text-align: center;
   font-size: 0.84rem;
   color: var(--am-muted);
-}
-
-.media-uploads__title {
-  margin: 0 0 0.65rem;
-  font-size: 0.9rem;
-  font-weight: 700;
-}
-
-.media-uploads__list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 0.65rem;
-}
-
-.media-uploads__item {
-  display: grid;
-  gap: 0.25rem;
-}
-
-.media-uploads__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.media-uploads__name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.84rem;
-  font-weight: 650;
-}
-
-.media-uploads__actions {
-  display: flex;
-  gap: 0.25rem;
-  flex-shrink: 0;
-}
-
-.media-uploads__meter {
-  height: 4px;
-  overflow: hidden;
-  border-radius: 2px;
-  background: #ece8f8;
-}
-
-.media-uploads__meter i {
-  display: block;
-  height: 100%;
-  background: var(--am-accent);
-}
-
-.media-uploads__meter--failed {
-  background: #fdeceb;
-}
-
-.media-uploads__meter--failed i {
-  background: #b42318;
-}
-
-.media-uploads__error {
-  margin: 0;
-  font-size: 0.75rem;
-  color: #b42318;
-}
-
-.media-uploads__btn {
-  border: 0;
-  background: transparent;
-  color: var(--am-muted);
-  font: inherit;
-  font-size: 0.78rem;
-  font-weight: 650;
-  cursor: pointer;
-  padding: 0.15rem 0.35rem;
-}
-
-.media-uploads__btn:hover {
-  color: var(--am-ink);
 }
 
 @media (max-width: 480px) {

@@ -22,6 +22,13 @@ export const stopPlaybackVideoImmediately = (): void => {
   video.load();
 };
 
+/** Current playhead of the shared playback element (0 if unavailable). */
+export const getPlaybackCurrentTime = (): number => {
+  const video = playbackVideo;
+  if (!video || !Number.isFinite(video.currentTime)) return 0;
+  return video.currentTime;
+};
+
 /** Same video element from Open camera tap through overlay playback (needed for unmuted iOS play). */
 export const getPlaybackVideoElement = (): HTMLVideoElement => {
   if (playbackVideo) return playbackVideo;
@@ -41,18 +48,30 @@ export const getPlaybackVideoElement = (): HTMLVideoElement => {
 /** Call during the Open camera tap so later video can start with sound. */
 export const unlockPlaybackAudio = (): void => {
   const video = getPlaybackVideoElement();
+  const hasActiveClip =
+    Boolean(video.currentSrc || video.getAttribute('src')) &&
+    video.readyState >= HTMLMediaElement.HAVE_METADATA;
+  const resumeAt = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+  const wasPlaying = !video.paused;
+
   video.muted = false;
   video.volume = 1;
-  void video.play().catch(() => {
-    video.muted = true;
-    void video
-      .play()
-      .then(() => {
-        video.pause();
-        video.muted = false;
-      })
-      .catch(() => undefined);
-  });
+
+  if (hasActiveClip) {
+    // Unmute an in-progress clip — never pause or reload.
+    void video.play().catch(() => undefined);
+  } else {
+    void video.play().catch(() => {
+      video.muted = true;
+      void video
+        .play()
+        .then(() => {
+          video.pause();
+          video.muted = false;
+        })
+        .catch(() => undefined);
+    });
+  }
 
   try {
     const AudioCtx =
@@ -72,17 +91,31 @@ export const unlockPlaybackAudio = (): void => {
   } catch {
     // ignore — playback can still start muted
   }
+
+  if (hasActiveClip && Number.isFinite(resumeAt) && Math.abs(video.currentTime - resumeAt) > 0.35) {
+    video.currentTime = resumeAt;
+    if (wasPlaying) void video.play().catch(() => undefined);
+  }
 };
 
 /** Toggle mute in the same user-gesture turn (required for iOS unmute). */
 export const setPlaybackMuted = (muted: boolean): void => {
   const video = getPlaybackVideoElement();
+  const resumeAt = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+  const wasPlaying = !video.paused || Boolean(video.currentSrc);
+
   if (!muted) {
     unlockPlaybackAudio();
   }
+
   video.muted = muted;
   video.volume = 1;
-  if (!muted) {
+
+  if (Number.isFinite(resumeAt) && Math.abs(video.currentTime - resumeAt) > 0.05) {
+    video.currentTime = resumeAt;
+  }
+
+  if (!muted && wasPlaying) {
     void video.play().catch(() => undefined);
   }
 };

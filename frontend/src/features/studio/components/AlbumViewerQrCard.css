@@ -96,12 +96,42 @@
   background: var(--aq-paper);
 }
 
-.album-qr__link {
+.album-qr__link-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
   margin: 0 0 0.85rem;
+}
+
+.album-qr__link {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
   font-size: 0.75rem;
   line-height: 1.4;
   color: var(--aq-muted);
   word-break: break-all;
+}
+
+.album-qr__copy {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  margin-top: -0.15rem;
+  border: 1px solid var(--aq-line);
+  border-radius: 8px;
+  background: var(--aq-paper);
+  color: var(--aq-accent);
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.album-qr__copy:hover {
+  border-color: rgba(91, 44, 219, 0.35);
+  background: #f3eefc;
 }
 
 .album-qr__btn {

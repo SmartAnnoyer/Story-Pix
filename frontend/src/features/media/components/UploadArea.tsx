@@ -26,9 +26,25 @@ interface UploadAreaProps {
 const PHOTO_ACCEPT = '.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp';
 const VIDEO_ACCEPT = '.mp4,.mov,video/mp4,video/quicktime';
 
+const toFileList = (files: FileList | File[] | null | undefined): File[] => {
+  if (!files) return [];
+  return Array.from(files);
+};
+
+/** Ant Design passes RcFile (extends File) in beforeUpload fileList. */
+const asFiles = (items: File[]): File[] => items.filter((file) => file instanceof Blob);
+
 export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadAreaProps) => {
   const { addTask, updateTask } = useUploadStore();
   const galleryInputRef = useRef<HTMLInputElement>(null);
+  const photoQueueRef = useRef<File[]>([]);
+  const videoQueueRef = useRef<File[]>([]);
+  const photoBatchTotalRef = useRef(0);
+  const photoBatchDoneRef = useRef(0);
+  const videoBatchTotalRef = useRef(0);
+  const videoBatchDoneRef = useRef(0);
+  const prepBusyRef = useRef(false);
+
   const [captureOpen, setCaptureOpen] = useState(false);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [cropFileName, setCropFileName] = useState('photo.jpg');
@@ -37,6 +53,7 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
   const [frameSrc, setFrameSrc] = useState<string | null>(null);
   const [pendingVideo, setPendingVideo] = useState<File | null>(null);
   const [videoThumbOpen, setVideoThumbOpen] = useState(false);
+  const [prepLabel, setPrepLabel] = useState<string | null>(null);
 
   const processFile = useCallback(
     async (file: File, confirmPayload?: ConfirmUploadPayload) => {
@@ -123,14 +140,67 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
     setPendingPhoto(null);
   };
 
-  const openVideoThumbnail = async (file: File) => {
-    try {
-      await assertVideoWithinLimits(file);
-      setPendingVideo(file);
-      setVideoThumbOpen(true);
-    } catch (error) {
-      message.error(getErrorMessage(error, 'Video not accepted'));
+  const refreshPhotoPrepLabel = () => {
+    const total = photoBatchTotalRef.current;
+    const done = photoBatchDoneRef.current;
+    if (total <= 1) {
+      setPrepLabel(null);
+      return;
     }
+    setPrepLabel(`Preparing photo ${Math.min(done + 1, total)} of ${total}`);
+  };
+
+  const pumpPhotoQueue = () => {
+    if (prepBusyRef.current) return;
+    const next = photoQueueRef.current.shift();
+    if (!next) {
+      photoBatchTotalRef.current = 0;
+      photoBatchDoneRef.current = 0;
+      setPrepLabel(null);
+      return;
+    }
+    prepBusyRef.current = true;
+    refreshPhotoPrepLabel();
+    // Multi-file batches skip crop and go straight to frame placement.
+    if (photoBatchTotalRef.current > 1) {
+      openFrameSelect(next);
+    } else {
+      openGalleryCrop(next);
+    }
+  };
+
+  const enqueuePhotos = (files: File[]) => {
+    const valid = files.filter(
+      (file) => file.type.startsWith('image/') || /\.(jpe?g|png|webp)$/i.test(file.name),
+    );
+    if (!valid.length) {
+      message.warning('No supported photos in that selection');
+      return;
+    }
+    const wasIdle = photoQueueRef.current.length === 0 && !prepBusyRef.current;
+    photoQueueRef.current.push(...valid);
+    if (wasIdle) {
+      photoBatchTotalRef.current = valid.length;
+      photoBatchDoneRef.current = 0;
+    } else {
+      photoBatchTotalRef.current += valid.length;
+    }
+    if (valid.length > 1) {
+      message.info(`Added ${valid.length} photos — set the video area for each`);
+    }
+    if (!cropSrc && !pendingPhoto && !prepBusyRef.current) {
+      pumpPhotoQueue();
+    } else {
+      refreshPhotoPrepLabel();
+    }
+  };
+
+  const finishPhotoPrep = () => {
+    prepBusyRef.current = false;
+    photoBatchDoneRef.current += 1;
+    closeFrameSelect();
+    closeCrop();
+    window.setTimeout(() => pumpPhotoQueue(), 0);
   };
 
   const closeVideoThumbnail = () => {
@@ -138,13 +208,82 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
     setPendingVideo(null);
   };
 
+  const refreshVideoPrepLabel = () => {
+    const total = videoBatchTotalRef.current;
+    const done = videoBatchDoneRef.current;
+    if (total <= 1) {
+      setPrepLabel(null);
+      return;
+    }
+    setPrepLabel(`Preparing video ${Math.min(done + 1, total)} of ${total}`);
+  };
+
+  const pumpVideoQueue = () => {
+    if (prepBusyRef.current) return;
+    const next = videoQueueRef.current.shift();
+    if (!next) {
+      videoBatchTotalRef.current = 0;
+      videoBatchDoneRef.current = 0;
+      setPrepLabel(null);
+      return;
+    }
+    prepBusyRef.current = true;
+    refreshVideoPrepLabel();
+    void (async () => {
+      try {
+        await assertVideoWithinLimits(next);
+        setPendingVideo(next);
+        setVideoThumbOpen(true);
+      } catch (error) {
+        message.error(getErrorMessage(error, 'Video not accepted'));
+        prepBusyRef.current = false;
+        videoBatchDoneRef.current += 1;
+        window.setTimeout(() => pumpVideoQueue(), 0);
+      }
+    })();
+  };
+
+  const enqueueVideos = (files: File[]) => {
+    const valid = files.filter(
+      (file) => file.type.startsWith('video/') || /\.(mp4|mov)$/i.test(file.name),
+    );
+    if (!valid.length) {
+      message.warning('No supported videos in that selection');
+      return;
+    }
+    const wasIdle = videoQueueRef.current.length === 0 && !prepBusyRef.current;
+    videoQueueRef.current.push(...valid);
+    if (wasIdle) {
+      videoBatchTotalRef.current = valid.length;
+      videoBatchDoneRef.current = 0;
+    } else {
+      videoBatchTotalRef.current += valid.length;
+    }
+    if (valid.length > 1) {
+      message.info(`Added ${valid.length} videos — pick a cover frame for each`);
+    }
+    if (!videoThumbOpen && !prepBusyRef.current) {
+      pumpVideoQueue();
+    } else {
+      refreshVideoPrepLabel();
+    }
+  };
+
+  const finishVideoPrep = () => {
+    prepBusyRef.current = false;
+    videoBatchDoneRef.current += 1;
+    closeVideoThumbnail();
+    window.setTimeout(() => pumpVideoQueue(), 0);
+  };
+
   if (mediaType === MediaType.PHOTO) {
     return (
       <div className="media-upload">
         <p className="media-upload__hint">
-          Take a photo or pick from gallery. Large photos are compressed automatically before
-          upload. Keep the full image or trim edges, then mark where the video should play.
+          Take a photo or pick several from gallery. Large photos are compressed automatically. Keep
+          the full image or trim edges, then mark where the video should play.
         </p>
+        {prepLabel ? <p className="media-upload__queue">{prepLabel}</p> : null}
         <div className="media-upload__actions">
           <button
             type="button"
@@ -167,12 +306,13 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
           ref={galleryInputRef}
           type="file"
           accept={PHOTO_ACCEPT}
+          multiple
           className="hidden"
           disabled={disabled}
           onChange={(event) => {
-            const file = event.target.files?.[0];
+            const files = toFileList(event.target.files);
             event.target.value = '';
-            if (file) openGalleryCrop(file);
+            if (files.length) enqueuePhotos(files);
           }}
         />
         <Dragger
@@ -180,16 +320,19 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
           disabled={disabled}
           accept={PHOTO_ACCEPT}
           showUploadList={false}
-          beforeUpload={(file) => {
-            openGalleryCrop(file);
+          beforeUpload={(file, fileList) => {
+            const index = fileList.findIndex((item) => item.uid === file.uid);
+            if (index === fileList.length - 1) {
+              enqueuePhotos(asFiles(fileList));
+            }
             return false;
           }}
         >
           <p className="ant-upload-drag-icon">
             <InboxOutlined />
           </p>
-          <p className="ant-upload-text">Or drop photos here</p>
-          <p className="ant-upload-hint">JPG, PNG, WEBP — auto-compressed for upload</p>
+          <p className="ant-upload-text">Drop photos here</p>
+          <p className="ant-upload-hint">JPG, PNG, WEBP — select or drop many at once</p>
         </Dragger>
 
         <PhotoCaptureModal
@@ -197,7 +340,7 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
           onCancel={() => setCaptureOpen(false)}
           onCapture={(file) => {
             setCaptureOpen(false);
-            openFrameSelect(file);
+            enqueuePhotos([file]);
           }}
         />
         <PhotoCropModal
@@ -209,16 +352,29 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
             closeCrop();
             openFrameSelect(file);
           }}
-          onCancel={closeCrop}
+          onCancel={() => {
+            closeCrop();
+            prepBusyRef.current = false;
+            photoBatchDoneRef.current += 1;
+            window.setTimeout(() => pumpPhotoQueue(), 0);
+          }}
         />
         <PhotoFrameSelectModal
           open={Boolean(pendingPhoto && frameSrc)}
           imageSrc={frameSrc}
-          onCancel={closeFrameSelect}
+          onCancel={() => {
+            closeFrameSelect();
+            prepBusyRef.current = false;
+            photoBatchDoneRef.current += 1;
+            window.setTimeout(() => pumpPhotoQueue(), 0);
+          }}
           onConfirm={(overlayFrame: OverlayFrame) => {
             const file = pendingPhoto;
-            closeFrameSelect();
-            if (!file) return;
+            if (!file) {
+              finishPhotoPrep();
+              return;
+            }
+            // Start upload immediately; continue queue for the next file.
             void readImageDimensions(file)
               .then((dimensions) =>
                 processFile(file, {
@@ -228,6 +384,7 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
                 }),
               )
               .catch(() => processFile(file, { overlayFrame }));
+            finishPhotoPrep();
           }}
         />
       </div>
@@ -237,16 +394,20 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
   return (
     <div className="media-upload">
       <p className="media-upload__hint">
-        Drop or choose a video, then pick a cover frame. Keep clips under 80 MB and about 90 seconds
-        — compress to 720p first if the file is larger.
+        Drop or choose one or more videos, then pick a cover frame for each. Keep clips under 80 MB
+        and about 90 seconds — compress to 720p first if the file is larger.
       </p>
+      {prepLabel ? <p className="media-upload__queue">{prepLabel}</p> : null}
       <Dragger
         multiple
         disabled={disabled}
         accept={VIDEO_ACCEPT}
         showUploadList={false}
-        beforeUpload={(file) => {
-          void openVideoThumbnail(file);
+        beforeUpload={(file, fileList) => {
+          const index = fileList.findIndex((item) => item.uid === file.uid);
+          if (index === fileList.length - 1) {
+            enqueueVideos(asFiles(fileList));
+          }
           return false;
         }}
       >
@@ -254,17 +415,22 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
           <InboxOutlined />
         </p>
         <p className="ant-upload-text">Drop videos here</p>
-        <p className="ant-upload-hint">MP4, MOV — max 80 MB, ~90s</p>
+        <p className="ant-upload-hint">MP4, MOV — select or drop many at once · max 80 MB, ~90s</p>
       </Dragger>
 
       <VideoThumbnailSelectModal
         open={videoThumbOpen}
         file={pendingVideo}
-        onCancel={closeVideoThumbnail}
+        onCancel={() => {
+          closeVideoThumbnail();
+          prepBusyRef.current = false;
+          videoBatchDoneRef.current += 1;
+          window.setTimeout(() => pumpVideoQueue(), 0);
+        }}
         onConfirm={(payload) => {
           const file = pendingVideo;
-          closeVideoThumbnail();
           if (file) void processFile(file, payload);
+          finishVideoPrep();
         }}
       />
     </div>

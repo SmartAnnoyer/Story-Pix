@@ -38,13 +38,19 @@ import {
   takeHeldCameraStream,
   releaseHeldCameraStream,
   stopPlaybackVideoImmediately,
+  getPlaybackCurrentTime,
   setPlaybackMuted,
 } from '../utils/camera-permission';
+import {
+  clearVideoResumeIfDifferent,
+  clearVideoResumePosition,
+  peekVideoResumePosition,
+  saveVideoResumePosition,
+} from '../utils/playback-resume';
 import {
   prefetchVideo,
   boostVideoBlobPriority,
   ensureVideoBlobForPlayback,
-  isVideoBlobReady,
   primeVideoDecoder,
 } from '../utils/video-prefetch';
 import { getTargetAspectRatio, installPoseCapture } from '../utils/target-projection';
@@ -74,12 +80,10 @@ const SCAN_HINT_DELAY_MS = 18_000;
 const SCAN_NO_MATCH_DELAY_MS = 30_000;
 const TARGET_FOUND_CONFIRM_MS = 0;
 const TARGET_SWITCH_CONFIRM_MS = 0;
-/** Brief grace when the print leaves frame — another targetFound cancels this immediately. */
-const TARGET_LOST_GRACE_MS = 120;
-/** Keep tracking while the clip buffers onto the photo. */
-const TARGET_LOST_LOADING_GRACE_MS = 45_000;
-/** Hold while a clip is playing so brief tracking gaps don't remount UI / blink icons. */
-const TARGET_LOST_PLAYING_GRACE_MS = 2_200;
+/** Stop as soon as the print leaves frame (no linger on the previous clip). */
+const TARGET_LOST_GRACE_MS = 0;
+const TARGET_LOST_LOADING_GRACE_MS = 0;
+const TARGET_LOST_PLAYING_GRACE_MS = 0;
 
 const buildServerMindBundle = (albumSlug: string, manifest: ViewerManifest): MindBundle | null => {
   if (!manifest.mindFile) return null;
@@ -121,11 +125,11 @@ export const ARViewer = ({
     manifest.album.scansExhausted ? 'scans_exhausted' : hasPreparedMind ? 'loading' : 'preparing',
   );
   const [activeTarget, setActiveTarget] = useState<ViewerManifestTarget | null>(null);
+  const activeVideoMediaIdRef = useRef<string | null>(null);
+  const [resumeAtSeconds, setResumeAtSeconds] = useState<number | null>(null);
   const [activeMindIndex, setActiveMindIndex] = useState<number | null>(null);
   const activeMindIndexRef = useRef<number | null>(null);
   const lastTargetSwitchAtRef = useRef(0);
-  /** Bumps on every beginPlayback so stale blob waits cannot remount an old clip. */
-  const playbackGenerationRef = useRef(0);
   const [targetAspectRatio, setTargetAspectRatio] = useState(1.414);
   const [videoMode, setVideoMode] = useState<VideoDisplayMode>('frame');
   const [mindBundle, setMindBundle] = useState<MindBundle | null>(initialMindBundle);
@@ -347,6 +351,10 @@ export const ARViewer = ({
   }, [status]);
 
   useEffect(() => {
+    activeVideoMediaIdRef.current = activeTarget?.videoMediaId ?? null;
+  }, [activeTarget?.videoMediaId]);
+
+  useEffect(() => {
     videoModeRef.current = videoMode;
   }, [videoMode]);
 
@@ -523,6 +531,13 @@ export const ARViewer = ({
           setVideoReveal(false);
         };
 
+        const mountPlaybackTarget = (nextTarget: ViewerManifestTarget) => {
+          clearVideoResumeIfDifferent(nextTarget.videoMediaId);
+          const resumeAt = peekVideoResumePosition(nextTarget.videoMediaId);
+          setResumeAtSeconds(resumeAt);
+          setActiveTarget(nextTarget);
+        };
+
         const beginPlayback = (
           mindIndex: number,
           nextTarget: ViewerManifestTarget,
@@ -543,6 +558,11 @@ export const ARViewer = ({
           targetFoundTimersRef.current.forEach((timer) => window.clearTimeout(timer));
           targetFoundTimersRef.current.clear();
 
+          if (isSwitch) {
+            // Focusing a different video discards resume for the previous clip.
+            clearVideoResumePosition();
+          }
+
           if (isSwitch || activeMindIndexRef.current !== null) {
             haltCurrentPlayback(activeMindIndexRef.current);
           }
@@ -550,10 +570,10 @@ export const ARViewer = ({
           // Drop the previous mapping immediately so TargetFrameVideo cannot reload the old
           // clip when the tracked entity changes while the next blob is still fetching.
           setActiveTarget(null);
+          setResumeAtSeconds(null);
           videoRevealRef.current = false;
           setVideoReveal(false);
 
-          const playbackGeneration = ++playbackGenerationRef.current;
           activeMindIndexRef.current = mindIndex;
           statusRef.current = 'match_found';
 
@@ -595,61 +615,10 @@ export const ARViewer = ({
           prefetchVideo(playUrl);
           boostVideoBlobPriority(playUrl);
           void primeVideoDecoder(playUrl);
-
-          void (async () => {
-            const blobUrl = await ensureVideoBlobForPlayback(playUrl, isSwitch ? 30_000 : 45_000);
-            if (!mounted) return;
-            if (playbackGenerationRef.current !== playbackGeneration) {
-              viewerLog('info', 'beginPlayback ignored — superseded by newer target', {
-                mindIndex,
-                target: nextTarget.targetName,
-              });
-              return;
-            }
-            if (activeMindIndexRef.current !== mindIndex) {
-              viewerLog('info', 'beginPlayback ignored — active index changed', {
-                mindIndex,
-                active: activeMindIndexRef.current,
-              });
-              return;
-            }
-
-            if (!blobUrl) {
-              viewerLog('error', 'video blob not ready for playback', {
-                playUrl: playUrl.slice(0, 120),
-                target: nextTarget.targetName,
-                mindIndex,
-              });
-              haltCurrentPlayback(mindIndex);
-              activeMindIndexRef.current = null;
-              setActiveMindIndex(null);
-              setTrackedEntity(null);
-              setActiveTarget(null);
-              statusRef.current = 'scanning';
-              setStatus('scanning');
-              setStatusDetail(
-                'Video is still loading. Hold the photo steady — or move away and point again.',
-              );
-              setProgress(0.92);
-              videoRevealRef.current = false;
-              setVideoReveal(false);
-              // MindAR won't re-fire targetFound while still locked on the print.
-              window.setTimeout(() => {
-                if (!mounted) return;
-                keepMindArCameraPlaying(host);
-                restartMindArTracking(host);
-              }, 120);
-              startScanTimers();
-              return;
-            }
-
-            viewerLog('info', 'video blob ready — mounting player', {
-              target: nextTarget.targetName,
-              mindIndex,
-              bytesReady: isVideoBlobReady(playUrl),
-            });
-            setActiveTarget(nextTarget);
-          })();
+          // Mount immediately so switches don't freeze on the previous frame while the
+          // blob warms — TargetFrameVideo already waits on the decoder as needed.
+          void ensureVideoBlobForPlayback(playUrl, isSwitch ? 12_000 : 20_000);
+          mountPlaybackTarget(nextTarget);
         };
 
         const confirmTargetMatch = (mindIndex: number) => {
@@ -851,12 +820,14 @@ export const ARViewer = ({
               if (switchingAway) {
                 // Tear down the old clip immediately so it cannot keep playing while we
                 // confirm / fetch the newly found photo's video.
+                clearVideoResumePosition();
                 stopPlaybackVideoImmediately();
                 detachOverlayVideoPlane(
                   targetEntitiesRef.current[activeMindIndexRef.current!] ?? null,
                 );
                 releaseMappedVideoDecoder(host);
                 setActiveTarget(null);
+                setResumeAtSeconds(null);
                 videoRevealRef.current = false;
                 setVideoReveal(false);
               }
@@ -930,7 +901,7 @@ export const ARViewer = ({
                     ? TARGET_LOST_PLAYING_GRACE_MS
                     : TARGET_LOST_GRACE_MS;
 
-              const grace = window.setTimeout(() => {
+              const stopAfterLost = () => {
                 targetLostGraceRef.current.delete(mindIndex);
                 if (!mounted) return;
 
@@ -952,9 +923,14 @@ export const ARViewer = ({
                   mindIndex,
                   status: statusRef.current,
                 });
+                const mediaId = activeVideoMediaIdRef.current;
+                if (mediaId) {
+                  saveVideoResumePosition(mediaId, getPlaybackCurrentTime());
+                }
                 stopPlaybackVideoImmediately();
                 detachOverlayVideoPlane(targetEntitiesRef.current[mindIndex] ?? null);
                 setActiveTarget(null);
+                setResumeAtSeconds(null);
                 activeMindIndexRef.current = null;
                 setActiveMindIndex(null);
                 setTrackedEntity(null);
@@ -973,9 +949,15 @@ export const ARViewer = ({
                   releaseMappedVideoDecoder(host);
                   keepMindArCameraPlaying(host);
                   restartMindArTracking(host);
-                }, 80);
-              }, graceMs);
+                }, 0);
+              };
 
+              if (graceMs <= 0) {
+                stopAfterLost();
+                return;
+              }
+
+              const grace = window.setTimeout(stopAfterLost, graceMs);
               targetLostGraceRef.current.set(mindIndex, grace);
             });
           });
@@ -1258,8 +1240,10 @@ export const ARViewer = ({
   }, [mindBundle, status]);
 
   const stopVideoPlayback = useCallback(() => {
+    clearVideoResumePosition();
     stopPlaybackVideoImmediately();
     setActiveTarget(null);
+    setResumeAtSeconds(null);
     setActiveMindIndex(null);
     setTrackedEntity(null);
     activeMindIndexRef.current = null;
@@ -1275,8 +1259,10 @@ export const ARViewer = ({
       const next =
         siblingVideos[(siblingIndex + direction + siblingVideos.length) % siblingVideos.length];
       if (!next) return;
+      clearVideoResumePosition();
       stopPlaybackVideoImmediately();
       setVideoReveal(false);
+      setResumeAtSeconds(null);
       if (activeMindIndexRef.current != null && sceneHost) {
         detachOverlayVideoPlane(targetEntitiesRef.current[activeMindIndexRef.current] ?? null);
         releaseMappedVideoDecoder(sceneHost);
@@ -1288,6 +1274,8 @@ export const ARViewer = ({
         const blobUrl = await ensureVideoBlobForPlayback(nextUrl, 30_000);
         if (!blobUrl) return;
         void primeVideoDecoder(nextUrl);
+        clearVideoResumeIfDifferent(next.videoMediaId);
+        setResumeAtSeconds(null);
         setActiveTarget(next);
       })();
     },
@@ -1313,6 +1301,7 @@ export const ARViewer = ({
   }, [resumeScanningAfterVideo]);
 
   const handleFullscreenEnded = useCallback(() => {
+    clearVideoResumePosition();
     handleExitFullscreen();
   }, [handleExitFullscreen]);
 
@@ -1393,6 +1382,8 @@ export const ARViewer = ({
         fallbackUrl={activeVideoFallbackUrl}
         preferDirectUrl={false}
         title={activeTarget?.targetName}
+        playbackKey={activeTarget?.videoMediaId ?? null}
+        resumeAtSeconds={resumeAtSeconds}
         active={Boolean(activeTarget?.videoAvailable && (activeVideoUrl || activeVideoFallbackUrl))}
         mode={videoMode}
         videoCount={siblingVideos.length}

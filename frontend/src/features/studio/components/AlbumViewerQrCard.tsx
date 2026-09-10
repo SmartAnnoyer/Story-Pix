@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { QRCode, message } from 'antd';
+import { CopyOutlined } from '@ant-design/icons';
 import './AlbumViewerQrCard.css';
 
 interface AlbumViewerQrCardProps {
@@ -69,6 +70,25 @@ export const AlbumViewerQrCard = ({
     message.success('QR code downloaded');
   };
 
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(viewerUrl);
+      message.success('Link copied');
+    } catch {
+      try {
+        const input = document.createElement('input');
+        input.value = viewerUrl;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        input.remove();
+        message.success('Link copied');
+      } catch {
+        message.error('Could not copy link');
+      }
+    }
+  };
+
   return (
     <section className="album-qr">
       <div className="album-qr__head">
@@ -111,7 +131,18 @@ export const AlbumViewerQrCard = ({
           <div ref={qrWrapRef} className="album-qr__code">
             <QRCode value={viewerUrl} size={196} bordered={false} errorLevel="M" />
           </div>
-          <p className="album-qr__link">{viewerUrl}</p>
+          <div className="album-qr__link-row">
+            <p className="album-qr__link">{viewerUrl}</p>
+            <button
+              type="button"
+              className="album-qr__copy"
+              onClick={() => void copyLink()}
+              aria-label="Copy link"
+              title="Copy link"
+            >
+              <CopyOutlined />
+            </button>
+          </div>
           <button
             type="button"
             className="album-qr__btn album-qr__btn--primary"

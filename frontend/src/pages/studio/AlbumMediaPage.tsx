@@ -170,6 +170,10 @@ export const AlbumMediaPage = () => {
         </div>
       )}
 
+      <div className="album-media__uploads">
+        <UploadProgressList />
+      </div>
+
       <div className="album-media__workspace">
         <section className="album-media__panel">
           <div className="album-media__panel-head">
@@ -230,10 +234,6 @@ export const AlbumMediaPage = () => {
             />
           </div>
         </section>
-      </div>
-
-      <div className="album-media__uploads">
-        <UploadProgressList />
       </div>
     </div>
   );

@@ -19,6 +19,8 @@ export const useUploadStore = create<UploadStore>((set) => ({
   removeTask: (id) => set((state) => ({ tasks: state.tasks.filter((task) => task.id !== id) })),
   clearCompleted: () =>
     set((state) => ({
-      tasks: state.tasks.filter((task) => task.status !== 'done' && task.status !== 'cancelled'),
+      tasks: state.tasks.filter(
+        (task) => task.status !== 'done' && task.status !== 'cancelled' && task.status !== 'failed',
+      ),
     })),
 }));
