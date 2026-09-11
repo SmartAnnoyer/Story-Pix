@@ -4,6 +4,7 @@ export const MAX_AR_ITEMS_PER_ALBUM = 25;
 /** Client mirrors of backend defaults (after photo compression). */
 export const MAX_PHOTO_UPLOAD_MB = 8;
 export const MAX_VIDEO_UPLOAD_MB = 80;
+export const MAX_VIDEO_DURATION_SEC = 90;
 /** Recommend studio compress under this for snappy guest AR (soft guidance). */
 export const RECOMMENDED_VIDEO_PLAYBACK_MB = 25;
 
