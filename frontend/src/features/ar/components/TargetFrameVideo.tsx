@@ -46,7 +46,7 @@ import {
   isVideoDecoderPrimed,
   prefetchVideo,
   primeVideoDecoder,
-  resolvePlayableVideoUrl,
+  shouldStreamVideoProgressively,
 } from '../utils/video-prefetch';
 import { dumpArOverlayDebug } from '../utils/ar-overlay-debug';
 import { logViewerDiagnostics } from '../utils/viewer-debug-diagnostics';
@@ -88,10 +88,12 @@ interface TargetFrameVideoProps {
   reveal?: boolean;
 }
 
-const LOAD_TIMEOUT_MS = 8_000;
+const LOAD_TIMEOUT_MS = 12_000;
 const PRIMED_LOAD_TIMEOUT_MS = 1_200;
-const BLOB_WAIT_MS = 12_000;
-const IOS_LOAD_TIMEOUT_MS = 12_000;
+const BLOB_WAIT_MS = 20_000;
+const LARGE_BLOB_WAIT_MS = 60_000;
+const IOS_LOAD_TIMEOUT_MS = 20_000;
+const PROGRESSIVE_LOAD_TIMEOUT_MS = 25_000;
 const PLAY_READY_FALLBACK_MS = 900;
 
 const isIOS = () => typeof navigator !== 'undefined' && /iP(hone|od|ad)/.test(navigator.userAgent);
@@ -993,11 +995,30 @@ export const TargetFrameVideo = ({
 
           prefetchVideo(source);
 
-          const blobUrl = iosHtmlCamera
-            ? await ensureVideoBlobForPlayback(source, 20_000)
-            : (getPrimedVideoBlobUrl(source) ??
-              getPrefetchedBlobUrl(source) ??
-              (await ensureVideoBlobForPlayback(source, BLOB_WAIT_MS)));
+          // Large clips (> previous 25MB cache) must stream — don't block waiting on a full blob.
+          if (shouldStreamVideoProgressively(source)) {
+            await tryResolvedSource(
+              source,
+              source,
+              'progressive-direct',
+              PROGRESSIVE_LOAD_TIMEOUT_MS,
+            );
+            return;
+          }
+
+          const cachedBlob = getPrimedVideoBlobUrl(source) ?? getPrefetchedBlobUrl(source) ?? null;
+          const blobWaitMs = iosHtmlCamera ? LARGE_BLOB_WAIT_MS : BLOB_WAIT_MS;
+          const blobUrl = cachedBlob ?? (await ensureVideoBlobForPlayback(source, blobWaitMs));
+
+          if (shouldStreamVideoProgressively(source)) {
+            await tryResolvedSource(
+              source,
+              source,
+              'progressive-direct',
+              PROGRESSIVE_LOAD_TIMEOUT_MS,
+            );
+            return;
+          }
 
           if (blobUrl) {
             await tryResolvedSource(
@@ -1008,24 +1029,21 @@ export const TargetFrameVideo = ({
                 : 'blob',
               isVideoDecoderPrimed(source) || isPlaybackElementPrimed(source)
                 ? PRIMED_LOAD_TIMEOUT_MS
-                : loadTimeout,
+                : Math.max(loadTimeout, PROGRESSIVE_LOAD_TIMEOUT_MS),
             );
             return;
           }
 
-          if (iosHtmlCamera) {
-            throw new Error('iOS requires a buffered video blob before playback');
-          }
-
-          const resolved =
-            (await resolvePlayableVideoUrl(source, {
-              allowBlob: true,
-              blobWaitMs: 400,
-            })) ?? source;
+          // Blob not ready (slow network / large file) — stream the URL directly.
+          viewerLog('info', 'blob unavailable — streaming progressive URL', {
+            iosHtmlCamera,
+            src: source.slice(0, 120),
+          });
           await tryResolvedSource(
-            resolved,
             source,
-            resolved.startsWith('blob:') ? 'blob' : 'direct',
+            source,
+            'progressive-direct',
+            PROGRESSIVE_LOAD_TIMEOUT_MS,
           );
           return;
         } catch (error) {
@@ -1043,10 +1061,27 @@ export const TargetFrameVideo = ({
             src: source.slice(0, 96),
           });
 
-          const fallbackBlob = await awaitSameOriginVideoUrl(source, IOS_LOAD_TIMEOUT_MS);
+          try {
+            await tryResolvedSource(
+              source,
+              source,
+              'progressive-fallback',
+              PROGRESSIVE_LOAD_TIMEOUT_MS,
+            );
+            return;
+          } catch (directError) {
+            lastError = directError;
+          }
+
+          const fallbackBlob = await awaitSameOriginVideoUrl(source, LARGE_BLOB_WAIT_MS);
           if (fallbackBlob) {
             try {
-              await tryResolvedSource(fallbackBlob, source, 'blob-fallback');
+              await tryResolvedSource(
+                fallbackBlob,
+                source,
+                'blob-fallback',
+                PROGRESSIVE_LOAD_TIMEOUT_MS,
+              );
               return;
             } catch (blobError) {
               lastError = blobError;

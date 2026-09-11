@@ -394,8 +394,9 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
   return (
     <div className="media-upload">
       <p className="media-upload__hint">
-        Drop or choose one or more videos, then pick a cover frame for each. Keep clips under 80 MB
-        and about 90 seconds — compress to 720p first if the file is larger.
+        Drop or choose one or more videos, then pick a cover frame for each. Keep clips under about
+        25 MB when you can (max 80 MB, ~90s) so guest phones start playback reliably — compress to
+        720p first if the file is larger.
       </p>
       {prepLabel ? <p className="media-upload__queue">{prepLabel}</p> : null}
       <Dragger
@@ -415,7 +416,7 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
           <InboxOutlined />
         </p>
         <p className="ant-upload-text">Drop videos here</p>
-        <p className="ant-upload-hint">MP4, MOV — select or drop many at once · max 80 MB, ~90s</p>
+        <p className="ant-upload-hint">MP4, MOV — many at once · prefer ≤25 MB (max 80 MB), ~90s</p>
       </Dragger>
 
       <VideoThumbnailSelectModal

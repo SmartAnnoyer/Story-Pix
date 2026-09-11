@@ -12,9 +12,12 @@ const playbackPrimeBySource = new Map<string, Promise<boolean>>();
 const ensureBlobBySource = new Map<string, Promise<string | null>>();
 const primedVideos = new Map<string, HTMLVideoElement>();
 const blobCacheOrder: string[] = [];
-const MAX_BLOB_CACHE_BYTES = 25_000_000;
-const MAX_BLOB_CACHE_ENTRIES = 2;
+/** Match studio upload cap so guest AR can buffer large clips. Keep only one heavy blob. */
+const MAX_BLOB_CACHE_BYTES = 80 * 1024 * 1024;
+const MAX_BLOB_CACHE_ENTRIES = 1;
 const MAX_CONCURRENT_BLOB_FETCHES = 1;
+/** URLs too large / unsuitable for full-blob cache — play via progressive HTTP instead. */
+const progressiveOnlyBySource = new Set<string>();
 
 let activeBlobFetches = 0;
 const blobFetchQueue: Array<() => void> = [];
@@ -112,7 +115,8 @@ const fetchVideoBlobOnce = async (url: string): Promise<string | null> => {
     const lengthHeader = response.headers.get('content-length');
     const length = lengthHeader ? Number(lengthHeader) : NaN;
     if (Number.isFinite(length) && length > MAX_BLOB_CACHE_BYTES) {
-      viewerLog('warn', 'video too large for blob cache', {
+      progressiveOnlyBySource.add(url);
+      viewerLog('warn', 'video too large for blob cache — will stream progressively', {
         bytes: length,
         maxBytes: MAX_BLOB_CACHE_BYTES,
         url: url.slice(0, 96),
@@ -122,7 +126,8 @@ const fetchVideoBlobOnce = async (url: string): Promise<string | null> => {
     }
     const blob = await response.blob();
     if (blob.size > MAX_BLOB_CACHE_BYTES) {
-      viewerLog('warn', 'video too large for blob cache', {
+      progressiveOnlyBySource.add(url);
+      viewerLog('warn', 'video too large for blob cache — will stream progressively', {
         bytes: blob.size,
         maxBytes: MAX_BLOB_CACHE_BYTES,
         url: url.slice(0, 96),
@@ -313,6 +318,12 @@ export const awaitSameOriginVideoUrl = async (
   if (raced) return raced;
 
   return ensureVideoBlobForPlayback(url, timeoutMs);
+};
+
+/** True when this clip should stream over HTTP instead of waiting on a full blob. */
+export const shouldStreamVideoProgressively = (url: string | null | undefined): boolean => {
+  if (!url) return false;
+  return progressiveOnlyBySource.has(url);
 };
 
 /** Prefer a fully cached blob URL when available (instant start). */
