@@ -480,6 +480,76 @@ export const restartMindArTracking = (host: HTMLElement): void => {
   }, 120);
 };
 
+/**
+ * Soft recovery for long sessions: keep the same camera stream, but re-bind MindAR's
+ * processVideo loop when detection goes stale (without tearing down the scene).
+ */
+export const softRefreshMindArTracking = async (host: HTMLElement): Promise<boolean> => {
+  const system = getMindArSystem(host);
+  const video = getCameraVideo(host);
+  if (!system || !video) return false;
+
+  ensureCameraPreviewVisible(host);
+  keepMindArCameraPlaying(host);
+  syncMindArTrackingViewport(host);
+
+  try {
+    system.controller?.stopProcessVideo();
+  } catch {
+    // ignore
+  }
+
+  try {
+    system.unpause();
+  } catch {
+    // ignore
+  }
+
+  if (video.videoWidth > 0 && system.controller) {
+    system.controller.inputWidth = video.videoWidth;
+    system.controller.inputHeight = video.videoHeight;
+  }
+
+  try {
+    if (system.controller && video.videoWidth > 0) {
+      await system.controller.dummyRun(video);
+    }
+  } catch {
+    // dummyRun is best-effort on some devices
+  }
+
+  keepMindArCameraPlaying(host);
+  syncMindArTrackingViewport(host);
+
+  try {
+    system.controller?.processVideo(video);
+    viewerLog('info', 'MindAR tracking soft-refreshed');
+    return true;
+  } catch (error) {
+    viewerLog('warn', 'MindAR soft refresh processVideo failed', {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    window.setTimeout(() => {
+      if (!host.isConnected) return;
+      keepMindArCameraPlaying(host);
+      try {
+        system.controller?.processVideo(video);
+      } catch {
+        // ignore
+      }
+    }, 200);
+    return false;
+  }
+};
+
+/** True when MindAR reports any target currently locking / showing. */
+export const hasActiveMindArLock = (host: HTMLElement | null): boolean => {
+  if (!host) return false;
+  const states = getMindArSystem(host)?.controller?.trackingStates;
+  if (!states?.length) return false;
+  return states.some((state) => Boolean(state.showing || state.isTracking));
+};
+
 export const isCameraPreviewLive = (host: HTMLElement): boolean => {
   ensureCameraPreviewVisible(host);
   const video = getCameraVideo(host);

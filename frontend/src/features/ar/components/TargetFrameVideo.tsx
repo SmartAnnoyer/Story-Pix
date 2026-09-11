@@ -19,7 +19,6 @@ import {
   ensureTransparentRenderer,
   hideIosTrackingCanvas,
   keepMindArCameraPlaying,
-  restartMindArTracking,
   setOverlayPlaybackActive,
 } from '../utils/mindar-scene';
 import {
@@ -89,10 +88,11 @@ interface TargetFrameVideoProps {
   reveal?: boolean;
 }
 
-const LOAD_TIMEOUT_MS = 2_800;
-const PRIMED_LOAD_TIMEOUT_MS = 500;
-const BLOB_WAIT_MS = 6_000;
-const IOS_LOAD_TIMEOUT_MS = 8_000;
+const LOAD_TIMEOUT_MS = 8_000;
+const PRIMED_LOAD_TIMEOUT_MS = 1_200;
+const BLOB_WAIT_MS = 12_000;
+const IOS_LOAD_TIMEOUT_MS = 12_000;
+const PLAY_READY_FALLBACK_MS = 900;
 
 const isIOS = () => typeof navigator !== 'undefined' && /iP(hone|od|ad)/.test(navigator.userAgent);
 
@@ -259,11 +259,21 @@ export const TargetFrameVideo = ({
 
   const tryNotifyPlaybackReady = useCallback(() => {
     const video = videoRef.current;
-    if (!video || hasNotifiedPlayRef.current || !overlayPlacedRef.current) return;
+    if (!video || hasNotifiedPlayRef.current) return;
     if (video.videoWidth < 2 || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
     if (video.paused) return;
+    // Overlay placement can lag on some targets — once frames are decoding, treat as ready
+    // so chrome / status do not stay stuck while the plane catches up.
+    if (!overlayPlacedRef.current && modeRef.current !== 'fullscreen') {
+      return;
+    }
     notifyPlay();
   }, [notifyPlay]);
+
+  const markOverlayReady = useCallback(() => {
+    overlayPlacedRef.current = true;
+    tryNotifyPlaybackReady();
+  }, [tryNotifyPlaybackReady]);
 
   useLayoutEffect(() => {
     if (!active) {
@@ -660,6 +670,7 @@ export const TargetFrameVideo = ({
       if (!result.ok) return false;
       planeAttached = true;
       setOverlayVideoPlaneVisible(entity, true);
+      markOverlayReady();
       dumpArOverlayDebug({
         host,
         entity,
@@ -711,10 +722,12 @@ export const TargetFrameVideo = ({
       } else if (placed) {
         setStageVisible(false);
       }
+      if (planeAttached && hasPicture) {
+        markOverlayReady();
+      }
       if (placed && hasPicture && missFrames >= 0) {
         missFrames = -1;
-        overlayPlacedRef.current = true;
-        tryNotifyPlaybackReady();
+        markOverlayReady();
         viewerLog('info', 'mapped video on crop rectangle', {
           ios,
           size: `${video?.videoWidth ?? 0}x${video?.videoHeight ?? 0}`,
@@ -754,7 +767,7 @@ export const TargetFrameVideo = ({
       detachOverlayVideoPlane(entity);
       keepMindArCameraPlaying(host);
     };
-  }, [active, mode, host, targetEntity, aspectRatio, overlayFrame, tryNotifyPlaybackReady]);
+  }, [active, mode, host, targetEntity, aspectRatio, overlayFrame, markOverlayReady]);
 
   useEffect(() => {
     if (mode !== 'fullscreen' || !stageRef.current) return;
@@ -836,10 +849,21 @@ export const TargetFrameVideo = ({
       }
       setNeedsTap(false);
       setIsPlaying(true);
-      tryNotifyPlaybackReady();
+      // Fullscreen does not need crop placement; frame mode gets a short fallback if pose lags.
+      if (modeRef.current === 'fullscreen') {
+        markOverlayReady();
+      } else {
+        tryNotifyPlaybackReady();
+        window.setTimeout(() => {
+          const playing = videoRef.current;
+          if (!playing || hasNotifiedPlayRef.current || playing.paused) return;
+          if (playing.videoWidth < 2) return;
+          markOverlayReady();
+        }, PLAY_READY_FALLBACK_MS);
+      }
       return true;
     },
-    [tryNotifyPlaybackReady, host, onSoundOnChange],
+    [tryNotifyPlaybackReady, markOverlayReady, host, onSoundOnChange],
   );
 
   const loadAndPlay = useCallback(
@@ -1057,7 +1081,7 @@ export const TargetFrameVideo = ({
       video.parentNode?.removeChild(video);
       if (host) {
         keepMindArCameraPlaying(host);
-        restartMindArTracking(host);
+        // Parent (ARViewer) owns MindAR restart — avoid double-restart thrash here.
       }
       return;
     }
@@ -1101,15 +1125,22 @@ export const TargetFrameVideo = ({
     });
 
     void loadAndPlay(sources)
-      .catch((error) => {
+      .catch(async (error) => {
         if (cancelled) return;
-        viewerLog('error', 'TargetFrameVideo loadAndPlay failed', {
+        viewerLog('warn', 'TargetFrameVideo loadAndPlay first attempt failed — retrying', {
           message: error instanceof Error ? error.message : String(error),
         });
-        // Instant-or-nothing: never leave a silent late-start / audio-only path hanging.
-        onErrorRef.current?.(
-          'Video did not start instantly. Hold the photo steady in the frame and try again.',
-        );
+        try {
+          await loadAndPlay(sources);
+        } catch (retryError) {
+          if (cancelled) return;
+          viewerLog('error', 'TargetFrameVideo loadAndPlay failed', {
+            message: retryError instanceof Error ? retryError.message : String(retryError),
+          });
+          onErrorRef.current?.(
+            'Video did not start. Hold the photo steady in the frame and try again.',
+          );
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -1285,8 +1316,9 @@ export const TargetFrameVideo = ({
   if (!active || typeof document === 'undefined') return null;
 
   const showFullscreen = mode === 'fullscreen';
+  const showPlaybackChrome = Boolean(isPlaying || reveal) && !needsTap;
 
-  const playbackChrome = (
+  const playbackChrome = showPlaybackChrome ? (
     <div
       className="ar-video-playback-chrome"
       style={{
@@ -1372,11 +1404,11 @@ export const TargetFrameVideo = ({
         )}
       </button>
     </div>
-  );
+  ) : null;
 
   // Full-screen double-tap catcher — below chrome/controls, above video.
   const doubleTapCatcher =
-    active && !needsTap ? (
+    active && !needsTap && (isPlaying || reveal || showFullscreen) ? (
       <div
         role="presentation"
         aria-hidden

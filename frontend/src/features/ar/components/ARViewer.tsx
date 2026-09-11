@@ -28,10 +28,12 @@ import {
   ensureCameraPreviewVisible,
   flipMindArCamera,
   getMindArSystem,
+  hasActiveMindArLock,
   isCameraPreviewLive,
   keepMindArCameraPlaying,
   releaseMappedVideoDecoder,
   restartMindArTracking,
+  softRefreshMindArTracking,
   type CameraFacing,
 } from '../utils/mindar-scene';
 import {
@@ -80,10 +82,21 @@ const SCAN_HINT_DELAY_MS = 18_000;
 const SCAN_NO_MATCH_DELAY_MS = 30_000;
 const TARGET_FOUND_CONFIRM_MS = 0;
 const TARGET_SWITCH_CONFIRM_MS = 0;
-/** Stop as soon as the print leaves frame (no linger on the previous clip). */
-const TARGET_LOST_GRACE_MS = 0;
-const TARGET_LOST_LOADING_GRACE_MS = 0;
-const TARGET_LOST_PLAYING_GRACE_MS = 0;
+/**
+ * Brief lost-grace absorbs MindAR wobble so chrome / playback do not tear down and remount.
+ * Switching to a different print still tears down immediately in targetFound.
+ */
+const TARGET_LOST_GRACE_MS = 160;
+/** Keep loading through short tracking gaps while the clip buffers onto the photo. */
+const TARGET_LOST_LOADING_GRACE_MS = 3_200;
+/** Anti-flicker while playing — short enough to feel snappy when the user walks away. */
+const TARGET_LOST_PLAYING_GRACE_MS = 520;
+
+/** Soft-refresh MindAR when scanning goes cold (long sessions degrade detection). */
+const TRACKING_WATCHDOG_MS = 4_000;
+const TRACKING_STALE_MS = 14_000;
+const TRACKING_PROPHYLACTIC_MS = 75_000;
+const TRACKING_REFRESH_COOLDOWN_MS = 8_000;
 
 const buildServerMindBundle = (albumSlug: string, manifest: ViewerManifest): MindBundle | null => {
   if (!manifest.mindFile) return null;
@@ -155,6 +168,9 @@ export const ARViewer = ({
   const scanNoMatchTimeoutRef = useRef<number | null>(null);
   const scanTickRef = useRef<number | null>(null);
   const statusRef = useRef<ScanOverlayMessage>(status);
+  const lastTrackingSignalAtRef = useRef(Date.now());
+  const lastTrackingRefreshAtRef = useRef(0);
+  const trackingRefreshInFlightRef = useRef(false);
 
   useLayoutEffect(() => {
     const host = containerRef.current;
@@ -265,9 +281,12 @@ export const ARViewer = ({
     scanTickRef.current = null;
   }, []);
 
+  const startScanTimersRef = useRef<() => void>(() => undefined);
+
   const startScanTimers = useCallback(() => {
     clearScanTimers();
     setScanSeconds(0);
+    lastTrackingSignalAtRef.current = Date.now();
     scanTickRef.current = window.setInterval(() => {
       setScanSeconds((seconds) => seconds + 1);
     }, 1000);
@@ -281,14 +300,25 @@ export const ARViewer = ({
       }
     }, SCAN_HINT_DELAY_MS);
 
+    // Don't hard-stop scanning — soft-refresh MindAR and keep looking.
     scanNoMatchTimeoutRef.current = window.setTimeout(() => {
-      setStatus('no_match');
-      setStatusDetail(
-        'Still looking… Keep the printed photo filling the frame in bright light. Tap Try again if it stays stuck.',
-      );
-      void recordEventRef.current(ScanEventType.SCAN_FAILED);
+      const host = containerRef.current;
+      if (!host || !scanningEnabledRef.current) return;
+      viewerLog('info', 'scan timeout — soft-refreshing MindAR and continuing');
+      void softRefreshMindArTracking(host).finally(() => {
+        lastTrackingSignalAtRef.current = Date.now();
+        lastTrackingRefreshAtRef.current = Date.now();
+        if (!scanningEnabledRef.current) return;
+        const current = statusRef.current;
+        if (current === 'match_found' || current === 'recognized') return;
+        setStatus('scanning');
+        setStatusDetail('Still looking… Hold the printed photo steady and fill the frame.');
+        startScanTimersRef.current();
+      });
     }, SCAN_NO_MATCH_DELAY_MS);
   }, [clearScanTimers]);
+
+  startScanTimersRef.current = startScanTimers;
 
   const recordEventRef = useRef<
     (eventType: ScanEventType, target?: ViewerManifestTarget | null) => Promise<void>
@@ -357,6 +387,75 @@ export const ARViewer = ({
   useEffect(() => {
     videoModeRef.current = videoMode;
   }, [videoMode]);
+
+  // Keep camera + MindAR detection healthy for long viewing sessions.
+  useEffect(() => {
+    if (!sceneHost) return undefined;
+
+    const tick = () => {
+      const host = containerRef.current ?? sceneHost;
+      if (!host || !host.isConnected) return;
+
+      ensureCameraPreviewVisible(host);
+      keepMindArCameraPlaying(host);
+
+      const status = statusRef.current;
+      const playing = status === 'match_found' || status === 'recognized';
+      const fullscreen = videoModeRef.current === 'fullscreen';
+      const locking = hasActiveMindArLock(host) || targetTrackedRef.current;
+
+      if (locking || (playing && fullscreen)) {
+        lastTrackingSignalAtRef.current = Date.now();
+      }
+
+      // Never interrupt an in-progress clip — only keep the camera feed alive.
+      if (playing) return;
+      if (!scanningEnabledRef.current) return;
+      if (status !== 'scanning' && status !== 'move_closer' && status !== 'no_match') {
+        return;
+      }
+
+      const now = Date.now();
+      const sinceSignal = now - lastTrackingSignalAtRef.current;
+      const sinceRefresh = now - lastTrackingRefreshAtRef.current;
+      const cameraLive = isCameraPreviewLive(host);
+      const needsStaleRefresh = !locking && sinceSignal >= TRACKING_STALE_MS;
+      const needsProphylactic =
+        sinceRefresh >= TRACKING_PROPHYLACTIC_MS && sinceSignal >= TRACKING_STALE_MS / 2;
+      const needsCameraRefresh = !cameraLive;
+
+      if (!needsStaleRefresh && !needsProphylactic && !needsCameraRefresh) return;
+      if (sinceRefresh < TRACKING_REFRESH_COOLDOWN_MS) return;
+      if (trackingRefreshInFlightRef.current) return;
+
+      trackingRefreshInFlightRef.current = true;
+      lastTrackingRefreshAtRef.current = now;
+      viewerLog('info', 'tracking watchdog soft-refresh', {
+        sinceSignal,
+        cameraLive,
+        status,
+        prophylactic: needsProphylactic,
+      });
+
+      void softRefreshMindArTracking(host)
+        .catch(() => restartMindArTracking(host))
+        .finally(() => {
+          trackingRefreshInFlightRef.current = false;
+          lastTrackingSignalAtRef.current = Date.now();
+          keepMindArCameraPlaying(host);
+          if (!scanningEnabledRef.current) return;
+          if (statusRef.current === 'no_match') {
+            setStatus('scanning');
+            setStatusDetail('Point at the printed photo — fill the frame.');
+            startScanTimers();
+          }
+        });
+    };
+
+    const timer = window.setInterval(tick, TRACKING_WATCHDOG_MS);
+    tick();
+    return () => window.clearInterval(timer);
+  }, [sceneHost, startScanTimers]);
 
   useEffect(() => {
     void recordEvent(ScanEventType.VIEWER_OPEN);
@@ -677,6 +776,15 @@ export const ARViewer = ({
             return;
           }
 
+          // Fullscreen latches the current clip — ignore other prints in the camera view.
+          if (playing && videoModeRef.current === 'fullscreen') {
+            viewerLog('info', 'confirmTargetMatch ignored — fullscreen latched', {
+              mindIndex,
+              active: activeIndex,
+            });
+            return;
+          }
+
           if (playing && activeIndex !== null && activeIndex !== mindIndex) {
             const activeGroup = mappingsForMindIndex(targetsRef.current, activeIndex);
             const activePhotoId = activeGroup[0]?.photoMediaId;
@@ -810,11 +918,14 @@ export const ARViewer = ({
               }
               targetTrackedRef.current = true;
 
+              lastTrackingSignalAtRef.current = Date.now();
+
               const pending = targetFoundTimersRef.current.get(mindIndex);
               if (pending) window.clearTimeout(pending);
 
               const switchingAway =
                 playing &&
+                videoModeRef.current !== 'fullscreen' &&
                 activeMindIndexRef.current !== null &&
                 activeMindIndexRef.current !== mindIndex;
               if (switchingAway) {
@@ -830,6 +941,19 @@ export const ARViewer = ({
                 setResumeAtSeconds(null);
                 videoRevealRef.current = false;
                 setVideoReveal(false);
+              }
+
+              // Fullscreen: keep the current clip only — do not confirm other prints.
+              if (playing && videoModeRef.current === 'fullscreen') {
+                if (activeMindIndexRef.current === mindIndex) {
+                  targetTrackedRef.current = true;
+                } else {
+                  viewerLog('info', 'targetFound ignored — fullscreen latched', {
+                    mindIndex,
+                    active: activeMindIndexRef.current,
+                  });
+                }
+                return;
               }
 
               const matchGroup = mappingsForMindIndex(targetsRef.current, mindIndex);
@@ -949,7 +1073,7 @@ export const ARViewer = ({
                   releaseMappedVideoDecoder(host);
                   keepMindArCameraPlaying(host);
                   restartMindArTracking(host);
-                }, 0);
+                }, 60);
               };
 
               if (graceMs <= 0) {
@@ -1188,6 +1312,9 @@ export const ARViewer = ({
         }
 
         const raw = readMatchPercent(host);
+        if (raw >= 42 || hasActiveMindArLock(host)) {
+          lastTrackingSignalAtRef.current = Date.now();
+        }
         // While confirming a targetFound, nudge toward a locked read.
         const boosted =
           targetTrackedRef.current && (status === 'scanning' || status === 'move_closer')
@@ -1419,11 +1546,12 @@ export const ARViewer = ({
           }
         }}
         onError={(message) => {
-          viewerLog('error', 'video playback failed — aborting late play', {
+          viewerLog('error', 'video playback failed', {
             message,
             url: activeVideoUrl,
           });
-          // Instant-or-nothing: do not keep a half-started clip that only plays audio later.
+          // Only abort if this mapping is still the active one — avoid racing a remount.
+          if (!activeVideoMediaIdRef.current) return;
           resumeScanningAfterVideo();
           setStatusDetail(message);
         }}
