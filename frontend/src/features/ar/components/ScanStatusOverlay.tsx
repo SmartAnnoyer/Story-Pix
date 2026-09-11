@@ -23,13 +23,13 @@ type StatusCopy = {
 
 const STATUS_COPY: Partial<Record<ScanOverlayMessage, StatusCopy>> = {
   no_match: {
-    title: 'Need a fresh scan',
-    body: 'Detection paused so you are not left waiting. Tap Try again to refresh and start again.',
+    title: 'No match found',
+    body: 'We could not lock onto a printed photo yet. Check lighting, fill the frame, then try again.',
     tone: 'warn',
     tips: [
-      'Good lighting helps',
+      'Use bright, even light',
       'Fill the frame with the whole photo',
-      'Hold steady after refresh',
+      'Hold steady for a moment',
     ],
     action: 'Try again',
   },

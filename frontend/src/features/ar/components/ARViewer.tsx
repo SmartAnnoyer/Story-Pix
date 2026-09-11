@@ -262,10 +262,12 @@ export const ARViewer = ({
   }, [status]);
 
   const scanFocusPhase: ScanFocusPhase = useMemo(() => {
+    if (status === 'no_match') return 'nomatch';
+    // Lightning loader only while a match is confirmed and the clip is still buffering.
     if (status === 'match_found' && !videoReveal) return 'locking';
     if (status === 'match_found') return 'found';
-    if (status === 'scanning' || status === 'move_closer') {
-      if (matchPercent >= 82) return 'locking';
+    if (status === 'move_closer') return 'warming';
+    if (status === 'scanning') {
       if (matchPercent >= 42) return 'warming';
       return 'scanning';
     }
@@ -300,20 +302,23 @@ export const ARViewer = ({
       }
     }, SCAN_HINT_DELAY_MS);
 
-    // Don't hard-stop scanning — soft-refresh MindAR and keep looking.
+    // Show a clear no-match state, soft-refresh MindAR, and keep the camera live.
     scanNoMatchTimeoutRef.current = window.setTimeout(() => {
       const host = containerRef.current;
       if (!host || !scanningEnabledRef.current) return;
-      viewerLog('info', 'scan timeout — soft-refreshing MindAR and continuing');
+      const current = statusRef.current;
+      if (current === 'match_found' || current === 'recognized') return;
+
+      setStatus('no_match');
+      setStatusDetail(
+        'No match found yet. Fill the frame with the printed photo in bright light, then tap Try again.',
+      );
+      void recordEventRef.current(ScanEventType.SCAN_FAILED);
+      viewerLog('info', 'scan timeout — showing no match and soft-refreshing MindAR');
+
       void softRefreshMindArTracking(host).finally(() => {
         lastTrackingSignalAtRef.current = Date.now();
         lastTrackingRefreshAtRef.current = Date.now();
-        if (!scanningEnabledRef.current) return;
-        const current = statusRef.current;
-        if (current === 'match_found' || current === 'recognized') return;
-        setStatus('scanning');
-        setStatusDetail('Still looking… Hold the printed photo steady and fill the frame.');
-        startScanTimersRef.current();
       });
     }, SCAN_NO_MATCH_DELAY_MS);
   }, [clearScanTimers]);
@@ -411,7 +416,8 @@ export const ARViewer = ({
       // Never interrupt an in-progress clip — only keep the camera feed alive.
       if (playing) return;
       if (!scanningEnabledRef.current) return;
-      if (status !== 'scanning' && status !== 'move_closer' && status !== 'no_match') {
+      // Leave no_match UI alone until the guest taps Try again.
+      if (status !== 'scanning' && status !== 'move_closer') {
         return;
       }
 
@@ -443,12 +449,6 @@ export const ARViewer = ({
           trackingRefreshInFlightRef.current = false;
           lastTrackingSignalAtRef.current = Date.now();
           keepMindArCameraPlaying(host);
-          if (!scanningEnabledRef.current) return;
-          if (statusRef.current === 'no_match') {
-            setStatus('scanning');
-            setStatusDetail('Point at the printed photo — fill the frame.');
-            startScanTimers();
-          }
         });
     };
 
@@ -1496,6 +1496,7 @@ export const ARViewer = ({
           videoMode !== 'fullscreen' &&
           (status === 'scanning' ||
             status === 'move_closer' ||
+            status === 'no_match' ||
             (status === 'match_found' && !videoReveal))
         }
         phase={scanFocusPhase}
