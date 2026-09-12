@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import { createPortal } from 'react-dom';
 import './ScanFocusFrame.css';
 
 export type ScanFocusPhase = 'scanning' | 'warming' | 'locking' | 'found' | 'nomatch';
@@ -13,7 +14,7 @@ export const ScanFocusFrame = ({ visible, phase = 'scanning' }: ScanFocusFramePr
   const gradId = `sp-frame-bolt-${reactId}`;
   const glowId = `sp-frame-bolt-glow-${reactId}`;
 
-  if (!visible) return null;
+  if (!visible || typeof document === 'undefined') return null;
 
   const isBusy = phase === 'scanning' || phase === 'warming' || phase === 'locking';
 
@@ -35,9 +36,9 @@ export const ScanFocusFrame = ({ visible, phase = 'scanning' }: ScanFocusFramePr
           ? 'Try brighter light and fill the frame, then tap Try again'
           : 'Point at the printed photo and hold steady';
 
-  return (
+  return createPortal(
     <div
-      className={`scan-focus-frame scan-focus-frame--${phase}`}
+      className={`scan-focus-frame scan-focus-frame--portal scan-focus-frame--${phase}`}
       role="status"
       aria-live="polite"
       aria-label={badge}
@@ -123,6 +124,7 @@ export const ScanFocusFrame = ({ visible, phase = 'scanning' }: ScanFocusFramePr
       </div>
 
       <p className="scan-focus-frame__footer">{footer}</p>
-    </div>
+    </div>,
+    document.body,
   );
 };

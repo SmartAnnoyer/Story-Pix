@@ -6,7 +6,8 @@
   max-width: 100vw;
   height: 100%;
   height: 100dvh;
-  z-index: 10020;
+  /* Above live camera video (z-index 1), below playback chrome (~10050+) and top logo. */
+  z-index: 10040;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -17,6 +18,10 @@
     1rem
     max(96px, calc(env(safe-area-inset-bottom) + 80px));
   animation: scan-focus-enter 0.35s ease-out;
+}
+
+.scan-focus-frame--portal {
+  z-index: 10040;
 }
 
 @keyframes scan-focus-enter {

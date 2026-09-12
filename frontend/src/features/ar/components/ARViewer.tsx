@@ -267,6 +267,7 @@ export const ARViewer = ({
     if (status === 'match_found' && !videoReveal) return 'locking';
     if (status === 'match_found') return 'found';
     if (status === 'move_closer') return 'warming';
+    if (status === 'loading' || status === 'preparing') return 'scanning';
     if (status === 'scanning') {
       if (matchPercent >= 42) return 'warming';
       return 'scanning';
@@ -1494,9 +1495,17 @@ export const ARViewer = ({
       <ScanFocusFrame
         visible={
           videoMode !== 'fullscreen' &&
+          status !== 'recognized' &&
+          status !== 'camera_required' &&
+          status !== 'compile_failed' &&
+          status !== 'scans_exhausted' &&
+          status !== 'no_targets' &&
+          status !== 'video_unavailable' &&
           (status === 'scanning' ||
             status === 'move_closer' ||
             status === 'no_match' ||
+            status === 'loading' ||
+            status === 'preparing' ||
             (status === 'match_found' && !videoReveal))
         }
         phase={scanFocusPhase}

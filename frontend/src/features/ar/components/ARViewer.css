@@ -74,6 +74,7 @@ video.ar-camera-feed {
   object-position: center center !important;
   aspect-ratio: auto !important;
   transform: none !important;
+  /* Keep under portaled scan UI (10040) and playback chrome. */
   z-index: 1 !important;
   opacity: 1 !important;
   visibility: visible !important;
