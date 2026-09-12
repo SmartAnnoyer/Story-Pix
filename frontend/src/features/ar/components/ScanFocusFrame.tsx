@@ -77,7 +77,7 @@ export const ScanFocusFrame = ({
 
   return createPortal(
     <div
-      className={`scan-focus-frame scan-focus-frame--${phase}${isDetecting && phase !== 'locking' ? ' scan-focus-frame--detecting' : ''}`}
+      className={`scan-focus-frame scan-focus-frame--${phase}${isDetecting ? ' scan-focus-frame--detecting' : ''}`}
       aria-live="polite"
       role="status"
     >
