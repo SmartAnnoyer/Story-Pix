@@ -28,10 +28,11 @@ html.viewer-route #root {
   touch-action: none;
   overscroll-behavior: none;
   z-index: 1;
-  isolation: isolate;
+  /* Keep camera + HUD in one stacking context (no isolation escape). */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
 
-/* Guest chrome must anchor to the viewport, not a collapsed inner host. */
 .ar-ui-layer > .scan-focus-frame,
 .ar-ui-layer > .scan-status-overlay,
 .ar-ui-layer > .viewer-control-bar,
@@ -39,21 +40,19 @@ html.viewer-route #root {
   position: absolute !important;
   left: 0 !important;
   right: 0 !important;
-  max-width: 100vw !important;
+  max-width: 100% !important;
 }
 
 /*
- * Guest UI layer above the controlled camera preview.
- * MindAR's tracker <video> is kept tiny so mobile browsers cannot paint it over this HTML.
+ * Scan / logo / status HUD above the camera.
+ * Camera uses position:absolute (not fixed) so mobile browsers keep z-index order.
  */
 .ar-ui-layer {
-  position: fixed !important;
+  position: absolute !important;
   inset: 0 !important;
   width: 100% !important;
-  max-width: 100vw !important;
   height: 100% !important;
-  height: 100dvh !important;
-  z-index: 50 !important;
+  z-index: 20 !important;
   pointer-events: none !important;
   overflow: visible !important;
   transform: translateZ(0);
@@ -74,21 +73,22 @@ html.viewer-route #root {
   height: 100% !important;
   overflow: hidden !important;
   background: #000;
+  z-index: 0;
 }
 
-/* Visible camera surface we control (mirrors MindAR stream). */
-.ar-viewer-root > video#sp-camera-preview,
-.ar-viewer-root > video.ar-camera-preview {
-  position: fixed !important;
+/* Fullscreen MindAR camera — absolute inside fixed root (keeps tracking + HUD stacking). */
+.ar-viewer-root > video.ar-camera-feed,
+.ar-viewer-root > video:not(#sp-mapped-video):not(#sp-camera-preview) {
+  position: absolute !important;
   inset: 0 !important;
   top: 0 !important;
   left: 0 !important;
   right: 0 !important;
   bottom: 0 !important;
-  width: 100vw !important;
-  height: 100dvh !important;
-  min-width: 100vw !important;
-  min-height: 100dvh !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 100% !important;
+  min-height: 100% !important;
   max-width: none !important;
   max-height: none !important;
   margin: 0 !important;
@@ -97,37 +97,9 @@ html.viewer-route #root {
   object-fit: cover !important;
   object-position: center center !important;
   aspect-ratio: auto !important;
-  transform: translateZ(0) !important;
+  transform: none !important;
   z-index: 1 !important;
   opacity: 1 !important;
-  visibility: visible !important;
-  display: block !important;
-  pointer-events: none !important;
-  background: #000 !important;
-}
-
-/* MindAR tracker feed — must stay tiny or it covers all guest HTML on mobile. */
-.ar-viewer-root > video.ar-camera-feed--tracker,
-video.ar-camera-feed--tracker {
-  position: fixed !important;
-  inset: auto !important;
-  top: 0 !important;
-  left: 0 !important;
-  right: auto !important;
-  bottom: auto !important;
-  width: 2px !important;
-  height: 2px !important;
-  min-width: 0 !important;
-  min-height: 0 !important;
-  max-width: 2px !important;
-  max-height: 2px !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
-  object-fit: cover !important;
-  transform: none !important;
-  z-index: 0 !important;
-  opacity: 0.01 !important;
   visibility: visible !important;
   display: block !important;
   pointer-events: none !important;
@@ -135,7 +107,7 @@ video.ar-camera-feed--tracker {
 }
 
 .ar-scene-host > video#sp-mapped-video {
-  position: fixed !important;
+  position: absolute !important;
   left: 0 !important;
   top: 0 !important;
   width: 2px !important;
@@ -150,12 +122,12 @@ video.ar-camera-feed--tracker {
 .ar-scene-host .a-canvas,
 .ar-scene-host canvas.a-canvas,
 .ar-scene-host > a-scene {
-  position: fixed !important;
+  position: absolute !important;
   inset: 0 !important;
   top: 0 !important;
   left: 0 !important;
-  width: 100vw !important;
-  height: 100dvh !important;
+  width: 100% !important;
+  height: 100% !important;
   max-width: none !important;
   max-height: none !important;
   background: transparent !important;

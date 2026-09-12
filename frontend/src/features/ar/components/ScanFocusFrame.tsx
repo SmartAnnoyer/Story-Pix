@@ -19,20 +19,20 @@ export const ScanFocusFrame = ({ visible, phase = 'scanning' }: ScanFocusFramePr
 
   const badge =
     phase === 'locking'
-      ? 'Loading video'
+      ? 'Loading video…'
       : phase === 'warming'
-        ? 'Photo detected — hold steady'
+        ? 'Hold steady…'
         : phase === 'nomatch'
           ? 'No match found'
           : 'Scanning…';
 
   const footer =
     phase === 'locking'
-      ? 'Fetching your story… keep the photo in frame'
+      ? 'Keep the photo in the frame'
       : phase === 'warming'
-        ? 'Almost locked — hold still'
+        ? 'Photo detected — hold still'
         : phase === 'nomatch'
-          ? 'Try brighter light and fill the frame, then tap Try again'
+          ? 'Brighter light, fill the frame, then try again'
           : 'Point at the printed photo and hold steady';
 
   return (
@@ -41,6 +41,7 @@ export const ScanFocusFrame = ({ visible, phase = 'scanning' }: ScanFocusFramePr
       role="status"
       aria-live="polite"
       aria-label={badge}
+      data-scan-hud="1"
     >
       <div className="scan-focus-frame__status">
         {isBusy ? <span className="scan-focus-frame__pulse" aria-hidden /> : null}

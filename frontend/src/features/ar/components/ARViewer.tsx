@@ -1494,8 +1494,8 @@ export const ARViewer = ({
         className="ar-scene-host"
       />
       {/*
-        Camera preview (#sp-camera-preview) is injected under this layer by mindar-scene.
-        MindAR's own <video> stays a tiny tracker so it cannot cover guest UI on mobile.
+        Camera video is injected under this layer (absolute, full-size for MindAR).
+        HUD stays a sibling above it so guests always see Scanning / Loading.
       */}
       <div className="ar-ui-layer">
         <ViewerTopChrome
