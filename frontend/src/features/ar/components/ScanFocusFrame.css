@@ -1,14 +1,12 @@
 .scan-focus-frame {
-  pointer-events: none;
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  max-width: 100vw;
-  height: 100%;
-  height: 100dvh;
-  /* Above tracked video shell (10050) so Scanning / Detecting / Loading stay visible */
-  z-index: 10120;
-  display: flex;
+  pointer-events: none !important;
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  /* Above camera feed (z-index 1) inside .ar-viewer-root */
+  z-index: 50 !important;
+  display: flex !important;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -17,6 +15,19 @@
     max(88px, calc(env(safe-area-inset-top) + 72px))
     1rem
     max(88px, calc(env(safe-area-inset-bottom) + 72px));
+  box-sizing: border-box;
+  overflow: hidden;
+  /* Soft vignette — no hole math / no huge box-shadow (mobile-safe) */
+  background: radial-gradient(
+    ellipse 52% 48% at 50% 48%,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0.15) 62%,
+    rgba(0, 0, 0, 0.55) 100%
+  );
+  /* Promote above the live <video> compositor layer on mobile */
+  transform: translate3d(0, 0, 0);
+  -webkit-transform: translate3d(0, 0, 0);
+  isolation: isolate;
   animation: scan-focus-enter 0.35s ease-out;
 }
 
@@ -29,6 +40,22 @@
   }
 }
 
+.scan-focus-frame__dim {
+  display: none;
+}
+
+.scan-focus-frame__content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  width: 100%;
+  max-width: 100%;
+}
+
 .scan-focus-frame__badge {
   flex-shrink: 0;
   display: inline-flex;
@@ -38,8 +65,8 @@
   max-width: min(92vw, 340px);
   padding: 0.65rem 1.2rem;
   border-radius: 999px;
-  border: 1px solid rgba(233, 58, 138, 0.5);
-  background: rgba(8, 8, 14, 0.82);
+  border: 1px solid rgba(233, 58, 138, 0.55);
+  background: rgba(8, 8, 14, 0.9);
   color: #fff;
   font-size: 0.98rem;
   font-weight: 750;
@@ -49,7 +76,7 @@
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   box-shadow:
-    0 12px 32px rgba(0, 0, 0, 0.5),
+    0 12px 32px rgba(0, 0, 0, 0.55),
     0 0 0 1px rgba(107, 44, 219, 0.28),
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
@@ -113,7 +140,7 @@
   height: 4px;
   border-radius: 999px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.18);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
 }
 
@@ -141,7 +168,7 @@
 .scan-focus-frame--nomatch .scan-focus-frame__badge {
   border-color: rgba(255, 194, 51, 0.55);
   color: #ffe8b0;
-  background: rgba(24, 18, 8, 0.72);
+  background: rgba(24, 18, 8, 0.82);
 }
 
 @keyframes scan-badge-pulse {
@@ -163,31 +190,29 @@
 
 .scan-focus-frame__box {
   position: relative;
+  flex-shrink: 0;
   width: min(78vw, 320px, 56dvh);
   height: min(78vw, 320px, 56dvh);
   overflow: visible;
   background: transparent;
-  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.62);
   border-radius: 6px;
-  outline: 1.5px solid rgba(255, 255, 255, 0.16);
+  outline: 2px solid rgba(255, 255, 255, 0.28);
   outline-offset: -1px;
 }
 
 .scan-focus-frame--detecting .scan-focus-frame__box,
 .scan-focus-frame--warming .scan-focus-frame__box {
-  outline-color: rgba(107, 44, 219, 0.45);
-  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+  outline-color: rgba(107, 44, 219, 0.55);
 }
 
 .scan-focus-frame--locking .scan-focus-frame__box {
-  outline-color: rgba(233, 58, 138, 0.55);
-  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+  outline-color: rgba(233, 58, 138, 0.65);
 }
 
 .scan-focus-frame__tick {
   position: absolute;
   background: linear-gradient(90deg, #5b4cf0, #e93a8a);
-  opacity: 0.9;
+  opacity: 0.95;
   border-radius: 999px;
   box-shadow: 0 0 8px rgba(233, 58, 138, 0.45);
 }
@@ -230,8 +255,8 @@
   max-width: min(88vw, 310px);
   padding: 0.5rem 0.95rem;
   border-radius: 999px;
-  background: rgba(8, 8, 14, 0.7);
-  color: rgba(255, 255, 255, 0.92);
+  background: rgba(8, 8, 14, 0.85);
+  color: rgba(255, 255, 255, 0.94);
   font-size: 0.82rem;
   font-weight: 650;
   line-height: 1.35;
@@ -268,13 +293,13 @@
 
 .scan-focus-frame__corner {
   position: absolute;
-  width: min(24%, 64px);
-  height: min(24%, 64px);
+  width: min(26%, 68px);
+  height: min(26%, 68px);
   border-style: solid;
   border-color: transparent;
   border-width: 0;
   box-sizing: border-box;
-  filter: drop-shadow(0 0 6px rgba(233, 58, 138, 0.45));
+  filter: drop-shadow(0 0 8px rgba(233, 58, 138, 0.65));
   animation: scan-corner-breathe 2.2s ease-in-out infinite;
 }
 
@@ -348,12 +373,12 @@
 @keyframes scan-corner-breathe {
   0%,
   100% {
-    opacity: 0.85;
+    opacity: 0.9;
     transform: scale(1);
   }
   50% {
     opacity: 1;
-    transform: scale(1.02);
+    transform: scale(1.03);
   }
 }
 
@@ -362,7 +387,7 @@
   left: 8%;
   right: 8%;
   top: 8%;
-  height: 2.5px;
+  height: 3px;
   border-radius: 999px;
   background: linear-gradient(
     90deg,
@@ -403,7 +428,7 @@
   position: absolute;
   inset: 18%;
   border-radius: 50%;
-  border: 1px solid rgba(233, 58, 138, 0.28);
+  border: 1px solid rgba(233, 58, 138, 0.35);
   box-shadow: inset 0 0 24px rgba(107, 44, 219, 0.12);
   animation: scan-radar-pulse 2s ease-out infinite;
   pointer-events: none;
@@ -415,7 +440,7 @@
   position: absolute;
   inset: 18%;
   border-radius: 50%;
-  border: 1px solid rgba(91, 76, 240, 0.35);
+  border: 1px solid rgba(91, 76, 240, 0.4);
   animation: scan-radar-pulse 2s ease-out infinite 0.45s;
 }
 
@@ -543,7 +568,7 @@
 
 @media (max-height: 740px) {
   .scan-focus-frame {
-    gap: 0.6rem;
+    gap: 0.55rem;
     padding:
       max(78px, calc(env(safe-area-inset-top) + 64px))
       0.85rem

@@ -1492,19 +1492,6 @@ export const ARViewer = ({
         }}
         showActions={false}
       />
-      <ScanFocusFrame
-        visible={
-          videoMode !== 'fullscreen' &&
-          (status === 'scanning' ||
-            status === 'move_closer' ||
-            status === 'no_match' ||
-            (status === 'match_found' && !videoReveal))
-        }
-        phase={scanFocusPhase}
-        progress={
-          status === 'match_found' && !videoReveal ? 100 : status === 'no_match' ? 0 : matchPercent
-        }
-      />
       <TargetFrameVideo
         host={sceneHost}
         targetEntity={trackedEntity}
@@ -1563,6 +1550,24 @@ export const ARViewer = ({
         onEnded={handleFullscreenEnded}
         onExitFullscreen={handleExitFullscreen}
         reveal={videoReveal}
+      />
+      <ScanFocusFrame
+        visible={
+          videoMode !== 'fullscreen' &&
+          (status === 'loading' ||
+            status === 'scanning' ||
+            status === 'move_closer' ||
+            status === 'no_match' ||
+            (status === 'match_found' && !videoReveal))
+        }
+        phase={status === 'loading' ? 'scanning' : scanFocusPhase}
+        progress={
+          status === 'match_found' && !videoReveal
+            ? 100
+            : status === 'no_match' || status === 'loading'
+              ? 0
+              : matchPercent
+        }
       />
       <ScanStatusOverlay
         status={status}

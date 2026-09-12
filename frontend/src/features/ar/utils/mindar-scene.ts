@@ -276,7 +276,7 @@ export const coverMindArCameraVideo = (host: HTMLElement): void => {
   video.style.setProperty('aspect-ratio', 'auto', 'important');
   video.style.setProperty('transform', 'none', 'important');
   video.style.setProperty('transform-origin', 'center center', 'important');
-  video.style.setProperty('z-index', '1', 'important');
+  video.style.setProperty('z-index', '0', 'important');
   video.style.setProperty('opacity', '1', 'important');
   video.style.setProperty('visibility', 'visible', 'important');
   video.style.setProperty('display', 'block', 'important');
