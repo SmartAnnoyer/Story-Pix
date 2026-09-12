@@ -91,9 +91,9 @@ video.ar-camera-feed {
   inset: 0 !important;
   z-index: 30 !important;
   pointer-events: none !important;
+  background: transparent !important;
   transform: translateZ(0);
   -webkit-transform: translateZ(0);
-  isolation: isolate;
 }
 
 .ar-ui-layer > .scan-focus-frame,
