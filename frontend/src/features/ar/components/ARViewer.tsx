@@ -268,7 +268,8 @@ export const ARViewer = ({
     if (status === 'match_found') return 'found';
     if (status === 'move_closer') return 'warming';
     if (status === 'scanning') {
-      if (matchPercent >= 42) return 'warming';
+      // Early “Detecting…” once MindAR confidence rises — PhonePe-style feedback.
+      if (matchPercent >= 28) return 'warming';
       return 'scanning';
     }
     return 'scanning';
@@ -1500,6 +1501,9 @@ export const ARViewer = ({
             (status === 'match_found' && !videoReveal))
         }
         phase={scanFocusPhase}
+        progress={
+          status === 'match_found' && !videoReveal ? 100 : status === 'no_match' ? 0 : matchPercent
+        }
       />
       <TargetFrameVideo
         host={sceneHost}

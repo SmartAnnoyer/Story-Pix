@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom';
-import { useId } from 'react';
+import { useEffect, useId, useState } from 'react';
 import './ScanFocusFrame.css';
 
 export type ScanFocusPhase = 'scanning' | 'warming' | 'locking' | 'found' | 'nomatch';
@@ -7,43 +7,105 @@ export type ScanFocusPhase = 'scanning' | 'warming' | 'locking' | 'found' | 'nom
 interface ScanFocusFrameProps {
   visible: boolean;
   phase?: ScanFocusPhase;
+  /** 0–100 match confidence while scanning / detecting */
+  progress?: number;
 }
 
-export const ScanFocusFrame = ({ visible, phase = 'scanning' }: ScanFocusFrameProps) => {
+function useHoldSeconds(active: boolean) {
+  const [seconds, setSeconds] = useState(0);
+
+  useEffect(() => {
+    if (!active) {
+      setSeconds(0);
+      return undefined;
+    }
+    setSeconds(0);
+    const started = Date.now();
+    const id = window.setInterval(() => {
+      setSeconds(Math.floor((Date.now() - started) / 1000));
+    }, 250);
+    return () => window.clearInterval(id);
+  }, [active]);
+
+  return seconds;
+}
+
+export const ScanFocusFrame = ({
+  visible,
+  phase = 'scanning',
+  progress = 0,
+}: ScanFocusFrameProps) => {
   const reactId = useId().replace(/:/g, '');
   const gradId = `sp-frame-bolt-${reactId}`;
   const glowId = `sp-frame-bolt-glow-${reactId}`;
+  const holdSeconds = useHoldSeconds(visible && phase === 'locking');
 
   if (!visible || typeof document === 'undefined') return null;
 
+  const clamped = Math.max(0, Math.min(100, Math.round(progress)));
+  const isDetecting = phase === 'warming' || (phase === 'scanning' && clamped >= 28);
+  const showMeter = phase === 'scanning' || phase === 'warming' || phase === 'locking';
+
   const badge =
     phase === 'locking'
-      ? 'Hold steady — loading video'
-      : phase === 'warming'
-        ? 'Almost there…'
-        : phase === 'nomatch'
-          ? 'No match found'
+      ? holdSeconds >= 3
+        ? 'Still loading — keep holding'
+        : 'Photo found — loading video'
+      : phase === 'nomatch'
+        ? 'No match found'
+        : isDetecting
+          ? 'Detecting photo…'
           : 'Scanning…';
 
   const tip =
     phase === 'locking'
-      ? 'Keep the photo filling the frame'
+      ? holdSeconds >= 2
+        ? 'Don’t move — video is buffering'
+        : 'Hold steady until the video starts'
       : phase === 'nomatch'
         ? 'Try brighter light, fill the frame, then hold steady'
-        : 'Point at the printed photo and fill the square';
+        : isDetecting
+          ? 'Almost locked — keep the photo in the square'
+          : 'Point at the printed photo and fill the square';
+
+  const meterValue =
+    phase === 'locking'
+      ? Math.min(96, 55 + holdSeconds * 12)
+      : isDetecting
+        ? Math.max(clamped, 42)
+        : clamped;
 
   return createPortal(
-    <div className={`scan-focus-frame scan-focus-frame--${phase}`} aria-live="polite" role="status">
+    <div
+      className={`scan-focus-frame scan-focus-frame--${phase}${isDetecting && phase !== 'locking' ? ' scan-focus-frame--detecting' : ''}`}
+      aria-live="polite"
+      role="status"
+    >
       <div className="scan-focus-frame__badge">
-        {phase === 'scanning' || phase === 'warming' ? (
+        {phase === 'locking' ? (
+          <span className="scan-focus-frame__spinner" aria-hidden />
+        ) : (
           <span className="scan-focus-frame__badge-dots" aria-hidden>
             <i />
             <i />
             <i />
           </span>
-        ) : null}
+        )}
         <span>{badge}</span>
       </div>
+
+      {showMeter ? (
+        <div
+          className="scan-focus-frame__meter"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={meterValue}
+          aria-label={phase === 'locking' ? 'Loading video' : 'Scan progress'}
+        >
+          <div className="scan-focus-frame__meter-fill" style={{ width: `${meterValue}%` }} />
+        </div>
+      ) : null}
 
       <div className={`scan-focus-frame__box scan-focus-frame__box--${phase}`}>
         <span className="scan-focus-frame__corner scan-focus-frame__corner--tl" />
@@ -51,7 +113,6 @@ export const ScanFocusFrame = ({ visible, phase = 'scanning' }: ScanFocusFramePr
         <span className="scan-focus-frame__corner scan-focus-frame__corner--bl" />
         <span className="scan-focus-frame__corner scan-focus-frame__corner--br" />
 
-        {/* PhonePe-style edge ticks */}
         <span className="scan-focus-frame__tick scan-focus-frame__tick--t" aria-hidden />
         <span className="scan-focus-frame__tick scan-focus-frame__tick--r" aria-hidden />
         <span className="scan-focus-frame__tick scan-focus-frame__tick--b" aria-hidden />
@@ -105,13 +166,20 @@ export const ScanFocusFrame = ({ visible, phase = 'scanning' }: ScanFocusFramePr
               />
             </svg>
             <div className="scan-focus-frame__orbit-ring" aria-hidden />
+            <div className="scan-focus-frame__lock-pulse" aria-hidden />
           </>
         ) : (
-          <div className="scan-focus-frame__scanline" aria-hidden />
+          <>
+            <div className="scan-focus-frame__scanline" aria-hidden />
+            <div className="scan-focus-frame__radar" aria-hidden />
+          </>
         )}
       </div>
 
       <p className="scan-focus-frame__tip">{tip}</p>
+      {phase === 'locking' ? (
+        <p className="scan-focus-frame__hold">Hold 2–5 seconds until playback starts</p>
+      ) : null}
     </div>,
     document.body,
   );
