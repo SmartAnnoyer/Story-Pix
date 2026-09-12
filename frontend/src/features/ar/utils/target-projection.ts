@@ -529,6 +529,7 @@ export type OverlayQuad = {
 /**
  * Project the studio-selected overlay rectangle into viewport pixels.
  * MindAR target is 1 unit wide, height = aspectRatio, origin at center; image y=0 is the top.
+ * Prefer true 3D corner projection so the video stays locked to the print when the phone rotates.
  */
 export const getOverlayQuadScreenCorners = (
   host: HTMLElement,
@@ -537,22 +538,50 @@ export const getOverlayQuadScreenCorners = (
   frame: OverlayFrame,
 ): OverlayQuad | null => {
   const overlay = clampOverlayFrame(frame);
-  const fromBounds = getOverlayQuadFromBounds(host, targetEntity, aspectRatio, overlay);
-  if (fromBounds) return fromBounds;
 
   const points = projectCorners(host, targetEntity, overlayLocalCorners(aspectRatio, overlay));
   if (points?.length === 4) {
     const quad = points as [ScreenPoint, ScreenPoint, ScreenPoint, ScreenPoint];
-    const xs = quad.map((point) => point.x);
-    const ys = quad.map((point) => point.y);
-    const width = Math.max(...xs) - Math.min(...xs);
-    const height = Math.max(...ys) - Math.min(...ys);
-    if (width > 4 && height > 4) {
+    if (isUsableOverlayQuad(quad, host)) {
       return { corners: quad, visible: true };
     }
   }
 
-  return null;
+  // Fallback only when pose projection is unavailable — axis-aligned approx.
+  return getOverlayQuadFromBounds(host, targetEntity, aspectRatio, overlay);
+};
+
+const isUsableOverlayQuad = (
+  corners: [ScreenPoint, ScreenPoint, ScreenPoint, ScreenPoint],
+  host: HTMLElement,
+): boolean => {
+  const xs = corners.map((point) => point.x);
+  const ys = corners.map((point) => point.y);
+  const width = Math.max(...xs) - Math.min(...xs);
+  const height = Math.max(...ys) - Math.min(...ys);
+  if (width < 24 || height < 24) return false;
+  // Reject degenerate / flipped quads (crossed edges shrink the video oddly).
+  const area = Math.abs(
+    (corners[0].x * corners[1].y +
+      corners[1].x * corners[2].y +
+      corners[2].x * corners[3].y +
+      corners[3].x * corners[0].y -
+      (corners[1].x * corners[0].y +
+        corners[2].x * corners[1].y +
+        corners[3].x * corners[2].y +
+        corners[0].x * corners[3].y)) /
+      2,
+  );
+  if (area < 400) return false;
+  return isUsableOverlayBox(
+    {
+      left: Math.min(...xs),
+      top: Math.min(...ys),
+      width,
+      height,
+    },
+    host,
+  );
 };
 
 const getOverlayQuadFromBounds = (

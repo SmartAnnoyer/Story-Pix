@@ -6,16 +6,16 @@
   max-width: 100vw;
   height: 100%;
   height: 100dvh;
-  z-index: 40;
+  z-index: 10020;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1.15rem;
+  gap: 1rem;
   padding:
-    max(88px, calc(env(safe-area-inset-top) + 72px))
+    max(96px, calc(env(safe-area-inset-top) + 80px))
     1rem
-    max(88px, calc(env(safe-area-inset-bottom) + 72px));
+    max(96px, calc(env(safe-area-inset-bottom) + 80px));
   animation: scan-focus-enter 0.35s ease-out;
 }
 
@@ -28,33 +28,116 @@
   }
 }
 
-.scan-focus-frame__badge {
-  flex-shrink: 0;
-  max-width: min(90vw, 320px);
-  padding: 0.55rem 1.1rem;
+.scan-focus-frame__status {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.scan-focus-frame__pulse {
+  width: 0.7rem;
+  height: 0.7rem;
   border-radius: 999px;
-  border: 1px solid rgba(233, 58, 138, 0.35);
-  background: rgba(10, 10, 16, 0.62);
+  background: #ff4fa3;
+  box-shadow: 0 0 0 0 rgba(255, 79, 163, 0.55);
+  animation: scan-pulse-ring 1.4s ease-out infinite;
+}
+
+.scan-focus-frame--warming .scan-focus-frame__pulse {
+  background: #5b4cf0;
+  box-shadow: 0 0 0 0 rgba(91, 76, 240, 0.5);
+}
+
+.scan-focus-frame--locking .scan-focus-frame__pulse {
+  background: #ffc233;
+  box-shadow: 0 0 0 0 rgba(255, 194, 51, 0.5);
+}
+
+@keyframes scan-pulse-ring {
+  0% {
+    transform: scale(0.9);
+    box-shadow: 0 0 0 0 rgba(255, 79, 163, 0.55);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 12px rgba(255, 79, 163, 0);
+  }
+  100% {
+    transform: scale(0.9);
+    box-shadow: 0 0 0 0 rgba(255, 79, 163, 0);
+  }
+}
+
+.scan-focus-frame__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: min(90vw, 340px);
+  padding: 0.62rem 1.15rem;
+  border-radius: 999px;
+  border: 1px solid rgba(233, 58, 138, 0.45);
+  background: rgba(8, 8, 14, 0.82);
   color: #fff;
-  font-size: 0.88rem;
-  font-weight: 600;
-  letter-spacing: -0.015em;
-  line-height: 1.25;
+  font-size: 0.95rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
   text-align: center;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
   box-shadow:
-    0 10px 28px rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(107, 44, 219, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    0 12px 32px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(107, 44, 219, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.scan-focus-frame__badge-label {
+  white-space: nowrap;
+}
+
+.scan-focus-frame__dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.18rem;
+  margin-left: 0.1rem;
+}
+
+.scan-focus-frame__dots i {
+  width: 0.28rem;
+  height: 0.28rem;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.25;
+  animation: scan-dot-blink 1.2s ease-in-out infinite;
+}
+
+.scan-focus-frame__dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.scan-focus-frame__dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes scan-dot-blink {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-1px);
+  }
 }
 
 .scan-focus-frame--warming .scan-focus-frame__badge {
-  border-color: rgba(107, 44, 219, 0.55);
+  border-color: rgba(91, 76, 240, 0.6);
 }
 
 .scan-focus-frame--locking .scan-focus-frame__badge {
-  border-color: rgba(233, 58, 138, 0.65);
+  border-color: rgba(233, 58, 138, 0.7);
   color: #ffd0e6;
   animation: scan-badge-pulse 1.4s ease-in-out infinite;
 }
@@ -62,175 +145,237 @@
 .scan-focus-frame--nomatch .scan-focus-frame__badge {
   border-color: rgba(255, 194, 51, 0.55);
   color: #ffe8b0;
-  background: rgba(24, 18, 8, 0.72);
+  background: rgba(24, 18, 8, 0.82);
 }
 
 @keyframes scan-badge-pulse {
   0%,
   100% {
     box-shadow:
-      0 10px 28px rgba(0, 0, 0, 0.4),
-      0 0 0 1px rgba(107, 44, 219, 0.2),
-      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      0 12px 32px rgba(0, 0, 0, 0.45),
+      0 0 0 1px rgba(107, 44, 219, 0.25),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12);
   }
   50% {
     box-shadow:
-      0 10px 28px rgba(0, 0, 0, 0.4),
-      0 0 18px rgba(233, 58, 138, 0.45),
-      0 0 0 1px rgba(233, 58, 138, 0.35),
+      0 12px 32px rgba(0, 0, 0, 0.45),
+      0 0 22px rgba(233, 58, 138, 0.5),
+      0 0 0 1px rgba(233, 58, 138, 0.4),
       inset 0 1px 0 rgba(255, 255, 255, 0.14);
   }
 }
 
 .scan-focus-frame__box {
   position: relative;
-  width: min(74vw, 300px, 54dvh);
-  height: min(74vw, 300px, 54dvh);
-  overflow: visible;
+  width: min(78vw, 320px, 56dvh);
+  height: min(78vw, 320px, 56dvh);
+  overflow: hidden;
   background: transparent;
-  /* Dim everything outside the viewfinder — QR-scanner style */
-  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.48);
-  border-radius: 4px;
+  /* PhonePe-style dim outside the finder */
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.58);
+  border-radius: 18px;
+}
+
+.scan-focus-frame__border {
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(233, 58, 138, 0.18);
+  pointer-events: none;
+}
+
+.scan-focus-frame--scanning .scan-focus-frame__border,
+.scan-focus-frame--warming .scan-focus-frame__border {
+  animation: scan-border-breathe 2s ease-in-out infinite;
+}
+
+@keyframes scan-border-breathe {
+  0%,
+  100% {
+    border-color: rgba(255, 255, 255, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(233, 58, 138, 0.12);
+  }
+  50% {
+    border-color: rgba(255, 79, 163, 0.55);
+    box-shadow:
+      inset 0 0 0 1px rgba(107, 44, 219, 0.35),
+      0 0 18px rgba(233, 58, 138, 0.25);
+  }
 }
 
 .scan-focus-frame__corner {
   position: absolute;
-  width: min(24%, 64px);
-  height: min(24%, 64px);
+  width: min(28%, 72px);
+  height: min(28%, 72px);
   border-style: solid;
   border-color: transparent;
   border-width: 0;
   box-sizing: border-box;
-  filter: drop-shadow(0 0 6px rgba(233, 58, 138, 0.45));
-  animation: scan-corner-breathe 2.2s ease-in-out infinite;
+  filter: drop-shadow(0 0 8px rgba(233, 58, 138, 0.55));
+  z-index: 4;
 }
 
-/* Logo-matched corners: TL/BR purple-blue, TR/BL pink-magenta */
 .scan-focus-frame__corner--tl {
-  top: -2px;
-  left: -2px;
+  top: 8px;
+  left: 8px;
   border-top-width: 5px;
   border-left-width: 5px;
   border-top-color: #5b4cf0;
   border-left-color: #6b2cdb;
-  border-top-left-radius: 14px;
+  border-top-left-radius: 12px;
 }
 
 .scan-focus-frame__corner--tr {
-  top: -2px;
-  right: -2px;
+  top: 8px;
+  right: 8px;
   border-top-width: 5px;
   border-right-width: 5px;
   border-top-color: #e93a8a;
   border-right-color: #ff4fa3;
-  border-top-right-radius: 14px;
+  border-top-right-radius: 12px;
 }
 
 .scan-focus-frame__corner--bl {
-  bottom: -2px;
-  left: -2px;
+  bottom: 8px;
+  left: 8px;
   border-bottom-width: 5px;
   border-left-width: 5px;
   border-bottom-color: #ff4fa3;
   border-left-color: #e93a8a;
-  border-bottom-left-radius: 14px;
+  border-bottom-left-radius: 12px;
 }
 
 .scan-focus-frame__corner--br {
-  right: -2px;
-  bottom: -2px;
+  right: 8px;
+  bottom: 8px;
   border-bottom-width: 5px;
   border-right-width: 5px;
   border-bottom-color: #6b2cdb;
   border-right-color: #5b4cf0;
-  border-bottom-right-radius: 14px;
+  border-bottom-right-radius: 12px;
 }
 
 .scan-focus-frame--warming .scan-focus-frame__corner {
-  filter: drop-shadow(0 0 10px rgba(107, 44, 219, 0.7));
+  filter: drop-shadow(0 0 12px rgba(91, 76, 240, 0.8));
 }
 
 .scan-focus-frame--locking .scan-focus-frame__corner {
-  animation: none;
   filter: drop-shadow(0 0 12px rgba(233, 58, 138, 0.85));
 }
 
-.scan-focus-frame--locking .scan-focus-frame__corner--tl,
-.scan-focus-frame--locking .scan-focus-frame__corner--br {
-  border-top-color: #ff4fa3;
-  border-left-color: #ff4fa3;
-  border-bottom-color: #ff4fa3;
-  border-right-color: #ff4fa3;
-}
-
-.scan-focus-frame--locking .scan-focus-frame__corner--tr,
-.scan-focus-frame--locking .scan-focus-frame__corner--bl {
-  border-top-color: #6b2cdb;
-  border-left-color: #6b2cdb;
-  border-bottom-color: #6b2cdb;
-  border-right-color: #6b2cdb;
-}
-
-@keyframes scan-corner-breathe {
-  0%,
-  100% {
-    opacity: 0.85;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.02);
-  }
-}
-
-.scan-focus-frame__scanline {
+/* PhonePe-like laser sweep */
+.scan-focus-frame__laser {
   position: absolute;
-  left: 7%;
-  right: 7%;
-  top: 6%;
+  left: 10%;
+  right: 10%;
+  top: 12%;
   height: 3px;
+  z-index: 3;
   border-radius: 999px;
+  overflow: visible;
+  animation: scan-laser-sweep 2s ease-in-out infinite;
+}
+
+.scan-focus-frame__laser i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
   background: linear-gradient(
     90deg,
     transparent 0%,
-    #5b4cf0 12%,
-    #6b2cdb 32%,
-    #e93a8a 58%,
-    #ff4fa3 82%,
+    #5b4cf0 14%,
+    #6b2cdb 34%,
+    #e93a8a 55%,
+    #ff4fa3 78%,
+    #ffc233 92%,
     transparent 100%
   );
   box-shadow:
-    0 0 10px rgba(233, 58, 138, 1),
-    0 0 22px rgba(107, 44, 219, 0.85),
-    0 0 40px rgba(255, 79, 163, 0.45);
-  animation: scan-line-sweep 2.1s linear infinite;
+    0 0 12px rgba(233, 58, 138, 1),
+    0 0 28px rgba(91, 76, 240, 0.9),
+    0 0 48px rgba(255, 79, 163, 0.55);
 }
 
-.scan-focus-frame__scanline::after {
+.scan-focus-frame__laser::after {
   content: '';
   position: absolute;
-  left: 2%;
-  right: 2%;
+  left: 0;
+  right: 0;
   top: 0;
-  height: 48px;
+  height: 56px;
   transform: translateY(-2px);
   background: linear-gradient(
     180deg,
-    rgba(233, 58, 138, 0.38) 0%,
-    rgba(107, 44, 219, 0.12) 55%,
+    rgba(233, 58, 138, 0.42) 0%,
+    rgba(107, 44, 219, 0.14) 55%,
     transparent 100%
   );
   pointer-events: none;
 }
 
-.scan-focus-frame--locking .scan-focus-frame__scanline {
-  animation-duration: 1.25s;
-  box-shadow:
-    0 0 14px rgba(255, 79, 163, 1),
-    0 0 28px rgba(107, 44, 219, 0.9);
+@keyframes scan-laser-sweep {
+  0% {
+    top: 12%;
+    opacity: 0.65;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    top: 86%;
+    opacity: 0.65;
+  }
 }
 
-/* Brand lightning racing around the frame while the matched clip buffers. */
+.scan-focus-frame--warming .scan-focus-frame__laser {
+  animation-duration: 1.45s;
+}
+
+.scan-focus-frame__grid {
+  position: absolute;
+  inset: 14%;
+  z-index: 1;
+  opacity: 0.14;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.55) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.55) 1px, transparent 1px);
+  background-size: 20% 20%;
+  pointer-events: none;
+  mask-image: radial-gradient(circle at center, #000 35%, transparent 85%);
+}
+
+.scan-focus-frame__footer {
+  margin: 0;
+  max-width: min(88vw, 320px);
+  padding: 0.55rem 0.95rem;
+  border-radius: 14px;
+  background: rgba(8, 8, 14, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.84rem;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: center;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+}
+
+.scan-focus-frame--nomatch .scan-focus-frame__footer {
+  border-color: rgba(255, 194, 51, 0.35);
+  color: rgba(255, 232, 176, 0.95);
+}
+
+.scan-focus-frame--locking .scan-focus-frame__footer {
+  border-color: rgba(233, 58, 138, 0.35);
+  color: #ffd8ea;
+}
+
+/* Brand lightning while matched clip buffers */
 .scan-focus-frame__bolt-svg {
   position: absolute;
   inset: -3px;
@@ -258,7 +403,7 @@
 .scan-focus-frame__orbit-ring {
   position: absolute;
   inset: -5px;
-  border-radius: 10px;
+  border-radius: 20px;
   pointer-events: none;
   z-index: 1;
   background: conic-gradient(
@@ -283,36 +428,6 @@
   filter: drop-shadow(0 0 10px rgba(233, 58, 138, 0.45));
 }
 
-.scan-focus-frame__hint {
-  position: absolute;
-  left: 50%;
-  bottom: 12%;
-  z-index: 3;
-  transform: translateX(-50%);
-  margin: 0;
-  padding: 0.35rem 0.7rem;
-  border-radius: 999px;
-  background: rgba(10, 10, 16, 0.55);
-  color: rgba(255, 255, 255, 0.88);
-  font-size: 0.72rem;
-  font-weight: 650;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-}
-
-.scan-focus-frame__nomatch {
-  margin: 0;
-  max-width: min(88vw, 300px);
-  text-align: center;
-  color: rgba(255, 232, 176, 0.92);
-  font-size: 0.8rem;
-  line-height: 1.4;
-  font-weight: 550;
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.55);
-}
-
 @keyframes scan-bolt-dash {
   to {
     stroke-dashoffset: -100;
@@ -325,67 +440,52 @@
   }
 }
 
-@keyframes scan-line-sweep {
-  0% {
-    top: 6%;
-    opacity: 0.55;
-  }
-  12% {
-    opacity: 1;
-  }
-  88% {
-    opacity: 1;
-  }
-  100% {
-    top: 92%;
-    opacity: 0.5;
-  }
-}
-
 @media (max-height: 740px) {
   .scan-focus-frame {
-    gap: 0.85rem;
+    gap: 0.75rem;
     padding:
-      max(78px, calc(env(safe-area-inset-top) + 64px))
+      max(84px, calc(env(safe-area-inset-top) + 68px))
       0.85rem
-      max(72px, calc(env(safe-area-inset-bottom) + 56px));
+      max(78px, calc(env(safe-area-inset-bottom) + 64px));
   }
 
   .scan-focus-frame__box {
-    width: min(66vw, 240px, 46dvh);
-    height: min(66vw, 240px, 46dvh);
+    width: min(70vw, 260px, 48dvh);
+    height: min(70vw, 260px, 48dvh);
   }
 
   .scan-focus-frame__badge {
-    font-size: 0.8rem;
-    padding: 0.45rem 0.9rem;
+    font-size: 0.88rem;
+    padding: 0.5rem 1rem;
+  }
+
+  .scan-focus-frame__footer {
+    font-size: 0.78rem;
   }
 }
 
 @media (max-height: 620px) {
   .scan-focus-frame__box {
-    width: min(56vw, 200px, 40dvh);
-    height: min(56vw, 200px, 40dvh);
-  }
-
-  .scan-focus-frame__hint {
-    font-size: 0.66rem;
-    bottom: 10%;
+    width: min(58vw, 210px, 42dvh);
+    height: min(58vw, 210px, 42dvh);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .scan-focus-frame__corner,
-  .scan-focus-frame__scanline,
+  .scan-focus-frame__laser,
   .scan-focus-frame__orbit-ring,
   .scan-focus-frame__bolt-stroke,
-  .scan-focus-frame__badge {
+  .scan-focus-frame__badge,
+  .scan-focus-frame__pulse,
+  .scan-focus-frame__border,
+  .scan-focus-frame__dots i {
     animation: none;
   }
 
-  .scan-focus-frame__scanline {
+  .scan-focus-frame__laser {
     top: 50%;
-    opacity: 0.9;
+    opacity: 0.95;
   }
 
   .scan-focus-frame__bolt-stroke {
@@ -393,7 +493,7 @@
     opacity: 0.9;
   }
 
-  .scan-focus-frame__orbit-ring {
+  .scan-focus-frame__dots i {
     opacity: 0.85;
   }
 }

@@ -15,24 +15,53 @@ export const ScanFocusFrame = ({ visible, phase = 'scanning' }: ScanFocusFramePr
 
   if (!visible) return null;
 
+  const isBusy = phase === 'scanning' || phase === 'warming' || phase === 'locking';
+
   const badge =
     phase === 'locking'
-      ? 'Hold steady — loading video'
+      ? 'Loading video'
       : phase === 'warming'
-        ? 'Almost there'
+        ? 'Photo detected — hold steady'
         : phase === 'nomatch'
           ? 'No match found'
-          : 'Point camera at your photo';
+          : 'Scanning';
+
+  const footer =
+    phase === 'locking'
+      ? 'Fetching your story… keep the photo in frame'
+      : phase === 'warming'
+        ? 'Almost locked — hold still'
+        : phase === 'nomatch'
+          ? 'Try brighter light and fill the frame, then tap Try again'
+          : 'Point at the printed photo and hold steady';
 
   return (
-    <div className={`scan-focus-frame scan-focus-frame--${phase}`} aria-live="polite">
-      <div className="scan-focus-frame__badge">{badge}</div>
+    <div
+      className={`scan-focus-frame scan-focus-frame--${phase}`}
+      role="status"
+      aria-live="polite"
+      aria-label={badge}
+    >
+      <div className="scan-focus-frame__status">
+        {isBusy ? <span className="scan-focus-frame__pulse" aria-hidden /> : null}
+        <div className="scan-focus-frame__badge">
+          <span className="scan-focus-frame__badge-label">{badge}</span>
+          {isBusy ? (
+            <span className="scan-focus-frame__dots" aria-hidden>
+              <i />
+              <i />
+              <i />
+            </span>
+          ) : null}
+        </div>
+      </div>
 
       <div className={`scan-focus-frame__box scan-focus-frame__box--${phase}`}>
         <span className="scan-focus-frame__corner scan-focus-frame__corner--tl" />
         <span className="scan-focus-frame__corner scan-focus-frame__corner--tr" />
         <span className="scan-focus-frame__corner scan-focus-frame__corner--bl" />
         <span className="scan-focus-frame__corner scan-focus-frame__corner--br" />
+        <div className="scan-focus-frame__border" aria-hidden />
 
         {phase === 'locking' ? (
           <>
@@ -82,18 +111,18 @@ export const ScanFocusFrame = ({ visible, phase = 'scanning' }: ScanFocusFramePr
               />
             </svg>
             <div className="scan-focus-frame__orbit-ring" aria-hidden />
-            <p className="scan-focus-frame__hint">Keep the photo filling the frame</p>
           </>
         ) : (
-          <div className="scan-focus-frame__scanline" />
+          <>
+            <div className="scan-focus-frame__laser" aria-hidden>
+              <i />
+            </div>
+            <div className="scan-focus-frame__grid" aria-hidden />
+          </>
         )}
       </div>
 
-      {phase === 'nomatch' ? (
-        <p className="scan-focus-frame__nomatch">
-          Try brighter light, fill the frame with the whole print, then hold steady.
-        </p>
-      ) : null}
+      <p className="scan-focus-frame__footer">{footer}</p>
     </div>
   );
 };

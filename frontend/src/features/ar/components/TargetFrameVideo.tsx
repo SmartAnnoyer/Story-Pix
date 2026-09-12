@@ -631,13 +631,8 @@ export const TargetFrameVideo = ({
         return box;
       };
 
-      // Full-viewport HTML camera: axis-aligned box is more reliable on mobile Safari.
-      if (htmlCamera) {
-        const aligned = tryAabb();
-        if (aligned) return aligned;
-      }
-
-      // Prefer perspective quad using the studio crop frame for correct placement.
+      // Always prefer a perspective quad so the clip stays glued to the print when
+      // the guest rotates the phone (AABB shrinks/squashes width on tilt).
       const quad = getOverlayQuadScreenCorners(host, entity, aspectRatio, frame);
       if (quad?.visible && applyQuad(quad.corners)) {
         const xs = quad.corners.map((corner) => corner.x);
@@ -651,6 +646,7 @@ export const TargetFrameVideo = ({
         lastBox = quadBox;
         return quadBox;
       }
+
       const box = tryAabb();
       if (box) return box;
       const fallback = tryFullTargetFallback();
@@ -762,9 +758,19 @@ export const TargetFrameVideo = ({
     };
     window.requestAnimationFrame(tick);
 
+    const onViewportChange = () => {
+      syncMindArCameraToHost(host);
+      smoothBox = null;
+      lastBox = null;
+    };
+    window.addEventListener('orientationchange', onViewportChange);
+    window.addEventListener('resize', onViewportChange);
+
     return () => {
       cancelled = true;
       overlayPlacedRef.current = false;
+      window.removeEventListener('orientationchange', onViewportChange);
+      window.removeEventListener('resize', onViewportChange);
       blitCanvas?.remove();
       detachOverlayVideoPlane(entity);
       keepMindArCameraPlaying(host);
