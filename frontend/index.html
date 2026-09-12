@@ -50,23 +50,57 @@
         width: 100%;
         height: 100%;
         overflow: hidden;
+        z-index: 0;
       }
+      /* Camera stays under UI — never fixed above the scan frame */
+      html.viewer-route .ar-camera-slot {
+        position: absolute !important;
+        inset: 0 !important;
+        z-index: 1 !important;
+        overflow: hidden !important;
+        pointer-events: none !important;
+        transform: translateZ(0);
+        -webkit-transform: translateZ(0);
+      }
+      html.viewer-route .ar-camera-slot video.ar-camera-feed,
+      html.viewer-route .ar-camera-slot > video:not(#sp-mapped-video),
       html.viewer-route video.ar-camera-feed,
       html.viewer-route .ar-viewer-root > video:not(#sp-mapped-video) {
-        position: fixed !important;
+        position: absolute !important;
         inset: 0 !important;
-        width: 100vw !important;
-        height: 100dvh !important;
+        width: 100% !important;
+        height: 100% !important;
         object-fit: cover !important;
-        transform: none !important;
-        z-index: 1 !important;
+        transform: translateZ(0) !important;
+        -webkit-transform: translateZ(0) !important;
+        z-index: 0 !important;
+      }
+      /* Scan / status chrome always above the live camera */
+      html.viewer-route .ar-ui-layer {
+        position: absolute !important;
+        inset: 0 !important;
+        z-index: 30 !important;
+        pointer-events: none !important;
+        transform: translateZ(0);
+        -webkit-transform: translateZ(0);
+      }
+      html.viewer-route .scan-focus-frame {
+        position: absolute !important;
+        inset: 0 !important;
+        z-index: 31 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        pointer-events: none !important;
+        color: #fff !important;
       }
       html.viewer-route .ar-scene-host canvas,
       html.viewer-route .ar-scene-host .a-canvas {
-        position: fixed !important;
+        position: absolute !important;
         inset: 0 !important;
-        width: 100vw !important;
-        height: 100dvh !important;
+        width: 100% !important;
+        height: 100% !important;
         opacity: 0 !important;
         pointer-events: none !important;
       }

@@ -158,14 +158,16 @@ export const getCameraVideo = (host: HTMLElement): HTMLVideoElement | null => {
     return arSystem.video;
   }
 
-  const withStream = [...host.querySelectorAll('video')].find((node) =>
+  // Video may live in `.ar-camera-slot` (sibling of the scene host).
+  const root = (host.closest('.ar-viewer-root') as HTMLElement | null) ?? host;
+  const withStream = [...root.querySelectorAll('video')].find((node) =>
     Boolean((node as HTMLVideoElement).srcObject),
   ) as HTMLVideoElement | undefined;
   if (withStream) {
     return withStream;
   }
 
-  return host.querySelector('video:not(#sp-mapped-video)') as HTMLVideoElement | null;
+  return root.querySelector('video:not(#sp-mapped-video)') as HTMLVideoElement | null;
 };
 
 /** Keep the live camera <video> visible. WebGL is transparent so the mapped plane shows on the photo. */
@@ -240,6 +242,7 @@ export const patchMindArVideoResize = (host: HTMLElement): void => {
 /**
  * Fill the viewport with the live camera (object-fit cover).
  * MindAR often sizes the <video> to a small top-left tracking crop — override that.
+ * Keep the feed inside `.ar-camera-slot` under `.ar-ui-layer` so scan chrome stays visible.
  */
 export const coverMindArCameraVideo = (host: HTMLElement): void => {
   const video = getCameraVideo(host);
@@ -247,25 +250,31 @@ export const coverMindArCameraVideo = (host: HTMLElement): void => {
 
   ensureSceneHostFillViewport(host);
 
-  // MindAR mounts the camera <video> on the scene host with z-index -2 — reparent if needed.
   const viewerRoot = host.closest('.ar-viewer-root') as HTMLElement | null;
-  const mount = viewerRoot ?? host;
+  const cameraSlot = viewerRoot?.querySelector('.ar-camera-slot') as HTMLElement | null;
+  const mount = cameraSlot ?? viewerRoot ?? host;
   if (video.parentElement !== mount) {
     mount.appendChild(video);
   }
 
+  // Always keep the UI layer above the camera after MindAR reparents the <video>.
+  const uiLayer = viewerRoot?.querySelector('.ar-ui-layer') as HTMLElement | null;
+  if (uiLayer && viewerRoot && uiLayer.parentElement === viewerRoot) {
+    viewerRoot.appendChild(uiLayer);
+  }
+
   video.removeAttribute('width');
   video.removeAttribute('height');
-  video.style.setProperty('position', 'fixed', 'important');
+  video.style.setProperty('position', 'absolute', 'important');
   video.style.setProperty('inset', '0px', 'important');
   video.style.setProperty('top', '0px', 'important');
   video.style.setProperty('left', '0px', 'important');
   video.style.setProperty('right', '0px', 'important');
   video.style.setProperty('bottom', '0px', 'important');
-  video.style.setProperty('width', '100vw', 'important');
-  video.style.setProperty('height', '100dvh', 'important');
-  video.style.setProperty('min-width', '100vw', 'important');
-  video.style.setProperty('min-height', '100dvh', 'important');
+  video.style.setProperty('width', '100%', 'important');
+  video.style.setProperty('height', '100%', 'important');
+  video.style.setProperty('min-width', '0', 'important');
+  video.style.setProperty('min-height', '0', 'important');
   video.style.setProperty('max-width', 'none', 'important');
   video.style.setProperty('max-height', 'none', 'important');
   video.style.setProperty('margin', '0', 'important');
@@ -274,7 +283,7 @@ export const coverMindArCameraVideo = (host: HTMLElement): void => {
   video.style.setProperty('object-fit', 'cover', 'important');
   video.style.setProperty('object-position', 'center center', 'important');
   video.style.setProperty('aspect-ratio', 'auto', 'important');
-  video.style.setProperty('transform', 'none', 'important');
+  video.style.setProperty('transform', 'translateZ(0)', 'important');
   video.style.setProperty('transform-origin', 'center center', 'important');
   video.style.setProperty('z-index', '0', 'important');
   video.style.setProperty('opacity', '1', 'important');

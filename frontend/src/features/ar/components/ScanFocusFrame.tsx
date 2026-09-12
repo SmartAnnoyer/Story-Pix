@@ -74,13 +74,24 @@ export const ScanFocusFrame = ({
         ? Math.max(clamped, 42)
         : clamped;
 
-  // Render inside `.ar-viewer-root` (not a body portal) so the frame stacks above the
-  // live camera <video> in the same compositing context on mobile Safari/Chrome.
+  // Keep scan chrome in the viewer UI layer (above `.ar-camera-slot`).
   return (
     <div
       className={`scan-focus-frame scan-focus-frame--${phase}${isDetecting ? ' scan-focus-frame--detecting' : ''}`}
       aria-live="polite"
       role="status"
+      style={{
+        position: 'absolute',
+        inset: 0,
+        zIndex: 31,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        pointerEvents: 'none',
+        transform: 'translateZ(0)',
+        WebkitTransform: 'translateZ(0)',
+      }}
     >
       <div className="scan-focus-frame__content">
         <div className="scan-focus-frame__badge">

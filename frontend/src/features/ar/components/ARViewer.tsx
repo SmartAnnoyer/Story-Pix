@@ -1483,15 +1483,39 @@ export const ARViewer = ({
         }}
         className="ar-scene-host"
       />
-      <ViewerTopChrome
-        soundOn={soundOn}
-        onToggleMute={() => {
-          const next = !soundOn;
-          setPlaybackMuted(!next);
-          setSoundOn(next);
-        }}
-        showActions={false}
-      />
+      {/* Camera <video> is mounted here (under UI) by coverMindArCameraVideo */}
+      <div className="ar-camera-slot" aria-hidden />
+      <div className="ar-ui-layer">
+        <ViewerTopChrome
+          soundOn={soundOn}
+          onToggleMute={() => {
+            const next = !soundOn;
+            setPlaybackMuted(!next);
+            setSoundOn(next);
+          }}
+          showActions={false}
+        />
+        <ScanFocusFrame
+          visible={
+            videoMode !== 'fullscreen' && status !== 'recognized' && status !== 'scans_exhausted'
+          }
+          phase={status === 'loading' || status === 'preparing' ? 'scanning' : scanFocusPhase}
+          progress={
+            status === 'match_found' && !videoReveal
+              ? 100
+              : status === 'no_match' || status === 'loading' || status === 'preparing'
+                ? 0
+                : matchPercent
+          }
+        />
+        <ScanStatusOverlay
+          status={status}
+          detail={prepareError ?? statusDetail}
+          progress={progress}
+          phase={viewerPhase}
+        />
+        <ViewerControlBar showRetry={showControls} onRetry={handleRetryScan} />
+      </div>
       <TargetFrameVideo
         host={sceneHost}
         targetEntity={trackedEntity}
@@ -1551,31 +1575,6 @@ export const ARViewer = ({
         onExitFullscreen={handleExitFullscreen}
         reveal={videoReveal}
       />
-      <ScanFocusFrame
-        visible={
-          videoMode !== 'fullscreen' &&
-          (status === 'loading' ||
-            status === 'scanning' ||
-            status === 'move_closer' ||
-            status === 'no_match' ||
-            (status === 'match_found' && !videoReveal))
-        }
-        phase={status === 'loading' ? 'scanning' : scanFocusPhase}
-        progress={
-          status === 'match_found' && !videoReveal
-            ? 100
-            : status === 'no_match' || status === 'loading'
-              ? 0
-              : matchPercent
-        }
-      />
-      <ScanStatusOverlay
-        status={status}
-        detail={prepareError ?? statusDetail}
-        progress={progress}
-        phase={viewerPhase}
-      />
-      <ViewerControlBar showRetry={showControls} onRetry={handleRetryScan} />
     </div>
   );
 };
