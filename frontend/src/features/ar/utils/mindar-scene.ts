@@ -152,20 +152,28 @@ export const bootstrapGuestCameraLayout = (host: HTMLElement): void => {
   });
 };
 
+const isGuestCameraPreview = (node: Element): boolean =>
+  node.id === 'sp-camera-preview' || node.classList.contains('ar-camera-preview');
+
 export const getCameraVideo = (host: HTMLElement): HTMLVideoElement | null => {
   const arSystem = getMindArSystem(host);
-  if (arSystem?.video) {
+  if (arSystem?.video && !isGuestCameraPreview(arSystem.video)) {
     return arSystem.video;
   }
 
-  const withStream = [...host.querySelectorAll('video')].find((node) =>
-    Boolean((node as HTMLVideoElement).srcObject),
-  ) as HTMLVideoElement | undefined;
+  const root = (host.closest('.ar-viewer-root') as HTMLElement | null) ?? host;
+  const withStream = [...root.querySelectorAll('video')].find((node) => {
+    const el = node as HTMLVideoElement;
+    if (el.id === 'sp-mapped-video' || isGuestCameraPreview(el)) return false;
+    return Boolean(el.srcObject);
+  }) as HTMLVideoElement | undefined;
   if (withStream) {
     return withStream;
   }
 
-  return host.querySelector('video:not(#sp-mapped-video)') as HTMLVideoElement | null;
+  return root.querySelector(
+    'video:not(#sp-mapped-video):not(#sp-camera-preview):not(.ar-camera-preview)',
+  ) as HTMLVideoElement | null;
 };
 
 /** Keep the live camera <video> visible. WebGL is transparent so the mapped plane shows on the photo. */
@@ -241,54 +249,120 @@ export const patchMindArVideoResize = (host: HTMLElement): void => {
  * Fill the viewport with the live camera (object-fit cover).
  * MindAR often sizes the <video> to a small top-left tracking crop — override that.
  */
+const styleGuestCameraPreview = (preview: HTMLVideoElement): void => {
+  preview.removeAttribute('width');
+  preview.removeAttribute('height');
+  preview.style.setProperty('position', 'fixed', 'important');
+  preview.style.setProperty('inset', '0px', 'important');
+  preview.style.setProperty('top', '0px', 'important');
+  preview.style.setProperty('left', '0px', 'important');
+  preview.style.setProperty('right', '0px', 'important');
+  preview.style.setProperty('bottom', '0px', 'important');
+  preview.style.setProperty('width', '100vw', 'important');
+  preview.style.setProperty('height', '100dvh', 'important');
+  preview.style.setProperty('min-width', '100vw', 'important');
+  preview.style.setProperty('min-height', '100dvh', 'important');
+  preview.style.setProperty('max-width', 'none', 'important');
+  preview.style.setProperty('max-height', 'none', 'important');
+  preview.style.setProperty('margin', '0', 'important');
+  preview.style.setProperty('padding', '0', 'important');
+  preview.style.setProperty('border', '0', 'important');
+  preview.style.setProperty('object-fit', 'cover', 'important');
+  preview.style.setProperty('object-position', 'center center', 'important');
+  preview.style.setProperty('aspect-ratio', 'auto', 'important');
+  preview.style.setProperty('transform', 'translateZ(0)', 'important');
+  preview.style.setProperty('transform-origin', 'center center', 'important');
+  preview.style.setProperty('z-index', '1', 'important');
+  preview.style.setProperty('opacity', '1', 'important');
+  preview.style.setProperty('visibility', 'visible', 'important');
+  preview.style.setProperty('display', 'block', 'important');
+  preview.style.setProperty('pointer-events', 'none', 'important');
+  preview.style.setProperty('background', '#000', 'important');
+};
+
+/**
+ * MindAR's live <video> paints above HTML overlays on many Android/iOS browsers.
+ * Keep that element as a tiny tracker feed, and show a separate preview we control
+ * under the guest scan UI layer.
+ */
 export const coverMindArCameraVideo = (host: HTMLElement): void => {
   const video = getCameraVideo(host);
-  if (!video) return;
+  if (!video || isGuestCameraPreview(video)) return;
 
   ensureSceneHostFillViewport(host);
 
-  // MindAR mounts the camera <video> on the scene host with z-index -2 — reparent if needed.
   const viewerRoot = host.closest('.ar-viewer-root') as HTMLElement | null;
   const mount = viewerRoot ?? host;
+  const uiLayer = mount.querySelector('.ar-ui-layer');
+
   if (video.parentElement !== mount) {
     mount.appendChild(video);
   }
 
-  // Keep guest chrome AFTER the camera in DOM so WebKit cannot paint video over scan UI.
-  const scanUiHost = mount.querySelector('.ar-scan-ui-host');
-  if (scanUiHost && scanUiHost.parentElement === mount) {
-    mount.appendChild(scanUiHost);
-  }
-
+  // Tracker only — must stay connected for MindAR, but must not cover UI.
+  video.classList.add('ar-camera-feed', 'ar-camera-feed--tracker');
+  video.classList.remove('ar-camera-preview');
   video.removeAttribute('width');
   video.removeAttribute('height');
   video.style.setProperty('position', 'fixed', 'important');
-  video.style.setProperty('inset', '0px', 'important');
+  video.style.setProperty('inset', 'auto', 'important');
   video.style.setProperty('top', '0px', 'important');
   video.style.setProperty('left', '0px', 'important');
-  video.style.setProperty('right', '0px', 'important');
-  video.style.setProperty('bottom', '0px', 'important');
-  video.style.setProperty('width', '100vw', 'important');
-  video.style.setProperty('height', '100dvh', 'important');
-  video.style.setProperty('min-width', '100vw', 'important');
-  video.style.setProperty('min-height', '100dvh', 'important');
-  video.style.setProperty('max-width', 'none', 'important');
-  video.style.setProperty('max-height', 'none', 'important');
+  video.style.setProperty('right', 'auto', 'important');
+  video.style.setProperty('bottom', 'auto', 'important');
+  video.style.setProperty('width', '2px', 'important');
+  video.style.setProperty('height', '2px', 'important');
+  video.style.setProperty('min-width', '0', 'important');
+  video.style.setProperty('min-height', '0', 'important');
+  video.style.setProperty('max-width', '2px', 'important');
+  video.style.setProperty('max-height', '2px', 'important');
   video.style.setProperty('margin', '0', 'important');
   video.style.setProperty('padding', '0', 'important');
   video.style.setProperty('border', '0', 'important');
   video.style.setProperty('object-fit', 'cover', 'important');
-  video.style.setProperty('object-position', 'center center', 'important');
-  video.style.setProperty('aspect-ratio', 'auto', 'important');
   video.style.setProperty('transform', 'none', 'important');
-  video.style.setProperty('transform-origin', 'center center', 'important');
-  video.style.setProperty('z-index', '1', 'important');
-  video.style.setProperty('opacity', '1', 'important');
+  video.style.setProperty('z-index', '0', 'important');
+  video.style.setProperty('opacity', '0.01', 'important');
   video.style.setProperty('visibility', 'visible', 'important');
   video.style.setProperty('display', 'block', 'important');
   video.style.setProperty('pointer-events', 'none', 'important');
   video.style.setProperty('background', 'transparent', 'important');
-  video.classList.add('ar-camera-feed');
+
+  let preview = mount.querySelector('#sp-camera-preview') as HTMLVideoElement | null;
+  if (!preview) {
+    preview = document.createElement('video');
+    preview.id = 'sp-camera-preview';
+    preview.className = 'ar-camera-preview';
+    preview.muted = true;
+    preview.defaultMuted = true;
+    preview.playsInline = true;
+    preview.autoplay = true;
+    preview.setAttribute('playsinline', '');
+    preview.setAttribute('webkit-playsinline', '');
+    preview.setAttribute('muted', '');
+    preview.setAttribute('autoplay', '');
+    preview.setAttribute('aria-hidden', 'true');
+  }
+
+  if (uiLayer && uiLayer.parentElement === mount) {
+    if (preview.parentElement !== mount || preview.nextElementSibling !== uiLayer) {
+      mount.insertBefore(preview, uiLayer);
+    }
+    // Keep UI above preview / tracker in DOM order.
+    mount.appendChild(uiLayer);
+  } else if (preview.parentElement !== mount) {
+    mount.appendChild(preview);
+  }
+
+  styleGuestCameraPreview(preview);
+
+  const stream = video.srcObject as MediaStream | null;
+  if (stream && preview.srcObject !== stream) {
+    preview.srcObject = stream;
+  }
+  if (preview.paused) {
+    void preview.play().catch(() => undefined);
+  }
 };
 
 const coverTrackingSurface = (node: HTMLElement | null): void => {
@@ -394,6 +468,11 @@ const watchCoverLayout = (host: HTMLElement): void => {
     schedule();
   });
   treeObserver.observe(host, { childList: true, subtree: true });
+
+  const viewerRoot = host.closest('.ar-viewer-root');
+  if (viewerRoot && viewerRoot !== host) {
+    treeObserver.observe(viewerRoot, { childList: true });
+  }
 };
 
 /** Style and play the MindAR camera feed under a transparent tracking canvas. */
@@ -708,5 +787,17 @@ export const destroyMindArScene = (host: HTMLElement): void => {
   } catch {
     // ignore teardown errors
   }
+
+  const viewerRoot = host.closest('.ar-viewer-root');
+  const preview = viewerRoot?.querySelector('#sp-camera-preview') as HTMLVideoElement | null;
+  if (preview) {
+    try {
+      preview.srcObject = null;
+    } catch {
+      // ignore
+    }
+    preview.remove();
+  }
+
   host.replaceChildren();
 };

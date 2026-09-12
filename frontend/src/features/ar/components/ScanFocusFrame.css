@@ -1,13 +1,11 @@
 .scan-focus-frame {
   pointer-events: none;
-  position: fixed;
+  position: absolute;
   inset: 0;
   width: 100%;
   max-width: 100vw;
   height: 100%;
-  height: 100dvh;
-  /* Above live camera (z-index 1). When portaled into .ar-scan-ui-host, host is z-index 40. */
-  z-index: 40;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -18,18 +16,6 @@
     1rem
     max(96px, calc(env(safe-area-inset-bottom) + 80px));
   animation: scan-focus-enter 0.35s ease-out;
-}
-
-.scan-focus-frame--portal {
-  z-index: 40;
-}
-
-.ar-scan-ui-host .scan-focus-frame {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 1;
 }
 
 @keyframes scan-focus-enter {
@@ -184,8 +170,8 @@
   height: min(78vw, 320px, 56dvh);
   overflow: hidden;
   background: transparent;
-  /* PhonePe-style dim outside the finder */
-  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.58);
+  /* Dim outside the finder so Scanning / Loading is obvious on any camera scene */
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.62);
   border-radius: 18px;
 }
 

@@ -126,8 +126,6 @@ export const ARViewer = ({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [sceneHost, setSceneHost] = useState<HTMLElement | null>(null);
-  /** Overlay slot kept after the camera <video> so scan UI stays visible on iOS. */
-  const [scanUiHost, setScanUiHost] = useState<HTMLElement | null>(null);
   const targetEntitiesRef = useRef<HTMLElement[]>([]);
   const [trackedEntity, setTrackedEntity] = useState<HTMLElement | null>(null);
   const targetTrackedRef = useRef(false);
@@ -1484,12 +1482,7 @@ export const ARViewer = ({
     status !== 'scans_exhausted' &&
     status !== 'no_targets' &&
     status !== 'video_unavailable' &&
-    (status === 'scanning' ||
-      status === 'move_closer' ||
-      status === 'no_match' ||
-      status === 'loading' ||
-      status === 'preparing' ||
-      (status === 'match_found' && !videoReveal));
+    !(status === 'match_found' && videoReveal);
 
   return (
     <div className="ar-viewer-root bg-black">
@@ -1500,22 +1493,29 @@ export const ARViewer = ({
         }}
         className="ar-scene-host"
       />
-      {/* Must stay after camera video in DOM — coverMindArCameraVideo re-appends this host. */}
-      <div className="ar-scan-ui-host" ref={setScanUiHost} aria-hidden={!showScanFocus} />
-      <ViewerTopChrome
-        soundOn={soundOn}
-        onToggleMute={() => {
-          const next = !soundOn;
-          setPlaybackMuted(!next);
-          setSoundOn(next);
-        }}
-        showActions={false}
-        portalTarget={scanUiHost}
-      />
-      {/* Wait for overlay host so we never paint under an iOS camera layer via body portal. */}
-      {scanUiHost ? (
-        <ScanFocusFrame visible={showScanFocus} phase={scanFocusPhase} portalTarget={scanUiHost} />
-      ) : null}
+      {/*
+        Camera preview (#sp-camera-preview) is injected under this layer by mindar-scene.
+        MindAR's own <video> stays a tiny tracker so it cannot cover guest UI on mobile.
+      */}
+      <div className="ar-ui-layer">
+        <ViewerTopChrome
+          soundOn={soundOn}
+          onToggleMute={() => {
+            const next = !soundOn;
+            setPlaybackMuted(!next);
+            setSoundOn(next);
+          }}
+          showActions={false}
+        />
+        <ScanFocusFrame visible={showScanFocus} phase={scanFocusPhase} />
+        <ScanStatusOverlay
+          status={status}
+          detail={prepareError ?? statusDetail}
+          progress={progress}
+          phase={viewerPhase}
+        />
+        <ViewerControlBar showRetry={showControls} onRetry={handleRetryScan} />
+      </div>
       <TargetFrameVideo
         host={sceneHost}
         targetEntity={trackedEntity}
@@ -1575,13 +1575,6 @@ export const ARViewer = ({
         onExitFullscreen={handleExitFullscreen}
         reveal={videoReveal}
       />
-      <ScanStatusOverlay
-        status={status}
-        detail={prepareError ?? statusDetail}
-        progress={progress}
-        phase={viewerPhase}
-      />
-      <ViewerControlBar showRetry={showControls} onRetry={handleRetryScan} />
     </div>
   );
 };
