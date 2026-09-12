@@ -7,14 +7,22 @@ export type ScanFocusPhase = 'scanning' | 'warming' | 'locking' | 'found' | 'nom
 interface ScanFocusFrameProps {
   visible: boolean;
   phase?: ScanFocusPhase;
+  /** Prefer the in-viewer host so iOS camera video cannot cover the scan UI. */
+  portalTarget?: HTMLElement | null;
 }
 
-export const ScanFocusFrame = ({ visible, phase = 'scanning' }: ScanFocusFrameProps) => {
+export const ScanFocusFrame = ({
+  visible,
+  phase = 'scanning',
+  portalTarget = null,
+}: ScanFocusFrameProps) => {
   const reactId = useId().replace(/:/g, '');
   const gradId = `sp-frame-bolt-${reactId}`;
   const glowId = `sp-frame-bolt-glow-${reactId}`;
 
   if (!visible || typeof document === 'undefined') return null;
+
+  const mountNode = portalTarget ?? document.body;
 
   const isBusy = phase === 'scanning' || phase === 'warming' || phase === 'locking';
 
@@ -125,6 +133,6 @@ export const ScanFocusFrame = ({ visible, phase = 'scanning' }: ScanFocusFramePr
 
       <p className="scan-focus-frame__footer">{footer}</p>
     </div>,
-    document.body,
+    mountNode,
   );
 };

@@ -126,6 +126,8 @@ export const ARViewer = ({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [sceneHost, setSceneHost] = useState<HTMLElement | null>(null);
+  /** Overlay slot kept after the camera <video> so scan UI stays visible on iOS. */
+  const [scanUiHost, setScanUiHost] = useState<HTMLElement | null>(null);
   const targetEntitiesRef = useRef<HTMLElement[]>([]);
   const [trackedEntity, setTrackedEntity] = useState<HTMLElement | null>(null);
   const targetTrackedRef = useRef(false);
@@ -1474,6 +1476,21 @@ export const ARViewer = ({
     status !== 'recognized' &&
     (status === 'no_match' || status === 'camera_required' || status === 'video_unavailable');
 
+  const showScanFocus =
+    videoMode !== 'fullscreen' &&
+    status !== 'recognized' &&
+    status !== 'camera_required' &&
+    status !== 'compile_failed' &&
+    status !== 'scans_exhausted' &&
+    status !== 'no_targets' &&
+    status !== 'video_unavailable' &&
+    (status === 'scanning' ||
+      status === 'move_closer' ||
+      status === 'no_match' ||
+      status === 'loading' ||
+      status === 'preparing' ||
+      (status === 'match_found' && !videoReveal));
+
   return (
     <div className="ar-viewer-root bg-black">
       <div
@@ -1483,6 +1500,8 @@ export const ARViewer = ({
         }}
         className="ar-scene-host"
       />
+      {/* Must stay after camera video in DOM — coverMindArCameraVideo re-appends this host. */}
+      <div className="ar-scan-ui-host" ref={setScanUiHost} aria-hidden={!showScanFocus} />
       <ViewerTopChrome
         soundOn={soundOn}
         onToggleMute={() => {
@@ -1491,25 +1510,12 @@ export const ARViewer = ({
           setSoundOn(next);
         }}
         showActions={false}
+        portalTarget={scanUiHost}
       />
-      <ScanFocusFrame
-        visible={
-          videoMode !== 'fullscreen' &&
-          status !== 'recognized' &&
-          status !== 'camera_required' &&
-          status !== 'compile_failed' &&
-          status !== 'scans_exhausted' &&
-          status !== 'no_targets' &&
-          status !== 'video_unavailable' &&
-          (status === 'scanning' ||
-            status === 'move_closer' ||
-            status === 'no_match' ||
-            status === 'loading' ||
-            status === 'preparing' ||
-            (status === 'match_found' && !videoReveal))
-        }
-        phase={scanFocusPhase}
-      />
+      {/* Wait for overlay host so we never paint under an iOS camera layer via body portal. */}
+      {scanUiHost ? (
+        <ScanFocusFrame visible={showScanFocus} phase={scanFocusPhase} portalTarget={scanUiHost} />
+      ) : null}
       <TargetFrameVideo
         host={sceneHost}
         targetEntity={trackedEntity}

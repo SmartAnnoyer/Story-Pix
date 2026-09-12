@@ -41,6 +41,22 @@ html.viewer-route #root {
   max-width: 100vw !important;
 }
 
+/*
+ * In-viewer overlay host: sits above the live camera (z-index 1) inside the same
+ * stacking context. Body portals lose to iOS camera layers; this host does not.
+ */
+.ar-scan-ui-host {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
+  max-width: 100vw !important;
+  height: 100% !important;
+  height: 100dvh !important;
+  z-index: 40 !important;
+  pointer-events: none !important;
+  overflow: visible !important;
+}
+
 .ar-scene-host {
   position: absolute !important;
   inset: 0 !important;

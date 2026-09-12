@@ -22,6 +22,16 @@
   z-index: 2147483646;
 }
 
+/* Inside .ar-scan-ui-host — stay above the scan frame, below playback chrome. */
+.viewer-top-chrome--in-viewer {
+  z-index: 2;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+}
+
 .viewer-top-chrome__brand {
   pointer-events: none;
   display: flex;

@@ -254,6 +254,12 @@ export const coverMindArCameraVideo = (host: HTMLElement): void => {
     mount.appendChild(video);
   }
 
+  // Keep guest chrome AFTER the camera in DOM so WebKit cannot paint video over scan UI.
+  const scanUiHost = mount.querySelector('.ar-scan-ui-host');
+  if (scanUiHost && scanUiHost.parentElement === mount) {
+    mount.appendChild(scanUiHost);
+  }
+
   video.removeAttribute('width');
   video.removeAttribute('height');
   video.style.setProperty('position', 'fixed', 'important');

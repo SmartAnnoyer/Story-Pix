@@ -8,6 +8,8 @@ interface ViewerTopChromeProps {
   onToggleExpand?: () => void;
   expanded?: boolean;
   showActions?: boolean;
+  /** Prefer the in-viewer host so iOS camera video cannot cover the logo. */
+  portalTarget?: HTMLElement | null;
 }
 
 export const ViewerTopChrome = ({
@@ -16,11 +18,18 @@ export const ViewerTopChrome = ({
   onToggleExpand,
   expanded = false,
   showActions = true,
+  portalTarget = null,
 }: ViewerTopChromeProps) => {
   if (typeof document === 'undefined') return null;
 
+  const mountNode = portalTarget ?? document.body;
+
   return createPortal(
-    <div className="viewer-top-chrome viewer-top-chrome--portal">
+    <div
+      className={`viewer-top-chrome viewer-top-chrome--portal${
+        portalTarget ? ' viewer-top-chrome--in-viewer' : ''
+      }`}
+    >
       <div className="viewer-top-chrome__brand">
         <BrandLogo variant="nav" height={42} className="viewer-top-chrome__logo" />
       </div>
@@ -74,6 +83,6 @@ export const ViewerTopChrome = ({
         </div>
       ) : null}
     </div>,
-    document.body,
+    mountNode,
   );
 };
