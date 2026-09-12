@@ -62,9 +62,9 @@ export const ViewerWelcomeScreen = ({
       : needsTap && canStart
         ? 'Tap anywhere to continue'
         : showProgress
-          ? warmup.message
+          ? warmup.message || 'Loading your album…'
           : canStart
-            ? 'Almost ready…'
+            ? 'Ready — tap to scan'
             : 'Getting your album ready…';
 
   const loaderStage = starting || canStart ? 'camera' : warmup.stage;

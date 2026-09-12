@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useId } from 'react';
 import './ScanFocusFrame.css';
 
@@ -13,48 +14,35 @@ export const ScanFocusFrame = ({ visible, phase = 'scanning' }: ScanFocusFramePr
   const gradId = `sp-frame-bolt-${reactId}`;
   const glowId = `sp-frame-bolt-glow-${reactId}`;
 
-  if (!visible) return null;
-
-  const isBusy = phase === 'scanning' || phase === 'warming' || phase === 'locking';
+  if (!visible || typeof document === 'undefined') return null;
 
   const badge =
     phase === 'locking'
-      ? 'Loading video…'
+      ? 'Hold steady — loading video'
       : phase === 'warming'
-        ? 'Hold steady…'
+        ? 'Almost there…'
         : phase === 'nomatch'
           ? 'No match found'
           : 'Scanning…';
 
-  const footer =
+  const tip =
     phase === 'locking'
-      ? 'Keep the photo in the frame'
-      : phase === 'warming'
-        ? 'Photo detected — hold still'
-        : phase === 'nomatch'
-          ? 'Brighter light, fill the frame, then try again'
-          : 'Point at the printed photo and hold steady';
+      ? 'Keep the photo filling the frame'
+      : phase === 'nomatch'
+        ? 'Try brighter light, fill the frame, then hold steady'
+        : 'Point at the printed photo and fill the square';
 
-  return (
-    <div
-      className={`scan-focus-frame scan-focus-frame--${phase}`}
-      role="status"
-      aria-live="polite"
-      aria-label={badge}
-      data-scan-hud="1"
-    >
-      <div className="scan-focus-frame__status">
-        {isBusy ? <span className="scan-focus-frame__pulse" aria-hidden /> : null}
-        <div className="scan-focus-frame__badge">
-          <span className="scan-focus-frame__badge-label">{badge}</span>
-          {isBusy ? (
-            <span className="scan-focus-frame__dots" aria-hidden>
-              <i />
-              <i />
-              <i />
-            </span>
-          ) : null}
-        </div>
+  return createPortal(
+    <div className={`scan-focus-frame scan-focus-frame--${phase}`} aria-live="polite" role="status">
+      <div className="scan-focus-frame__badge">
+        {phase === 'scanning' || phase === 'warming' ? (
+          <span className="scan-focus-frame__badge-dots" aria-hidden>
+            <i />
+            <i />
+            <i />
+          </span>
+        ) : null}
+        <span>{badge}</span>
       </div>
 
       <div className={`scan-focus-frame__box scan-focus-frame__box--${phase}`}>
@@ -62,7 +50,12 @@ export const ScanFocusFrame = ({ visible, phase = 'scanning' }: ScanFocusFramePr
         <span className="scan-focus-frame__corner scan-focus-frame__corner--tr" />
         <span className="scan-focus-frame__corner scan-focus-frame__corner--bl" />
         <span className="scan-focus-frame__corner scan-focus-frame__corner--br" />
-        <div className="scan-focus-frame__border" aria-hidden />
+
+        {/* PhonePe-style edge ticks */}
+        <span className="scan-focus-frame__tick scan-focus-frame__tick--t" aria-hidden />
+        <span className="scan-focus-frame__tick scan-focus-frame__tick--r" aria-hidden />
+        <span className="scan-focus-frame__tick scan-focus-frame__tick--b" aria-hidden />
+        <span className="scan-focus-frame__tick scan-focus-frame__tick--l" aria-hidden />
 
         {phase === 'locking' ? (
           <>
@@ -114,16 +107,12 @@ export const ScanFocusFrame = ({ visible, phase = 'scanning' }: ScanFocusFramePr
             <div className="scan-focus-frame__orbit-ring" aria-hidden />
           </>
         ) : (
-          <>
-            <div className="scan-focus-frame__laser" aria-hidden>
-              <i />
-            </div>
-            <div className="scan-focus-frame__grid" aria-hidden />
-          </>
+          <div className="scan-focus-frame__scanline" aria-hidden />
         )}
       </div>
 
-      <p className="scan-focus-frame__footer">{footer}</p>
-    </div>
+      <p className="scan-focus-frame__tip">{tip}</p>
+    </div>,
+    document.body,
   );
 };

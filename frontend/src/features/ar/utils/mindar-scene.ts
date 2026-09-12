@@ -158,19 +158,14 @@ export const getCameraVideo = (host: HTMLElement): HTMLVideoElement | null => {
     return arSystem.video;
   }
 
-  const root = (host.closest('.ar-viewer-root') as HTMLElement | null) ?? host;
-  const withStream = [...root.querySelectorAll('video')].find((node) => {
-    const el = node as HTMLVideoElement;
-    if (el.id === 'sp-mapped-video' || el.id === 'sp-camera-preview') return false;
-    return Boolean(el.srcObject);
-  }) as HTMLVideoElement | undefined;
+  const withStream = [...host.querySelectorAll('video')].find((node) =>
+    Boolean((node as HTMLVideoElement).srcObject),
+  ) as HTMLVideoElement | undefined;
   if (withStream) {
     return withStream;
   }
 
-  return root.querySelector(
-    'video:not(#sp-mapped-video):not(#sp-camera-preview)',
-  ) as HTMLVideoElement | null;
+  return host.querySelector('video:not(#sp-mapped-video)') as HTMLVideoElement | null;
 };
 
 /** Keep the live camera <video> visible. WebGL is transparent so the mapped plane shows on the photo. */
@@ -243,10 +238,8 @@ export const patchMindArVideoResize = (host: HTMLElement): void => {
 };
 
 /**
- * Fill the viewer with the live MindAR camera (object-fit cover).
- * Use absolute (not fixed) so the feed stays in the same stacking context as the
- * scan HUD — fixed camera video often paints above all HTML on Android/iOS.
- * Keep the video full-size for tracking (do not shrink it).
+ * Fill the viewport with the live camera (object-fit cover).
+ * MindAR often sizes the <video> to a small top-left tracking crop — override that.
  */
 export const coverMindArCameraVideo = (host: HTMLElement): void => {
   const video = getCameraVideo(host);
@@ -254,39 +247,25 @@ export const coverMindArCameraVideo = (host: HTMLElement): void => {
 
   ensureSceneHostFillViewport(host);
 
+  // MindAR mounts the camera <video> on the scene host with z-index -2 — reparent if needed.
   const viewerRoot = host.closest('.ar-viewer-root') as HTMLElement | null;
   const mount = viewerRoot ?? host;
-  const uiLayer = mount.querySelector('.ar-ui-layer');
-
-  // Drop any leftover dual-preview experiment from prior builds.
-  mount.querySelector('#sp-camera-preview')?.remove();
-
   if (video.parentElement !== mount) {
-    if (uiLayer) mount.insertBefore(video, uiLayer);
-    else mount.appendChild(video);
-  } else if (uiLayer && video.nextElementSibling !== uiLayer) {
-    mount.insertBefore(video, uiLayer);
+    mount.appendChild(video);
   }
 
-  if (uiLayer && uiLayer.parentElement === mount) {
-    mount.appendChild(uiLayer);
-  }
-
-  video.classList.add('ar-camera-feed');
-  video.classList.remove('ar-camera-feed--tracker', 'ar-camera-preview');
   video.removeAttribute('width');
   video.removeAttribute('height');
-  // Absolute inside the fixed .ar-viewer-root — not position:fixed on the video itself.
-  video.style.setProperty('position', 'absolute', 'important');
+  video.style.setProperty('position', 'fixed', 'important');
   video.style.setProperty('inset', '0px', 'important');
   video.style.setProperty('top', '0px', 'important');
   video.style.setProperty('left', '0px', 'important');
   video.style.setProperty('right', '0px', 'important');
   video.style.setProperty('bottom', '0px', 'important');
-  video.style.setProperty('width', '100%', 'important');
-  video.style.setProperty('height', '100%', 'important');
-  video.style.setProperty('min-width', '100%', 'important');
-  video.style.setProperty('min-height', '100%', 'important');
+  video.style.setProperty('width', '100vw', 'important');
+  video.style.setProperty('height', '100dvh', 'important');
+  video.style.setProperty('min-width', '100vw', 'important');
+  video.style.setProperty('min-height', '100dvh', 'important');
   video.style.setProperty('max-width', 'none', 'important');
   video.style.setProperty('max-height', 'none', 'important');
   video.style.setProperty('margin', '0', 'important');
@@ -303,6 +282,7 @@ export const coverMindArCameraVideo = (host: HTMLElement): void => {
   video.style.setProperty('display', 'block', 'important');
   video.style.setProperty('pointer-events', 'none', 'important');
   video.style.setProperty('background', 'transparent', 'important');
+  video.classList.add('ar-camera-feed');
 };
 
 const coverTrackingSurface = (node: HTMLElement | null): void => {
@@ -408,11 +388,6 @@ const watchCoverLayout = (host: HTMLElement): void => {
     schedule();
   });
   treeObserver.observe(host, { childList: true, subtree: true });
-
-  const viewerRoot = host.closest('.ar-viewer-root');
-  if (viewerRoot && viewerRoot !== host) {
-    treeObserver.observe(viewerRoot, { childList: true });
-  }
 };
 
 /** Style and play the MindAR camera feed under a transparent tracking canvas. */
@@ -727,8 +702,5 @@ export const destroyMindArScene = (host: HTMLElement): void => {
   } catch {
     // ignore teardown errors
   }
-
-  // Clean leftover dual-preview nodes from older builds.
-  host.closest('.ar-viewer-root')?.querySelector('#sp-camera-preview')?.remove();
   host.replaceChildren();
 };

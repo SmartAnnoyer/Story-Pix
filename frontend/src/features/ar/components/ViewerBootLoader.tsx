@@ -1,4 +1,4 @@
-import type { WarmupStage } from '../utils/viewer-warmup';
+import { useId } from 'react';
 import './ViewerBootLoader.css';
 
 export type BootLoaderMode = 'loading' | 'starting' | 'ready' | 'tap';
@@ -6,58 +6,46 @@ export type BootLoaderMode = 'loading' | 'starting' | 'ready' | 'tap';
 interface ViewerBootLoaderProps {
   percent: number;
   message: string | null;
-  stage?: WarmupStage | 'camera';
+  stage?: string;
   mode: BootLoaderMode;
 }
 
-/** Radius math for SVG ring — viewBox 120, stroke centered on r=52. */
-const RING_R = 52;
-const RING_C = 2 * Math.PI * RING_R;
-/** Indeterminate arc length (~28% of circle). */
-const SPIN_ARC = RING_C * 0.28;
-
 export const ViewerBootLoader = ({ percent, message, mode }: ViewerBootLoaderProps) => {
-  const clamped = Math.min(100, Math.max(0, percent));
-  const dashOffset = RING_C * (1 - clamped / 100);
-  const showIndeterminate = mode === 'loading' || mode === 'starting';
-  const showRingPulse = mode === 'starting' || mode === 'tap' || mode === 'ready';
+  const reactId = useId().replace(/:/g, '');
+  const gradId = `sp-boot-grad-${reactId}`;
+  const clamped = Math.min(100, Math.max(0, Math.round(percent)));
+  const spinning = mode === 'loading' || mode === 'starting';
 
   return (
     <div className={`viewer-boot-loader viewer-boot-loader--${mode}`} aria-live="polite">
-      <div className="viewer-boot-loader__orb">
+      <div
+        className={`viewer-boot-loader__orb${spinning ? ' viewer-boot-loader__orb--spinning' : ''}`}
+      >
+        {/* CSS lightning halo — reliable on mobile Safari */}
+        <span className="viewer-boot-loader__halo" aria-hidden />
+        <span className="viewer-boot-loader__halo-glow" aria-hidden />
+
         <svg className="viewer-boot-loader__ring" viewBox="0 0 120 120" aria-hidden>
           <defs>
-            <linearGradient id="sp-boot-ring" x1="0%" y1="0%" x2="100%" y2="100%">
+            <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor="#5B4CF0" />
-              <stop offset="45%" stopColor="#6B2CDB" />
-              <stop offset="100%" stopColor="#FF4FA3" />
-            </linearGradient>
-            <linearGradient id="sp-boot-ring-spin" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#5B4CF0" stopOpacity="0.15" />
-              <stop offset="35%" stopColor="#6B2CDB" />
-              <stop offset="70%" stopColor="#E93A8A" />
-              <stop offset="100%" stopColor="#FF4FA3" />
+              <stop offset="40%" stopColor="#6B2CDB" />
+              <stop offset="72%" stopColor="#E93A8A" />
+              <stop offset="100%" stopColor="#FFC233" />
             </linearGradient>
           </defs>
-          <circle className="viewer-boot-loader__ring-track" cx="60" cy="60" r={RING_R} />
-          {showIndeterminate ? (
+          <circle className="viewer-boot-loader__ring-track" cx="60" cy="60" r="52" />
+          {!spinning ? (
             <circle
-              className="viewer-boot-loader__ring-spin"
+              className="viewer-boot-loader__ring-value"
               cx="60"
               cy="60"
-              r={RING_R}
-              strokeDasharray={`${SPIN_ARC} ${RING_C - SPIN_ARC}`}
+              r="52"
+              stroke={`url(#${gradId})`}
+              strokeDasharray={2 * Math.PI * 52}
+              strokeDashoffset={2 * Math.PI * 52 * (1 - clamped / 100)}
             />
           ) : null}
-          <circle
-            className={`viewer-boot-loader__ring-value${showRingPulse ? ' viewer-boot-loader__ring-value--pulse' : ''}`}
-            cx="60"
-            cy="60"
-            r={RING_R}
-            strokeDasharray={RING_C}
-            strokeDashoffset={dashOffset}
-            opacity={showIndeterminate && clamped < 8 ? 0 : 1}
-          />
         </svg>
 
         <div className="viewer-boot-loader__core" aria-hidden>
@@ -69,9 +57,17 @@ export const ViewerBootLoader = ({ percent, message, mode }: ViewerBootLoaderPro
           <span className="viewer-boot-loader__play" />
           <span className="viewer-boot-loader__beam" />
         </div>
+
+        {spinning || clamped > 0 ? (
+          <div className="viewer-boot-loader__percent">
+            <span className="viewer-boot-loader__percent-num">{clamped}</span>
+            <span className="viewer-boot-loader__percent-unit">%</span>
+          </div>
+        ) : null}
       </div>
 
       {message ? <p className="viewer-boot-loader__message">{message}</p> : null}
+      {spinning ? <p className="viewer-boot-loader__sub">Preparing your scan…</p> : null}
     </div>
   );
 };

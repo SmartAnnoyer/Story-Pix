@@ -267,7 +267,6 @@ export const ARViewer = ({
     if (status === 'match_found' && !videoReveal) return 'locking';
     if (status === 'match_found') return 'found';
     if (status === 'move_closer') return 'warming';
-    if (status === 'loading' || status === 'preparing') return 'scanning';
     if (status === 'scanning') {
       if (matchPercent >= 42) return 'warming';
       return 'scanning';
@@ -1474,16 +1473,6 @@ export const ARViewer = ({
     status !== 'recognized' &&
     (status === 'no_match' || status === 'camera_required' || status === 'video_unavailable');
 
-  const showScanFocus =
-    videoMode !== 'fullscreen' &&
-    status !== 'recognized' &&
-    status !== 'camera_required' &&
-    status !== 'compile_failed' &&
-    status !== 'scans_exhausted' &&
-    status !== 'no_targets' &&
-    status !== 'video_unavailable' &&
-    !(status === 'match_found' && videoReveal);
-
   return (
     <div className="ar-viewer-root bg-black">
       <div
@@ -1493,29 +1482,25 @@ export const ARViewer = ({
         }}
         className="ar-scene-host"
       />
-      {/*
-        Camera video is injected under this layer (absolute, full-size for MindAR).
-        HUD stays a sibling above it so guests always see Scanning / Loading.
-      */}
-      <div className="ar-ui-layer">
-        <ViewerTopChrome
-          soundOn={soundOn}
-          onToggleMute={() => {
-            const next = !soundOn;
-            setPlaybackMuted(!next);
-            setSoundOn(next);
-          }}
-          showActions={false}
-        />
-        <ScanFocusFrame visible={showScanFocus} phase={scanFocusPhase} />
-        <ScanStatusOverlay
-          status={status}
-          detail={prepareError ?? statusDetail}
-          progress={progress}
-          phase={viewerPhase}
-        />
-        <ViewerControlBar showRetry={showControls} onRetry={handleRetryScan} />
-      </div>
+      <ViewerTopChrome
+        soundOn={soundOn}
+        onToggleMute={() => {
+          const next = !soundOn;
+          setPlaybackMuted(!next);
+          setSoundOn(next);
+        }}
+        showActions={false}
+      />
+      <ScanFocusFrame
+        visible={
+          videoMode !== 'fullscreen' &&
+          (status === 'scanning' ||
+            status === 'move_closer' ||
+            status === 'no_match' ||
+            (status === 'match_found' && !videoReveal))
+        }
+        phase={scanFocusPhase}
+      />
       <TargetFrameVideo
         host={sceneHost}
         targetEntity={trackedEntity}
@@ -1575,6 +1560,13 @@ export const ARViewer = ({
         onExitFullscreen={handleExitFullscreen}
         reveal={videoReveal}
       />
+      <ScanStatusOverlay
+        status={status}
+        detail={prepareError ?? statusDetail}
+        progress={progress}
+        phase={viewerPhase}
+      />
+      <ViewerControlBar showRetry={showControls} onRetry={handleRetryScan} />
     </div>
   );
 };

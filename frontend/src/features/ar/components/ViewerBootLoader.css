@@ -3,16 +3,62 @@
   width: min(100%, 20rem);
   flex-direction: column;
   align-items: center;
-  gap: 0.85rem;
+  gap: 0.75rem;
   flex-shrink: 0;
 }
 
 .viewer-boot-loader__orb {
   position: relative;
-  width: min(46vw, 188px, 34dvh);
-  height: min(46vw, 188px, 34dvh);
+  width: min(48vw, 200px, 36dvh);
+  height: min(48vw, 200px, 36dvh);
   display: grid;
   place-items: center;
+}
+
+/* Brand lightning ring spinning around the orb */
+.viewer-boot-loader__halo {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 220deg,
+    rgba(91, 76, 240, 0.15) 250deg,
+    #5b4cf0 290deg,
+    #6b2cdb 310deg,
+    #e93a8a 335deg,
+    #ff4fa3 348deg,
+    #ffc233 360deg
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+  opacity: 0.35;
+}
+
+.viewer-boot-loader__orb--spinning .viewer-boot-loader__halo {
+  opacity: 1;
+  animation: boot-halo-spin 1.05s linear infinite;
+  filter: drop-shadow(0 0 10px rgba(233, 58, 138, 0.65));
+}
+
+.viewer-boot-loader__halo-glow {
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(233, 58, 138, 0.22) 0%,
+    rgba(91, 76, 240, 0.12) 42%,
+    transparent 68%
+  );
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.viewer-boot-loader__orb--spinning .viewer-boot-loader__halo-glow {
+  opacity: 1;
+  animation: boot-halo-breathe 1.6s ease-in-out infinite;
 }
 
 .viewer-boot-loader__ring {
@@ -21,38 +67,21 @@
   width: 100%;
   height: 100%;
   transform: rotate(-90deg);
-  filter: drop-shadow(0 0 14px rgba(233, 58, 138, 0.35));
+  pointer-events: none;
 }
 
 .viewer-boot-loader__ring-track {
   fill: none;
-  stroke: rgba(255, 255, 255, 0.14);
-  stroke-width: 5;
-}
-
-.viewer-boot-loader__ring-spin {
-  fill: none;
-  stroke: url(#sp-boot-ring-spin);
-  stroke-width: 5.5;
-  stroke-linecap: round;
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: boot-ring-spin 1.05s linear infinite;
-  filter: drop-shadow(0 0 8px rgba(233, 58, 138, 0.55));
+  stroke: rgba(255, 255, 255, 0.18);
+  stroke-width: 4.5;
 }
 
 .viewer-boot-loader__ring-value {
   fill: none;
-  stroke: url(#sp-boot-ring);
   stroke-width: 5.5;
   stroke-linecap: round;
-  transition:
-    stroke-dashoffset 0.65s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.35s ease;
-}
-
-.viewer-boot-loader__ring-value--pulse {
-  animation: boot-ring-glow 1.6s ease-in-out infinite;
+  transition: stroke-dashoffset 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  filter: drop-shadow(0 0 8px rgba(233, 58, 138, 0.45));
 }
 
 .viewer-boot-loader__core {
@@ -62,11 +91,13 @@
   height: 58%;
   border-radius: 22%;
   background:
-    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.12), transparent 55%),
-    linear-gradient(160deg, rgba(40, 20, 70, 0.9), rgba(12, 10, 22, 0.95));
+    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.16), transparent 55%),
+    linear-gradient(160deg, rgba(72, 40, 130, 0.95), rgba(22, 16, 40, 0.98));
+  border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 12px 28px rgba(0, 0, 0, 0.35);
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 12px 28px rgba(0, 0, 0, 0.4),
+    0 0 24px rgba(107, 44, 219, 0.25);
   overflow: hidden;
 }
 
@@ -117,8 +148,7 @@
   width: 34%;
   height: 30%;
   border-radius: 4px;
-  background:
-    linear-gradient(180deg, #f3e8ff 0%, #ddd6fe 40%, #7c3aed 41%, #6b2cdb 100%);
+  background: linear-gradient(180deg, #f3e8ff 0%, #ddd6fe 40%, #7c3aed 41%, #6b2cdb 100%);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
   transform: rotate(-8deg);
   animation: boot-photo-float 3.2s ease-in-out infinite;
@@ -162,14 +192,14 @@
 .viewer-boot-loader__percent {
   position: absolute;
   z-index: 2;
-  bottom: -0.15rem;
+  bottom: -0.2rem;
   display: inline-flex;
   align-items: baseline;
   gap: 0.05rem;
-  padding: 0.2rem 0.55rem;
+  padding: 0.22rem 0.6rem;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(10, 8, 18, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(10, 8, 18, 0.82);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
@@ -192,92 +222,45 @@
 }
 
 .viewer-boot-loader__message {
-  margin: 0.35rem 0 0;
+  margin: 0.45rem 0 0;
   max-width: 18rem;
   text-align: center;
-  font-size: clamp(0.84rem, 3.4vw, 0.95rem);
-  font-weight: 600;
+  font-size: clamp(0.88rem, 3.5vw, 1rem);
+  font-weight: 650;
   line-height: 1.35;
   letter-spacing: -0.015em;
-  color: rgba(255, 255, 255, 0.88);
+  color: rgba(255, 255, 255, 0.92);
   min-height: 1.35em;
 }
 
-.viewer-boot-loader__percent,
-.viewer-boot-loader__stages {
-  display: none;
-}
-
-.viewer-boot-loader__stages {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.4rem;
-  width: 100%;
+.viewer-boot-loader__sub {
   margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.viewer-boot-loader__stage {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.45rem 0.35rem;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.04);
-  transition:
-    border-color 0.35s ease,
-    background 0.35s ease,
-    transform 0.35s ease;
-}
-
-.viewer-boot-loader__stage--active {
-  border-color: rgba(233, 58, 138, 0.45);
-  background: rgba(107, 44, 219, 0.18);
-  transform: translateY(-1px);
-  box-shadow: 0 8px 20px rgba(107, 44, 219, 0.2);
-}
-
-.viewer-boot-loader__stage--done {
-  border-color: rgba(91, 76, 240, 0.35);
-  background: rgba(91, 76, 240, 0.12);
-}
-
-.viewer-boot-loader__stage-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.28);
-}
-
-.viewer-boot-loader__stage--active .viewer-boot-loader__stage-dot {
-  background: #ff4fa3;
-  box-shadow: 0 0 10px rgba(255, 79, 163, 0.75);
-  animation: boot-dot-pulse 1.3s ease-in-out infinite;
-}
-
-.viewer-boot-loader__stage--done .viewer-boot-loader__stage-dot {
-  background: #8b7cff;
-  box-shadow: 0 0 8px rgba(107, 44, 219, 0.55);
-}
-
-.viewer-boot-loader__stage-label {
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.45);
-}
-
-.viewer-boot-loader__stage--active .viewer-boot-loader__stage-label,
-.viewer-boot-loader__stage--done .viewer-boot-loader__stage-label {
-  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgba(255, 208, 230, 0.75);
+  letter-spacing: 0.01em;
 }
 
 .viewer-boot-loader--tap .viewer-boot-loader__message {
   color: #ffd0e6;
+}
+
+@keyframes boot-halo-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes boot-halo-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.75;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
 }
 
 @keyframes boot-beam-sweep {
@@ -316,59 +299,14 @@
   }
 }
 
-@keyframes boot-ring-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes boot-ring-glow {
-  0%,
-  100% {
-    filter: brightness(1);
-  }
-  50% {
-    filter: brightness(1.2);
-  }
-}
-
-@keyframes boot-dot-pulse {
-  0%,
-  100% {
-    transform: scale(0.9);
-    opacity: 0.75;
-  }
-  50% {
-    transform: scale(1.15);
-    opacity: 1;
-  }
-}
-
 @media (max-height: 700px) {
   .viewer-boot-loader {
-    gap: 0.55rem;
+    gap: 0.5rem;
   }
 
   .viewer-boot-loader__orb {
-    width: min(38vw, 148px, 26dvh);
-    height: min(38vw, 148px, 26dvh);
-  }
-
-  .viewer-boot-loader__stage {
-    padding: 0.35rem 0.25rem;
-  }
-}
-
-@media (max-height: 580px) {
-  .viewer-boot-loader__stages {
-    gap: 0.3rem;
-  }
-
-  .viewer-boot-loader__stage-label {
-    font-size: 0.62rem;
+    width: min(40vw, 156px, 28dvh);
+    height: min(40vw, 156px, 28dvh);
   }
 }
 
@@ -376,13 +314,16 @@
   .viewer-boot-loader__beam,
   .viewer-boot-loader__photo,
   .viewer-boot-loader__play,
-  .viewer-boot-loader__ring-value--pulse,
-  .viewer-boot-loader__ring-spin,
-  .viewer-boot-loader__stage--active .viewer-boot-loader__stage-dot {
+  .viewer-boot-loader__orb--spinning .viewer-boot-loader__halo,
+  .viewer-boot-loader__orb--spinning .viewer-boot-loader__halo-glow {
     animation: none;
   }
 
   .viewer-boot-loader__beam {
     top: 50%;
+  }
+
+  .viewer-boot-loader__orb--spinning .viewer-boot-loader__halo {
+    opacity: 1;
   }
 }

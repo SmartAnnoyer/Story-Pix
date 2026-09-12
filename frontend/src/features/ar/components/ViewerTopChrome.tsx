@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { BrandLogo } from '@/components/BrandLogo';
 import './ViewerTopChrome.css';
 
@@ -16,8 +17,10 @@ export const ViewerTopChrome = ({
   expanded = false,
   showActions = true,
 }: ViewerTopChromeProps) => {
-  return (
-    <div className="viewer-top-chrome viewer-top-chrome--in-viewer">
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div className="viewer-top-chrome viewer-top-chrome--portal">
       <div className="viewer-top-chrome__brand">
         <BrandLogo variant="nav" height={42} className="viewer-top-chrome__logo" />
       </div>
@@ -70,6 +73,7 @@ export const ViewerTopChrome = ({
           ) : null}
         </div>
       ) : null}
-    </div>
+    </div>,
+    document.body,
   );
 };
