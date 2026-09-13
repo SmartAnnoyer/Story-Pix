@@ -281,27 +281,31 @@ export const SignupPage = () => {
       </div>
 
       <div className="signup-page__dock">
-        <aside className="signup-page__summary">
-          <p>
-            <strong>Pay now</strong> ₹{preview.amountInr}
-          </p>
-          <p>
-            {preview.mappings > 0
-              ? `+${preview.mappings} photo${preview.mappings === 1 ? '' : 's'}`
-              : 'Tap + to choose'}
-          </p>
-        </aside>
-        <Button
-          type="primary"
-          htmlType="submit"
-          form="signup-form"
-          size="large"
-          block
-          loading={submitting}
-          className="signup-page__pay"
-        >
-          Pay & start
-        </Button>
+        <div className="signup-page__checkout">
+          <div className="signup-page__checkout-meta">
+            <p className="signup-page__checkout-amount">
+              <span>Total</span>₹{preview.amountInr.toLocaleString('en-IN')}
+            </p>
+            <p
+              className={`signup-page__checkout-hint${preview.mappings > 0 ? ' signup-page__checkout-hint--ready' : ''}`}
+            >
+              {preview.mappings > 0
+                ? `+${preview.mappings} photo${preview.mappings === 1 ? '' : 's'}`
+                : 'Tap + to choose a pack'}
+            </p>
+          </div>
+          <Button
+            type="primary"
+            htmlType="submit"
+            form="signup-form"
+            size="large"
+            loading={submitting}
+            disabled={!items.length}
+            className="signup-page__pay"
+          >
+            Pay & start
+          </Button>
+        </div>
       </div>
     </div>
   );

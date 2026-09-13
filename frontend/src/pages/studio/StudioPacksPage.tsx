@@ -142,26 +142,30 @@ export const StudioPacksPage = () => {
       </div>
 
       <div className="signup-page__dock">
-        <aside className="signup-page__summary">
-          <p>
-            <strong>Total</strong> ₹{preview.amountInr}
-          </p>
-          <p>
-            {preview.photos > 0
-              ? `+${preview.photos} photo${preview.photos === 1 ? '' : 's'}`
-              : 'Tap + to choose'}
-          </p>
-        </aside>
-        <Button
-          type="primary"
-          size="large"
-          block
-          loading={submitting}
-          className="signup-page__pay"
-          onClick={() => void handlePurchase()}
-        >
-          Pay & add photos
-        </Button>
+        <div className="signup-page__checkout">
+          <div className="signup-page__checkout-meta">
+            <p className="signup-page__checkout-amount">
+              <span>Total</span>₹{preview.amountInr.toLocaleString('en-IN')}
+            </p>
+            <p
+              className={`signup-page__checkout-hint${preview.photos > 0 ? ' signup-page__checkout-hint--ready' : ''}`}
+            >
+              {preview.photos > 0
+                ? `+${preview.photos} photo${preview.photos === 1 ? '' : 's'}`
+                : 'Tap + to choose a pack'}
+            </p>
+          </div>
+          <Button
+            type="primary"
+            size="large"
+            loading={submitting}
+            disabled={!items.length}
+            className="signup-page__pay"
+            onClick={() => void handlePurchase()}
+          >
+            Pay
+          </Button>
+        </div>
       </div>
     </div>
   );
