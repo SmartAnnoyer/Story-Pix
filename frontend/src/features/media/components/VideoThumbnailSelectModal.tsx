@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Modal, Slider, Typography } from 'antd';
+import { Button, Input, Modal, Slider, Typography } from 'antd';
 import { blobToDataUrl, scaleToMaxEdge } from '@/features/media/utils/video-frame-capture';
+import { stripFileExtension } from '@/features/media/utils/cache-bust';
 
 interface VideoThumbnailSelectModalProps {
   open: boolean;
@@ -11,7 +12,10 @@ interface VideoThumbnailSelectModalProps {
     width: number;
     height: number;
     duration: number;
+    displayName: string;
   }) => void;
+  /** When parent owns the save loading state (e.g. library cover update). */
+  confirmingOverride?: boolean;
 }
 
 const SEEK_DEBOUNCE_MS = 120;
@@ -21,6 +25,7 @@ export const VideoThumbnailSelectModal = ({
   file,
   onCancel,
   onConfirm,
+  confirmingOverride,
 }: VideoThumbnailSelectModalProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -34,12 +39,14 @@ export const VideoThumbnailSelectModal = ({
   const [seeking, setSeeking] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [previewReady, setPreviewReady] = useState(false);
+  const [displayName, setDisplayName] = useState('');
+
+  const busy = confirmingOverride ?? confirming;
 
   const paintPreview = useCallback((video: HTMLVideoElement, canvas: HTMLCanvasElement) => {
     const ctx = canvas.getContext('2d');
     if (!ctx || video.videoWidth <= 0) return false;
 
-    // Preview at a capped size so large 4K frames do not stall the UI thread.
     const scaled = scaleToMaxEdge(video.videoWidth, video.videoHeight, 720);
     canvas.width = scaled.width;
     canvas.height = scaled.height;
@@ -104,13 +111,14 @@ export const VideoThumbnailSelectModal = ({
       setTime(0);
       setSeeking(false);
       setConfirming(false);
+      setDisplayName('');
       return undefined;
     }
 
-    // One object URL only — avoid a second metadata pass over the full file.
     const url = URL.createObjectURL(file);
     setVideoUrl(url);
     setPreviewReady(false);
+    setDisplayName(stripFileExtension(file.name));
 
     return () => {
       if (debounceRef.current) window.clearTimeout(debounceRef.current);
@@ -127,7 +135,6 @@ export const VideoThumbnailSelectModal = ({
       setWidth(video.videoWidth);
       setHeight(video.videoHeight);
       setDuration(Number.isFinite(video.duration) ? video.duration : 0);
-      // First keyframe (~0s) enables the button quickly; deep mid-file seeks are slow on large videos.
       void seekTo(0);
     };
 
@@ -154,7 +161,8 @@ export const VideoThumbnailSelectModal = ({
 
     setConfirming(true);
     try {
-      // Prefer the already-painted preview canvas when possible — no second full-res seek.
+      // Re-seek to the chosen time so the painted frame matches the slider.
+      await seekTo(time);
       let blob: Blob | null = await new Promise((resolve) => {
         canvas.toBlob((result) => resolve(result), 'image/jpeg', 0.82);
       });
@@ -184,6 +192,7 @@ export const VideoThumbnailSelectModal = ({
         width: width || video.videoWidth,
         height: height || video.videoHeight,
         duration: duration || video.duration,
+        displayName: displayName.trim() || stripFileExtension(file.name),
       });
     } finally {
       setConfirming(false);
@@ -193,19 +202,19 @@ export const VideoThumbnailSelectModal = ({
   return (
     <Modal
       open={open}
-      title="Choose video thumbnail"
+      title="Choose video cover"
       onCancel={onCancel}
       width={720}
       destroyOnClose
       footer={[
-        <Button key="cancel" onClick={onCancel}>
+        <Button key="cancel" onClick={onCancel} disabled={busy}>
           Cancel
         </Button>,
         <Button
           key="confirm"
           type="primary"
-          loading={confirming}
-          disabled={!previewReady || confirming}
+          loading={busy}
+          disabled={!previewReady || busy}
           onClick={() => void handleConfirm()}
         >
           Use this frame
@@ -213,18 +222,31 @@ export const VideoThumbnailSelectModal = ({
       ]}
     >
       <Typography.Paragraph type="secondary" className="!mb-3">
-        Drag the slider to pick the frame guests will see in your library and mapping screens.
+        Move the slider to pick the cover guests see in your library.
         {seeking ? ' Updating preview…' : ''}
       </Typography.Paragraph>
+
+      <div className="mb-3">
+        <label className="mb-1 block text-xs font-semibold text-neutral-500">Display name</label>
+        <Input
+          value={displayName}
+          onChange={(event) => setDisplayName(event.target.value)}
+          maxLength={120}
+          placeholder="Short name for this video"
+          disabled={busy}
+        />
+      </div>
+
       <div className="video-thumb-picker">
         <canvas ref={canvasRef} className="video-thumb-picker__preview" />
+        {!previewReady ? <div className="video-thumb-picker__loading">Loading video…</div> : null}
         <video
           ref={videoRef}
           src={videoUrl ?? undefined}
           className="hidden"
           playsInline
           muted
-          preload="metadata"
+          preload="auto"
         />
       </div>
       <Slider
@@ -233,7 +255,7 @@ export const VideoThumbnailSelectModal = ({
         max={Math.max(duration, 0.1)}
         step={0.05}
         value={time}
-        disabled={duration <= 0 || confirming}
+        disabled={duration <= 0 || busy}
         tooltip={{ formatter: (value) => `${(value ?? 0).toFixed(1)}s` }}
         onChange={handleSliderChange}
       />

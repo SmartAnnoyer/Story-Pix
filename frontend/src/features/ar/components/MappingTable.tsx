@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Popconfirm } from 'antd';
 import type { ArTarget } from '@/types/ar-target.types';
 import { ArTargetStatus } from '@/types/ar-target.types';
 import { MediaType } from '@/types/media.types';
 import { MappingMediaThumb } from '@/features/media/components/MappingMediaThumb';
+import { ConfirmModal } from '@/components/ConfirmModal';
 import './MappingCards.css';
 
 const statusLabels: Record<ArTargetStatus, string> = {
@@ -18,7 +18,6 @@ interface MappingTableProps {
   onEdit: (id: string) => void;
   onDelete: (id: string) => void | Promise<void>;
   onArchive: (id: string) => void;
-  /** Advanced: show per-photo hide control. Sharing the album turns links on. */
   showAdvancedControls?: boolean;
 }
 
@@ -30,7 +29,8 @@ export const MappingTable = ({
   onArchive,
   showAdvancedControls = false,
 }: MappingTableProps) => {
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<ArTarget | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [removingIds, setRemovingIds] = useState<Set<string>>(() => new Set());
 
   const visibleItems = useMemo(
@@ -59,7 +59,6 @@ export const MappingTable = ({
         const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
         const canEdit =
           record.status === ArTargetStatus.DRAFT || record.status === ArTargetStatus.ACTIVE;
-        const deleting = pendingDeleteId === record.id;
 
         return (
           <article key={record.id} className="mapping-card">
@@ -121,43 +120,51 @@ export const MappingTable = ({
                   Hide from guests
                 </button>
               ) : null}
-              <Popconfirm
-                open={pendingDeleteId === record.id}
-                title="Remove this photo → video?"
-                description={
-                  record.status === ArTargetStatus.ACTIVE
-                    ? 'Guests will no longer unlock this video from that print.'
-                    : 'This cannot be undone.'
-                }
-                okText="Delete"
-                okButtonProps={{ danger: true, loading: deleting }}
-                cancelText="Cancel"
-                onOpenChange={(open) => {
-                  if (!open && !deleting) setPendingDeleteId(null);
-                  if (open) setPendingDeleteId(record.id);
-                }}
-                onConfirm={async () => {
-                  setRemovingIds((current) => new Set(current).add(record.id));
-                  setPendingDeleteId(null);
-                  try {
-                    await onDelete(record.id);
-                  } catch {
-                    setRemovingIds((current) => {
-                      const next = new Set(current);
-                      next.delete(record.id);
-                      return next;
-                    });
-                  }
-                }}
+              <button
+                type="button"
+                className="mapping-card__btn mapping-card__btn--danger"
+                onClick={() => setPendingDelete(record)}
               >
-                <button type="button" className="mapping-card__btn mapping-card__btn--danger">
-                  Delete
-                </button>
-              </Popconfirm>
+                Delete
+              </button>
             </div>
           </article>
         );
       })}
+
+      <ConfirmModal
+        open={Boolean(pendingDelete)}
+        title="Remove this photo → video?"
+        description={
+          pendingDelete?.status === ArTargetStatus.ACTIVE
+            ? 'Guests will no longer unlock this video from that print.'
+            : 'This cannot be undone.'
+        }
+        confirmLabel="Delete"
+        tone="danger"
+        loading={deleting}
+        onCancel={() => {
+          if (!deleting) setPendingDelete(null);
+        }}
+        onConfirm={async () => {
+          if (!pendingDelete) return;
+          const id = pendingDelete.id;
+          setDeleting(true);
+          setRemovingIds((current) => new Set(current).add(id));
+          try {
+            await onDelete(id);
+            setPendingDelete(null);
+          } catch {
+            setRemovingIds((current) => {
+              const next = new Set(current);
+              next.delete(id);
+              return next;
+            });
+          } finally {
+            setDeleting(false);
+          }
+        }}
+      />
     </div>
   );
 };

@@ -60,7 +60,8 @@ export const PhotoGallery = ({
         onClose={() => setPreview(null)}
         onDelete={onDelete}
         linkedLinkCount={preview ? (getLinkedLinkCount?.(preview.id) ?? 0) : 0}
-        onUpdated={() => {
+        onUpdated={(updated) => {
+          setPreview(updated);
           onMediaUpdated?.();
         }}
       />

@@ -37,7 +37,8 @@ export const VideoGallery = ({
         onClose={() => setPreview(null)}
         onDelete={onDelete}
         linkedLinkCount={preview ? (getLinkedLinkCount?.(preview.id) ?? 0) : 0}
-        onUpdated={() => {
+        onUpdated={(updated) => {
+          setPreview(updated);
           onMediaUpdated?.();
         }}
       />

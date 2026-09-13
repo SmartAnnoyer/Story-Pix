@@ -3,7 +3,6 @@ import { Alert, Button, Empty, Input, Typography, message } from 'antd';
 import {
   ArrowRightOutlined,
   DeleteOutlined,
-  DragOutlined,
   PictureOutlined,
   VideoCameraOutlined,
 } from '@ant-design/icons';
@@ -207,7 +206,7 @@ export const MappingWorkspace = ({
             </Text>
           </div>
           <p className="mapping-workspace__hint">
-            Tap a photo, then tap a video below — or drag a photo onto a video tile.
+            Select a photo, then select a video below.
             {selectedPhotoId ? ' Now choose a video.' : ''}
           </p>
           {readyPhotos.length ? (
@@ -237,9 +236,7 @@ export const MappingWorkspace = ({
               {readyVideos.length} ready
             </Text>
           </div>
-          <p className="mapping-workspace__hint">
-            <DragOutlined /> Drop a photo here, or tap after selecting a photo above.
-          </p>
+          <p className="mapping-workspace__hint">Select a video after choosing a photo above.</p>
           {readyVideos.length ? (
             <div className="mapping-workspace__grid">
               {readyVideos.map((video) => (
@@ -340,7 +337,7 @@ export const MappingWorkspace = ({
                     {isActive && activePhotoSrc ? (
                       <div className="mapping-pair-card__frame">
                         <Text type="secondary" className="mb-2 block text-xs">
-                          Drag the rectangle to where the video should play on the print.
+                          Move the corners to where the video should play on the print.
                         </Text>
                         <FrameSelector
                           imageSrc={activePhotoSrc}

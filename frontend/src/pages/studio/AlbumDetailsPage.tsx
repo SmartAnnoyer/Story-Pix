@@ -1,5 +1,7 @@
 import { useNavigate, useParams } from 'react-router-dom';
+import { useRef } from 'react';
 import { message } from 'antd';
+import { ShareAltOutlined } from '@ant-design/icons';
 import {
   useAlbumActionMutation,
   useAlbumQuery,
@@ -17,7 +19,10 @@ import {
   getReadyMediaCounts,
 } from '@/features/albums/utils/album-delivery';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { AlbumViewerQrCard } from '@/features/studio/components/AlbumViewerQrCard';
+import {
+  AlbumViewerQrCard,
+  type AlbumViewerQrCardHandle,
+} from '@/features/studio/components/AlbumViewerQrCard';
 import { getErrorMessage } from '@/api/client';
 import { AlbumStatus } from '@/types/album.types';
 import './AlbumDetailsPage.css';
@@ -25,6 +30,7 @@ import './AlbumDetailsPage.css';
 export const AlbumDetailsPage = () => {
   const { id = '' } = useParams();
   const navigate = useNavigate();
+  const qrRef = useRef<AlbumViewerQrCardHandle>(null);
   const { data: album, isLoading } = useAlbumQuery(id);
   const { data: mappings } = useAlbumArTargetsQuery(id, { limit: 100 });
   const { data: media } = useAlbumMediaQuery(id, { limit: 100 });
@@ -44,6 +50,7 @@ export const AlbumDetailsPage = () => {
     liveMappingCount: live,
     album,
   });
+  const canShareQr = published && Boolean(album.arScanFileReady);
 
   const handleShare = async () => {
     try {
@@ -113,6 +120,18 @@ export const AlbumDetailsPage = () => {
       albumName={album.albumName}
       current="share"
       stepLabel="Step 3 · QR"
+      action={
+        <button
+          type="button"
+          className="studio-home__btn studio-home__btn--primary album-studio__hero-action"
+          disabled={!canShareQr}
+          onClick={() => void qrRef.current?.share()}
+        >
+          <ShareAltOutlined aria-hidden />
+          <span className="album-studio__hero-action-label--full">Share QR</span>
+          <span className="album-studio__hero-action-label--short">Share</span>
+        </button>
+      }
       stats={[
         { label: 'Live', value: live, tone: 'live' },
         { label: 'Left', value: studioRemaining, tone: 'accent' },
@@ -139,6 +158,7 @@ export const AlbumDetailsPage = () => {
 
       <div className="album-details__layout">
         <AlbumViewerQrCard
+          ref={qrRef}
           albumName={album.albumName}
           viewerUrl={album.publicViewerUrl}
           published={album.status === AlbumStatus.PUBLISHED}

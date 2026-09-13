@@ -7,6 +7,7 @@ import { MediaType } from '@/types/media.types';
 import type { ConfirmUploadPayload, OverlayFrame } from '@/types/media.types';
 import { getErrorMessage } from '@/api/client';
 import { readImageDimensions } from '@/features/media/utils/video-frame-capture';
+import { applyDisplayName, stripFileExtension } from '@/features/media/utils/cache-bust';
 import { compressImageFile } from '@/features/media/utils/compress-image';
 import { assertVideoWithinLimits, formatMb } from '@/features/media/utils/video-limits';
 import { PhotoCaptureModal } from './PhotoCaptureModal';
@@ -362,28 +363,29 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
         <PhotoFrameSelectModal
           open={Boolean(pendingPhoto && frameSrc)}
           imageSrc={frameSrc}
+          initialDisplayName={pendingPhoto ? stripFileExtension(pendingPhoto.name) : ''}
           onCancel={() => {
             closeFrameSelect();
             prepBusyRef.current = false;
             photoBatchDoneRef.current += 1;
             window.setTimeout(() => pumpPhotoQueue(), 0);
           }}
-          onConfirm={(overlayFrame: OverlayFrame) => {
+          onConfirm={(overlayFrame: OverlayFrame, displayName: string) => {
             const file = pendingPhoto;
             if (!file) {
               finishPhotoPrep();
               return;
             }
-            // Start upload immediately; continue queue for the next file.
-            void readImageDimensions(file)
+            const named = applyDisplayName(file, displayName);
+            void readImageDimensions(named)
               .then((dimensions) =>
-                processFile(file, {
+                processFile(named, {
                   overlayFrame,
                   width: dimensions.width,
                   height: dimensions.height,
                 }),
               )
-              .catch(() => processFile(file, { overlayFrame }));
+              .catch(() => processFile(named, { overlayFrame }));
             finishPhotoPrep();
           }}
         />
@@ -430,7 +432,11 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
         }}
         onConfirm={(payload) => {
           const file = pendingVideo;
-          if (file) void processFile(file, payload);
+          if (file) {
+            const named = applyDisplayName(file, payload.displayName);
+            const { displayName: _name, ...confirmPayload } = payload;
+            void processFile(named, confirmPayload);
+          }
           finishVideoPrep();
         }}
       />

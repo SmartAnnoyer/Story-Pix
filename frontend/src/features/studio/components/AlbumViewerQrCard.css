@@ -93,7 +93,8 @@
   margin: 0.25rem 0 0.85rem;
   padding: 0.85rem;
   border-radius: 12px;
-  background: var(--aq-paper);
+  background: #ffffff;
+  border: 1px solid var(--aq-line);
 }
 
 .album-qr__link-row {
@@ -134,10 +135,16 @@
   background: #f3eefc;
 }
 
+.album-qr__actions {
+  display: grid;
+  gap: 0.5rem;
+}
+
 .album-qr__btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.35rem;
   width: 100%;
   min-height: 2.4rem;
   padding: 0.45rem 0.95rem;
@@ -160,8 +167,7 @@
 }
 
 .album-qr__btn--ghost {
-  margin-top: 0.35rem;
-  width: auto;
+  width: 100%;
   color: var(--aq-ink);
   background: #fff;
   border-color: var(--aq-line);
