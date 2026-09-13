@@ -95,6 +95,10 @@ const LARGE_BLOB_WAIT_MS = 60_000;
 const IOS_LOAD_TIMEOUT_MS = 20_000;
 const PROGRESSIVE_LOAD_TIMEOUT_MS = 25_000;
 const PLAY_READY_FALLBACK_MS = 900;
+const FS_HINT_SHOW_DELAY_MS = 800;
+const FS_HINT_VISIBLE_MS = 4500;
+const DOUBLE_TAP_MS = 520;
+const DOUBLE_TAP_SLOP_PX = 120;
 
 const isIOS = () => typeof navigator !== 'undefined' && /iP(hone|od|ad)/.test(navigator.userAgent);
 
@@ -224,8 +228,16 @@ export const TargetFrameVideo = ({
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [scrubbing, setScrubbing] = useState(false);
+  const [fsHintVisible, setFsHintVisible] = useState(false);
   const lastTapAtRef = useRef(0);
   const lastTapPosRef = useRef<{ x: number; y: number } | null>(null);
+  const frameHitRef = useRef<HTMLButtonElement>(null);
+  const frameHitBoxRef = useRef<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const prevPrimaryUrlRef = useRef<string | null>(null);
   const modeRef = useRef(mode);
   modeRef.current = mode;
@@ -562,6 +574,23 @@ export const TargetFrameVideo = ({
       }
     };
 
+    const syncFrameHitLayer = (
+      box: { left: number; top: number; width: number; height: number } | null,
+    ) => {
+      frameHitBoxRef.current = box;
+      const el = frameHitRef.current;
+      if (!el) return;
+      if (!box || box.width < 8 || box.height < 8) {
+        el.style.display = 'none';
+        return;
+      }
+      el.style.display = 'block';
+      el.style.left = `${Math.round(box.left)}px`;
+      el.style.top = `${Math.round(box.top)}px`;
+      el.style.width = `${Math.round(box.width)}px`;
+      el.style.height = `${Math.round(box.height)}px`;
+    };
+
     const applyBox = (box: { left: number; top: number; width: number; height: number }) => {
       if (!stage) return;
       const next = blendBox(box);
@@ -580,6 +609,7 @@ export const TargetFrameVideo = ({
       // pointer-events owned by setStageVisible — do not reset every frame or taps die.
 
       mountVideoInStage();
+      syncFrameHitLayer(next);
     };
 
     const setStageVisible = (visible: boolean) => {
@@ -608,6 +638,14 @@ export const TargetFrameVideo = ({
       stage.style.background = 'transparent';
 
       mountVideoInStage();
+      const xs = corners.map((corner) => corner.x);
+      const ys = corners.map((corner) => corner.y);
+      syncFrameHitLayer({
+        left: Math.min(...xs),
+        top: Math.min(...ys),
+        width: Math.max(...xs) - Math.min(...xs),
+        height: Math.max(...ys) - Math.min(...ys),
+      });
       return true;
     };
 
@@ -658,6 +696,7 @@ export const TargetFrameVideo = ({
         applyBox(lastBox);
         return lastBox;
       }
+      syncFrameHitLayer(null);
       return null;
     };
 
@@ -772,6 +811,7 @@ export const TargetFrameVideo = ({
     return () => {
       cancelled = true;
       overlayPlacedRef.current = false;
+      syncFrameHitLayer(null);
       window.removeEventListener('orientationchange', onViewportChange);
       window.removeEventListener('resize', onViewportChange);
       blitCanvas?.remove();
@@ -1324,16 +1364,23 @@ export const TargetFrameVideo = ({
   );
 
   const handleStageDoubleTap = useCallback(
-    (event: { stopPropagation: () => void; clientX?: number; clientY?: number }) => {
+    (event: {
+      stopPropagation: () => void;
+      preventDefault?: () => void;
+      clientX?: number;
+      clientY?: number;
+    }) => {
       event.stopPropagation();
+      event.preventDefault?.();
       const now = Date.now();
       const x = event.clientX ?? 0;
       const y = event.clientY ?? 0;
       const prev = lastTapPosRef.current;
-      const nearPrev = prev != null && Math.hypot(x - prev.x, y - prev.y) < 48;
-      if (now - lastTapAtRef.current < 480 && nearPrev) {
+      const nearPrev = prev == null || Math.hypot(x - prev.x, y - prev.y) < DOUBLE_TAP_SLOP_PX;
+      if (now - lastTapAtRef.current < DOUBLE_TAP_MS && nearPrev) {
         lastTapAtRef.current = 0;
         lastTapPosRef.current = null;
+        setFsHintVisible(false);
         handleToggleFullscreen();
         return;
       }
@@ -1342,6 +1389,31 @@ export const TargetFrameVideo = ({
     },
     [handleToggleFullscreen],
   );
+
+  useEffect(() => {
+    if (mode === 'fullscreen') {
+      frameHitBoxRef.current = null;
+      const el = frameHitRef.current;
+      if (el) el.style.display = 'none';
+    }
+  }, [mode]);
+
+  useEffect(() => {
+    const ready = active && isPlaying && !loading && !needsTap && mode !== 'fullscreen';
+    if (!ready) {
+      setFsHintVisible(false);
+      return undefined;
+    }
+    const showTimer = window.setTimeout(() => setFsHintVisible(true), FS_HINT_SHOW_DELAY_MS);
+    const hideTimer = window.setTimeout(
+      () => setFsHintVisible(false),
+      FS_HINT_SHOW_DELAY_MS + FS_HINT_VISIBLE_MS,
+    );
+    return () => {
+      window.clearTimeout(showTimer);
+      window.clearTimeout(hideTimer);
+    };
+  }, [active, isPlaying, loading, needsTap, mode, primaryUrl]);
 
   const handleDownload = useCallback(async () => {
     const source = playbackUrl || primaryUrl || fallbackUrl;
@@ -1462,25 +1534,37 @@ export const TargetFrameVideo = ({
     </div>
   ) : null;
 
-  // Double-tap on the print frame itself (not a viewport-wide catcher).
-  const frameTapLayer =
-    active && !needsTap && !showFullscreen && (isPlaying || reveal) ? (
-      <button
-        type="button"
-        className="ar-video-tap-layer"
-        aria-label="Double tap for full screen"
-        onPointerUp={(event) => {
-          handleStageDoubleTap({
-            stopPropagation: () => event.stopPropagation(),
-            clientX: event.clientX,
-            clientY: event.clientY,
-          });
-        }}
-      />
-    ) : null;
+  // Fixed screen-space hit target (not inside CSS-transformed stage — that breaks taps).
+  const canFrameDoubleTap = active && !needsTap && !showFullscreen && isPlaying && !loading;
+
+  const frameTapLayer = (
+    <button
+      ref={frameHitRef}
+      type="button"
+      className="ar-video-frame-hit"
+      aria-label="Double tap for full screen"
+      style={{ display: canFrameDoubleTap ? undefined : 'none' }}
+      onPointerUp={(event) => {
+        if (!canFrameDoubleTap) return;
+        handleStageDoubleTap({
+          stopPropagation: () => event.stopPropagation(),
+          preventDefault: () => event.preventDefault(),
+          clientX: event.clientX,
+          clientY: event.clientY,
+        });
+      }}
+      onDoubleClick={(event) => {
+        if (!canFrameDoubleTap) return;
+        event.preventDefault();
+        event.stopPropagation();
+        setFsHintVisible(false);
+        handleToggleFullscreen();
+      }}
+    />
+  );
 
   const frameFullscreenHint =
-    active && !needsTap && !showFullscreen && (isPlaying || reveal) ? (
+    canFrameDoubleTap && fsHintVisible ? (
       <p className="ar-video-fs-hint ar-video-fs-hint--dock" aria-hidden>
         Double tap for full screen
       </p>
@@ -1632,11 +1716,11 @@ export const TargetFrameVideo = ({
                 Tap to play
               </button>
             ) : null}
-            {frameTapLayer}
           </div>
         </div>
       </div>
 
+      {frameTapLayer}
       {frameFullscreenHint}
       {fullscreenDblTapExit}
       {fullscreenTransport}

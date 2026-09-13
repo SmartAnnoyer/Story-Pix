@@ -231,6 +231,22 @@
   -webkit-appearance: none;
 }
 
+/* Screen-space AABB over the tracked print — avoids broken taps on CSS matrix3d stages. */
+.ar-video-frame-hit {
+  position: fixed;
+  z-index: 10095;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
 /* Bottom dock: mute / expand / close — above the AR shell. */
 .ar-video-controls {
   pointer-events: auto !important;
@@ -475,10 +491,9 @@
   white-space: nowrap;
   color: #fff;
   pointer-events: none;
-  animation: ar-fs-hint-in 0.45s ease-out both;
 }
 
-/* Fixed dock — not inside the perspective stage, so it stays readable */
+/* Fixed dock below chrome — never painted on top of the loading/print frame. */
 .ar-video-fs-hint--dock {
   position: fixed;
   top: auto;
@@ -487,12 +502,13 @@
   z-index: 100100;
   transform: translateX(-50%);
   pointer-events: none;
+  animation: ar-fs-hint-dock-in 0.45s ease-out both;
 }
 
-@keyframes ar-fs-hint-in {
+@keyframes ar-fs-hint-dock-in {
   from {
     opacity: 0;
-    transform: translate(-50%, -6px);
+    transform: translate(-50%, 8px);
   }
   to {
     opacity: 1;
