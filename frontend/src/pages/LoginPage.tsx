@@ -17,8 +17,7 @@ export const LoginPage = () => {
   const handleSubmit = async (values: { email: string; password: string }) => {
     try {
       const result = await loginMutation.mutateAsync(values);
-      const destination =
-        result.user.role === UserRole.SUPER_ADMIN ? ROUTES.ADMIN_DASHBOARD : from;
+      const destination = result.user.role === UserRole.SUPER_ADMIN ? ROUTES.ADMIN_DASHBOARD : from;
       navigate(destination, { replace: true });
     } catch {
       // error surfaced via mutation state

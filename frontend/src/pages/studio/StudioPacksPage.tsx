@@ -120,10 +120,7 @@ export const StudioPacksPage = () => {
             const photos = pack.maxMappings * pack.albumsIncluded;
             const selected = (qty[pack.id] ?? 0) > 0;
             return (
-              <article
-                key={pack.id}
-                className={`signup-pack${selected ? ' signup-pack--on' : ''}`}
-              >
+              <article key={pack.id} className={`signup-pack${selected ? ' signup-pack--on' : ''}`}>
                 <div>
                   <strong>{photos} photos</strong>
                   <span>₹{pack.unitPriceInr}</span>

@@ -46,10 +46,7 @@ export const AppRoutes = () => {
         <Route element={<ProtectedRoute allowedRoles={[UserRole.STUDIO_ADMIN]} />}>
           <Route element={<DashboardLayout />}>
             <Route path={ROUTES.DASHBOARD} element={<Navigate to={ROUTES.ALBUMS} replace />} />
-            <Route
-              path={ROUTES.STUDIO_PROFILE}
-              element={<Navigate to={ROUTES.ALBUMS} replace />}
-            />
+            <Route path={ROUTES.STUDIO_PROFILE} element={<Navigate to={ROUTES.ALBUMS} replace />} />
             <Route path={ROUTES.STUDIO_PLAN} element={<Navigate to={ROUTES.ALBUMS} replace />} />
             <Route path={ROUTES.STUDIO_PACKS} element={<StudioPacksPage />} />
             <Route path={ROUTES.ALBUMS} element={<AlbumsListPage />} />

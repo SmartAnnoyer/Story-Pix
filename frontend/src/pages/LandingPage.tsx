@@ -56,8 +56,7 @@ const PACKS = [
 export const LandingPage = () => {
   const { isAuthenticated, isInitialized, user } = useAuthStore();
 
-  const studioHome =
-    user?.role === UserRole.SUPER_ADMIN ? ROUTES.ADMIN_DASHBOARD : ROUTES.ALBUMS;
+  const studioHome = user?.role === UserRole.SUPER_ADMIN ? ROUTES.ADMIN_DASHBOARD : ROUTES.ALBUMS;
   const demoHref = DEMO_SLUG ? `/viewer/${DEMO_SLUG}` : '#how-it-works';
   const showDashboard = isInitialized && isAuthenticated;
 

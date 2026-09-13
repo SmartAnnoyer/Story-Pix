@@ -47,7 +47,11 @@ function getBackTarget(
     return { label: 'Home', path: ROUTES.ADMIN_DASHBOARD };
   }
 
-  if (pathname === ROUTES.ALBUMS || pathname === ROUTES.STUDIO_PACKS || pathname === ROUTES.DASHBOARD) {
+  if (
+    pathname === ROUTES.ALBUMS ||
+    pathname === ROUTES.STUDIO_PACKS ||
+    pathname === ROUTES.DASHBOARD
+  ) {
     return null;
   }
 
