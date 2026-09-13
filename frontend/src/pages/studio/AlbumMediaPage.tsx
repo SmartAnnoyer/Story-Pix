@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { message } from 'antd';
 import { useAlbumQuery } from '@/hooks/useAlbumQueries';
@@ -7,16 +7,16 @@ import { UploadArea } from '@/features/media/components/UploadArea';
 import { UploadProgressList } from '@/features/media/components/UploadProgressList';
 import { PhotoGallery } from '@/features/media/components/PhotoGallery';
 import { VideoGallery } from '@/features/media/components/VideoGallery';
-import { AlbumDeliveryGuide } from '@/features/albums/components/AlbumDeliveryGuide';
+import { AlbumStudioShell } from '@/features/albums/components/AlbumStudioShell';
 import { getReadyMediaCounts } from '@/features/albums/utils/album-delivery';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { AlbumStatus } from '@/types/album.types';
 import { MediaStatus, MediaType } from '@/types/media.types';
 import { getErrorMessage } from '@/api/client';
 import { useAlbumArTargetsQuery } from '@/hooks/useArTargetQueries';
-import '@/pages/DashboardPage.css';
-import './AlbumStudioPages.css';
 import './AlbumMediaPage.css';
+
+type MediaTab = 'photos' | 'videos';
 
 export const AlbumMediaPage = () => {
   const { id = '' } = useParams();
@@ -28,6 +28,7 @@ export const AlbumMediaPage = () => {
   } = useAlbumMediaQuery(id, { limit: 100 });
   const { data: mappings } = useAlbumArTargetsQuery(id, { limit: 100 });
   const deleteMutation = useDeleteMediaMutation();
+  const [mediaTab, setMediaTab] = useState<MediaTab>('photos');
 
   const { photos, videos, readyPhotos, readyVideos, processing } = useMemo(
     () => getReadyMediaCounts(mediaData?.items),
@@ -51,18 +52,7 @@ export const AlbumMediaPage = () => {
     processing ||
     photos.some((item) => item.status !== MediaStatus.READY) ||
     videos.some((item) => item.status !== MediaStatus.READY);
-
-  const statusLabel = canMap
-    ? 'Ready to link'
-    : waiting
-      ? 'Processing…'
-      : photos.length === 0 && videos.length === 0
-        ? 'Add photos & videos'
-        : photos.length === 0
-          ? 'Need a photo'
-          : videos.length === 0
-            ? 'Need a video'
-            : 'Waiting';
+  const showingPhotos = mediaTab === 'photos';
 
   const handleDelete = async (mediaId: string) => {
     const linked = linkedCountByMediaId.get(mediaId) ?? 0;
@@ -80,121 +70,135 @@ export const AlbumMediaPage = () => {
   };
 
   return (
-    <div className="studio-home album-studio album-media">
-      <header className="studio-home__hero">
-        <p className="studio-home__eyebrow">Photos & videos</p>
-        <h1>{album.albumName}</h1>
-      </header>
-
-      <section
-        className="album-studio__strip album-studio__strip--inline"
-        aria-label="Media status"
-      >
-        <p className="album-studio__inline-stats">
-          <span>
-            Photos ready{' '}
-            <strong>
-              {readyPhotos.length}/{photos.length}
-            </strong>
-          </span>
-          <span aria-hidden>·</span>
-          <span>
-            Videos ready{' '}
-            <strong>
-              {readyVideos.length}/{videos.length}
-            </strong>
-          </span>
-          <span aria-hidden>·</span>
-          <span className={canMap ? 'album-studio__status-ready' : undefined}>{statusLabel}</span>
-        </p>
-      </section>
-
-      <AlbumDeliveryGuide albumId={id} current="media" />
-
-      {!canMap ? (
-        <div className="album-media__cta album-media__cta--muted">
-          <div>
-            <strong>
-              {photos.length === 0 && videos.length === 0
-                ? 'Upload the print and the video'
-                : photos.length === 0
-                  ? 'Add the printed photo next'
-                  : videos.length === 0
-                    ? 'Add the video next'
-                    : waiting
-                      ? 'Wait until uploads finish'
-                      : 'Wait until uploads finish, then link'}
-            </strong>
-            <p>The photo is what they print. The video is what plays on the phone.</p>
+    <AlbumStudioShell
+      albumId={id}
+      albumName={album.albumName}
+      current="media"
+      stepLabel="Step 1 · Add"
+      stats={[
+        {
+          label: 'Photos',
+          value: `${readyPhotos.length}/${photos.length}`,
+          tone: canMap ? 'accent' : 'default',
+        },
+        {
+          label: 'Videos',
+          value: `${readyVideos.length}/${videos.length}`,
+          tone: canMap ? 'accent' : 'default',
+        },
+      ]}
+    >
+      <div className="album-media">
+        {!canMap ? (
+          <div className="album-media__cta album-media__cta--muted">
+            <div>
+              <strong>
+                {photos.length === 0 && videos.length === 0
+                  ? 'Upload the print and the video'
+                  : photos.length === 0
+                    ? 'Add the printed photo next'
+                    : videos.length === 0
+                      ? 'Add the video next'
+                      : waiting
+                        ? 'Wait until uploads finish'
+                        : 'Wait until uploads finish, then link'}
+              </strong>
+              <p>The photo is what they print. The video is what plays on the phone.</p>
+            </div>
           </div>
+        ) : null}
+
+        <div className="album-media__uploads">
+          <UploadProgressList />
         </div>
-      ) : null}
 
-      <div className="album-media__uploads">
-        <UploadProgressList />
-      </div>
+        <div className="album-media__switch" role="tablist" aria-label="Photos or videos">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={showingPhotos}
+            className={`album-media__switch-tab${showingPhotos ? ' album-media__switch-tab--on' : ''}`}
+            onClick={() => setMediaTab('photos')}
+          >
+            Photos
+            <span>{readyPhotos.length}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={!showingPhotos}
+            className={`album-media__switch-tab${!showingPhotos ? ' album-media__switch-tab--on' : ''}`}
+            onClick={() => setMediaTab('videos')}
+          >
+            Videos
+            <span>{readyVideos.length}</span>
+          </button>
+        </div>
 
-      <div className="album-media__workspace">
-        <section className="album-media__panel">
-          <div className="album-media__panel-head">
-            <div>
-              <h2>Printed photos</h2>
-              <p>Same image you will print for the client.</p>
-            </div>
-            <span className="album-media__count">{readyPhotos.length} ready</span>
-          </div>
-          {isArchived ? (
-            <div className="album-media__upload-slot" />
+        <div className="album-media__workspace album-media__workspace--single">
+          {showingPhotos ? (
+            <section className="album-media__panel" role="tabpanel" aria-label="Photos">
+              <div className="album-media__panel-head">
+                <div>
+                  <h2>Printed photos</h2>
+                  <p>Same image you will print for the client.</p>
+                </div>
+                <span className="album-media__count">{readyPhotos.length} ready</span>
+              </div>
+              {isArchived ? (
+                <div className="album-media__upload-slot" />
+              ) : (
+                <div className="album-media__upload-slot">
+                  <UploadArea
+                    albumId={id}
+                    mediaType={MediaType.PHOTO}
+                    onComplete={() => void refetch()}
+                  />
+                </div>
+              )}
+              <div className="album-media__gallery">
+                <PhotoGallery
+                  items={photos}
+                  loading={mediaLoading}
+                  onDelete={handleDelete}
+                  getLinkedLinkCount={(mediaId) => linkedCountByMediaId.get(mediaId) ?? 0}
+                  onMediaUpdated={() => void refetch()}
+                />
+              </div>
+            </section>
           ) : (
-            <div className="album-media__upload-slot">
-              <UploadArea
-                albumId={id}
-                mediaType={MediaType.PHOTO}
-                onComplete={() => void refetch()}
-              />
-            </div>
+            <section className="album-media__panel" role="tabpanel" aria-label="Videos">
+              <div className="album-media__panel-head">
+                <div>
+                  <h2>Videos</h2>
+                  <p>Plays on the photo in the guest’s camera.</p>
+                </div>
+                <span className="album-media__count">{readyVideos.length} ready</span>
+              </div>
+              {isArchived ? (
+                <div className="album-media__upload-slot" />
+              ) : (
+                <div className="album-media__upload-slot">
+                  <UploadArea
+                    albumId={id}
+                    mediaType={MediaType.VIDEO}
+                    onComplete={() => void refetch()}
+                  />
+                </div>
+              )}
+              <div className="album-media__gallery">
+                <VideoGallery
+                  items={videos}
+                  loading={mediaLoading}
+                  onDelete={handleDelete}
+                  getLinkedLinkCount={(mediaId) => linkedCountByMediaId.get(mediaId) ?? 0}
+                  onMediaUpdated={() => void refetch()}
+                />
+              </div>
+            </section>
           )}
-          <div className="album-media__gallery">
-            <PhotoGallery
-              items={photos}
-              loading={mediaLoading}
-              onDelete={handleDelete}
-              getLinkedLinkCount={(mediaId) => linkedCountByMediaId.get(mediaId) ?? 0}
-              onMediaUpdated={() => void refetch()}
-            />
-          </div>
-        </section>
-
-        <section className="album-media__panel">
-          <div className="album-media__panel-head">
-            <div>
-              <h2>Videos</h2>
-              <p>Plays on the photo in the guest’s camera.</p>
-            </div>
-            <span className="album-media__count">{readyVideos.length} ready</span>
-          </div>
-          {isArchived ? (
-            <div className="album-media__upload-slot" />
-          ) : (
-            <div className="album-media__upload-slot">
-              <UploadArea
-                albumId={id}
-                mediaType={MediaType.VIDEO}
-                onComplete={() => void refetch()}
-              />
-            </div>
-          )}
-          <div className="album-media__gallery">
-            <VideoGallery
-              items={videos}
-              loading={mediaLoading}
-              onDelete={handleDelete}
-              getLinkedLinkCount={(mediaId) => linkedCountByMediaId.get(mediaId) ?? 0}
-              onMediaUpdated={() => void refetch()}
-            />
-          </div>
-        </section>
+        </div>
       </div>
-    </div>
+    </AlbumStudioShell>
   );
 };

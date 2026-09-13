@@ -5,29 +5,57 @@
   overflow-x: clip;
 }
 
-.album-studio__hero-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem;
+.album-studio__hero {
+  margin: 0 0 0.85rem;
+  padding: 0 0 0.75rem;
+  border-bottom: 1px solid #e6e4ea;
+  min-height: 4.35rem;
 }
 
-.album-studio__hero-copy {
+.album-studio__hero .studio-home__eyebrow {
+  margin: 0 0 0.3rem;
+}
+
+.album-studio__title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.album-studio__title {
+  margin: 0;
   min-width: 0;
   flex: 1;
+  font-size: clamp(1.2rem, 4.2vw, 1.65rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.album-studio__hero-copy h1 {
-  margin-bottom: 0;
+.album-studio__title-action {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  min-width: 4.75rem;
+  min-height: 2.15rem;
 }
 
 .album-studio__hero-action {
-  flex-shrink: 0;
-  gap: 0.35rem;
+  gap: 0.3rem;
   min-height: 2.15rem;
-  padding: 0.4rem 0.8rem;
-  font-size: 0.82rem;
-  margin-top: 1.15rem;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.album-studio__hero-action-label--short {
+  display: none;
 }
 
 .album-studio__strip {
@@ -38,22 +66,27 @@
 
 .album-studio__strip--inline {
   display: block;
+  min-height: 2.85rem;
+  margin-bottom: 1rem;
 }
 
 .album-studio__inline-stats {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 0.45rem 0.55rem;
+  gap: 0.4rem 0.5rem;
   margin: 0;
-  padding: 0.7rem 0.9rem;
+  padding: 0.55rem 0.8rem;
+  min-height: 2.85rem;
+  box-sizing: border-box;
   border-radius: 10px;
   border: 1px solid #e6e4ea;
   background: #fff;
-  font-size: 0.84rem;
+  font-size: 0.82rem;
   font-weight: 560;
   color: #6a6772;
-  line-height: 1.35;
+  line-height: 1.3;
+  overflow: hidden;
 }
 
 .album-studio__inline-stats strong {
@@ -61,65 +94,16 @@
   font-weight: 700;
 }
 
-.album-studio__live {
+.album-studio__stat-value--accent {
+  color: #5b2cdb !important;
+}
+
+.album-studio__stat-value--live {
   color: #0f7a4f !important;
 }
 
-.album-studio__status-ready {
-  color: #5b2cdb;
-  font-weight: 700;
-}
-
-@media (min-width: 640px) {
-  .album-studio__strip:not(.album-studio__strip--inline) {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-.album-studio__stat {
-  padding: 0.85rem 0.95rem;
-  border-radius: 10px;
-  border: 1px solid #e6e4ea;
-  background: #fff;
-}
-
-.album-studio__stat span {
-  display: block;
-  margin-bottom: 0.25rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #6a6772;
-}
-
-.album-studio__stat strong {
-  font-size: 1.35rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1;
-}
-
-.album-studio__stat small {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #6a6772;
-}
-
-.album-studio__stat--live strong {
-  color: #0f7a4f;
-}
-
-.album-studio__stat--accent {
-  border-color: rgba(91, 44, 219, 0.28);
-  background: #f3eefc;
-}
-
-.album-studio__stat--accent strong {
-  color: #5b2cdb;
-}
-
-.album-studio__stat-text {
-  font-size: 1.05rem !important;
-  line-height: 1.2 !important;
+.album-studio__body {
+  min-width: 0;
 }
 
 .album-studio__notice {
@@ -143,12 +127,15 @@
 }
 
 @media (max-width: 560px) {
-  .album-studio__hero-row {
-    flex-wrap: wrap;
+  .album-studio__hero-action-label--full {
+    display: none;
   }
 
-  .album-studio__hero-action {
-    margin-top: 0.35rem;
-    width: 100%;
+  .album-studio__hero-action-label--short {
+    display: inline;
+  }
+
+  .album-studio__inline-stats {
+    font-size: 0.78rem;
   }
 }

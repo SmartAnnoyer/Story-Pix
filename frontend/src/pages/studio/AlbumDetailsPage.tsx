@@ -7,8 +7,8 @@ import {
 } from '@/hooks/useAlbumQueries';
 import { useAlbumArTargetsQuery, usePublishArTargetMutation } from '@/hooks/useArTargetQueries';
 import { useAlbumMediaQuery } from '@/hooks/useMediaQueries';
-import { AlbumStatusBadge } from '@/features/albums/components/AlbumStatusBadge';
-import { AlbumDeliveryGuide } from '@/features/albums/components/AlbumDeliveryGuide';
+import { useStudioPackSummaryQuery } from '@/hooks/usePackQueries';
+import { AlbumStudioShell } from '@/features/albums/components/AlbumStudioShell';
 import {
   albumMapPath,
   albumMediaPath,
@@ -20,8 +20,6 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { AlbumViewerQrCard } from '@/features/studio/components/AlbumViewerQrCard';
 import { getErrorMessage } from '@/api/client';
 import { AlbumStatus } from '@/types/album.types';
-import '@/pages/DashboardPage.css';
-import './AlbumStudioPages.css';
 import './AlbumDetailsPage.css';
 
 export const AlbumDetailsPage = () => {
@@ -30,6 +28,7 @@ export const AlbumDetailsPage = () => {
   const { data: album, isLoading } = useAlbumQuery(id);
   const { data: mappings } = useAlbumArTargetsQuery(id, { limit: 100 });
   const { data: media } = useAlbumMediaQuery(id, { limit: 100 });
+  const { data: packs } = useStudioPackSummaryQuery();
   const actionMutation = useAlbumActionMutation();
   const publishMappingMutation = usePublishArTargetMutation();
   const rebuildMutation = useRebuildArScanFileMutation();
@@ -38,6 +37,7 @@ export const AlbumDetailsPage = () => {
 
   const { readyPhotos, readyVideos } = getReadyMediaCounts(media?.items);
   const { live, total, drafts } = getMappingCounts(mappings?.items);
+  const studioRemaining = packs?.remainingMappingSlots ?? packs?.remainingAlbumCredits ?? 0;
   const { mediaDone, mapDone, published, shareDone } = getDeliveryProgress({
     readyPhotoCount: readyPhotos.length,
     readyVideoCount: readyVideos.length,
@@ -108,18 +108,16 @@ export const AlbumDetailsPage = () => {
   }
 
   return (
-    <div className="studio-home album-studio album-details">
-      <header className="studio-home__hero">
-        <p className="studio-home__eyebrow">Step 3 · QR</p>
-        <h1>{album.albumName}</h1>
-        <p className="album-details__client">{album.customerName}</p>
-        <div className="album-details__badge">
-          <AlbumStatusBadge status={album.status} />
-        </div>
-      </header>
-
-      <AlbumDeliveryGuide albumId={id} current="share" />
-
+    <AlbumStudioShell
+      albumId={id}
+      albumName={album.albumName}
+      current="share"
+      stepLabel="Step 3 · QR"
+      stats={[
+        { label: 'Live', value: live, tone: 'live' },
+        { label: 'Left', value: studioRemaining, tone: 'accent' },
+      ]}
+    >
       <div className={`album-details__cta album-details__cta--${statusTone}`}>
         <div>
           <strong>{statusTitle}</strong>
@@ -153,6 +151,6 @@ export const AlbumDetailsPage = () => {
           retrying={rebuildMutation.isPending}
         />
       </div>
-    </div>
+    </AlbumStudioShell>
   );
 };

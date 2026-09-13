@@ -7,8 +7,10 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.4rem;
-  margin-bottom: 1.15rem;
+  margin: 0 0 0.85rem;
   padding: 0.4rem;
+  min-height: 4.2rem;
+  box-sizing: border-box;
   border-radius: 16px;
   border: 1px solid var(--at-line);
   background: #fff;
@@ -80,6 +82,10 @@
 }
 
 @media (min-width: 520px) {
+  .album-tabs {
+    min-height: 3.55rem;
+  }
+
   .album-tabs__tab {
     flex-direction: row;
     gap: 0.45rem;
