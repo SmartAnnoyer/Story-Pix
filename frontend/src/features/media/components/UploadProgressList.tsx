@@ -52,6 +52,8 @@ export const UploadProgressList = () => {
     return () => window.clearTimeout(timer);
   }, [done.length, active.length, clearCompleted]);
 
+  const showOverall = tasks.length > 1;
+
   if (!tasks.length) return null;
 
   return (
@@ -60,19 +62,23 @@ export const UploadProgressList = () => {
         <div>
           <h3 className="upload-progress__title">
             {active.length
-              ? `Uploading ${active.length} file${active.length === 1 ? '' : 's'}`
+              ? active.length === 1
+                ? 'Uploading…'
+                : `Uploading ${active.length} files`
               : failed.length
                 ? 'Some uploads need attention'
                 : 'Uploads complete'}
           </h3>
-          <p className="upload-progress__summary">
-            {done.length} done
-            {active.length ? ` · ${active.length} in progress` : ''}
-            {failed.length ? ` · ${failed.length} failed` : ''}
-          </p>
+          {showOverall ? (
+            <p className="upload-progress__summary">
+              {done.length} done
+              {active.length ? ` · ${active.length} in progress` : ''}
+              {failed.length ? ` · ${failed.length} failed` : ''}
+            </p>
+          ) : null}
         </div>
         <div className="upload-progress__overall">
-          <strong>{overallPercent}%</strong>
+          {showOverall ? <strong>{overallPercent}%</strong> : null}
           <button
             type="button"
             className="upload-progress__ghost"
@@ -84,9 +90,11 @@ export const UploadProgressList = () => {
         </div>
       </header>
 
-      <div className="upload-progress__overall-meter" aria-hidden>
-        <i style={{ width: `${overallPercent}%` }} />
-      </div>
+      {showOverall ? (
+        <div className="upload-progress__overall-meter" aria-hidden>
+          <i style={{ width: `${overallPercent}%` }} />
+        </div>
+      ) : null}
 
       <ul className="upload-progress__list">
         {tasks.map((task) => {

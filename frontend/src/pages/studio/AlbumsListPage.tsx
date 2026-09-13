@@ -41,7 +41,7 @@ export const AlbumsListPage = () => {
 
   const { data, isLoading } = useAlbumsQuery(queryParams);
   const actionMutation = useAlbumActionMutation();
-  const canCreateAlbum = (packs?.remainingAlbumCredits ?? 0) > 0;
+  const mappingsLeft = packs?.remainingMappingSlots ?? packs?.remainingAlbumCredits ?? 0;
   const showArchive = filter !== AlbumStatus.ARCHIVED;
 
   const applySearch = () => {
@@ -76,21 +76,36 @@ export const AlbumsListPage = () => {
           <button
             type="button"
             className="studio-home__btn studio-home__btn--primary"
-            disabled={!canCreateAlbum}
             onClick={() => navigate(ROUTES.ALBUM_CREATE)}
           >
-            {canCreateAlbum ? 'Start album' : 'No albums left'}
+            Start album
+          </button>
+          <button
+            type="button"
+            className="studio-home__btn studio-home__btn--ghost"
+            onClick={() => navigate(ROUTES.STUDIO_PACKS)}
+          >
+            Buy / recharge packs →
           </button>
         </div>
       </header>
 
-      {!canCreateAlbum ? (
+      {mappingsLeft <= 0 ? (
         <Alert
           className="!mb-4 albums-page__alert"
           type="warning"
           showIcon
-          message="Cannot create more albums"
-          description="Your plan is used up. Contact Story-PIX to add Mini, Standard, or a Bundle. Check Home for what's left."
+          message="No photos left"
+          description={
+            <button
+              type="button"
+              className="sp-btn-gradient"
+              style={{ marginTop: 8, width: '100%' }}
+              onClick={() => navigate(ROUTES.STUDIO_PACKS)}
+            >
+              Buy / recharge packs →
+            </button>
+          }
         />
       ) : null}
 

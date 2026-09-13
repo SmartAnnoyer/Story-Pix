@@ -60,17 +60,8 @@ export const AlbumTable = ({
 
             <div className="album-card__meta">
               <div>
-                <span>Photos</span>
-                <strong>Up to {album.maxMappings}</strong>
-              </div>
-              <div>
-                <span>Guest views used</span>
-                <strong>
-                  {(album.scanUsage ?? 0).toLocaleString('en-IN')} /{' '}
-                  {(
-                    album.scanLimit ?? album.maxMappings * (album.scansPerMapping ?? 1000)
-                  ).toLocaleString('en-IN')}
-                </strong>
+                <span>Client</span>
+                <strong>{album.customerName || '—'}</strong>
               </div>
               <div>
                 <span>Created</span>

@@ -69,17 +69,17 @@ export const SignupPage = () => {
       .filter(Boolean) as Array<{ pack: AlbumPack; quantity: number }>;
 
     if (!selected.length) {
-      return { amountInr: 0, mappings: 0, albums: 0, merge: false };
+      return { amountInr: 0, mappings: 0, merge: false };
     }
 
     const personalOnly = selected.every((row) => row.pack.tier === AlbumPackTier.PERSONAL);
     const amountInr = selected.reduce((sum, row) => sum + row.pack.unitPriceInr * row.quantity, 0);
-    const mappings = selected.reduce((sum, row) => sum + row.pack.maxMappings * row.quantity, 0);
-    const albums = personalOnly
-      ? 1
-      : selected.reduce((sum, row) => sum + row.pack.albumsIncluded * row.quantity, 0);
+    const mappings = selected.reduce(
+      (sum, row) => sum + row.pack.maxMappings * row.pack.albumsIncluded * row.quantity,
+      0,
+    );
 
-    return { amountInr, mappings, albums, merge: personalOnly };
+    return { amountInr, mappings, merge: personalOnly };
   }, [items, packs]);
 
   const bump = (packId: string, delta: number) => {
@@ -91,7 +91,7 @@ export const SignupPage = () => {
 
   const onSubmit = async (values: SignupFormValues) => {
     if (!items.length) {
-      setError('Select at least one pack (e.g. 5 + 3 photos)');
+      setError('Tap + to pick how many photos you need');
       return;
     }
 
@@ -142,10 +142,10 @@ export const SignupPage = () => {
   return (
     <div className="signup-page">
       <header className="signup-page__header">
-        <h1>Create your account</h1>
+        <h1>Start with Story-PIX</h1>
         <p>
-          Choose photo packs (stack 5+3 for 8), set a password, then pay. Your account is created
-          after payment.
+          1) Tap how many photos you need · 2) Enter email & password · 3) Pay. Then link your photo
+          to a video and share the QR.
         </p>
       </header>
 
@@ -153,65 +153,82 @@ export const SignupPage = () => {
         <Alert type="error" showIcon message={error} className="signup-page__alert" />
       ) : null}
 
-      <section className="signup-page__packs" aria-label="Personal packs">
-        <h2>Personal packs</h2>
+      <section className="signup-page__packs" aria-label="How many photos">
+        <h2>How many photos?</h2>
         <p className="signup-page__hint">
-          Combine any sizes — e.g. 5 and 3 = one album with 8 photos.
+          Tap + on a size. You can mix (example: 5 + 3 = 8 photos). Make as many albums as you want.
         </p>
         <div className="signup-page__grid">
-          {personalPacks.map((pack) => (
-            <article key={pack.id} className="signup-pack">
-              <div>
-                <strong>{pack.name}</strong>
-                <span>₹{pack.unitPriceInr}</span>
-              </div>
-              <p>{pack.description}</p>
-              <div className="signup-pack__qty">
-                <button type="button" onClick={() => bump(pack.id, -1)} aria-label="Decrease">
-                  −
-                </button>
-                <span>{qty[pack.id] ?? 0}</span>
-                <button type="button" onClick={() => bump(pack.id, 1)} aria-label="Increase">
-                  +
-                </button>
-              </div>
-            </article>
-          ))}
+          {personalPacks.map((pack) => {
+            const selected = (qty[pack.id] ?? 0) > 0;
+            return (
+              <article key={pack.id} className={`signup-pack${selected ? ' signup-pack--on' : ''}`}>
+                <div>
+                  <strong>
+                    {pack.maxMappings} photo{pack.maxMappings === 1 ? '' : 's'}
+                  </strong>
+                  <span>₹{pack.unitPriceInr}</span>
+                </div>
+                <p>Each photo gets 1,000 guest plays</p>
+                <div className="signup-pack__qty">
+                  <button type="button" onClick={() => bump(pack.id, -1)} aria-label="Less">
+                    −
+                  </button>
+                  <span>{qty[pack.id] ?? 0}</span>
+                  <button type="button" onClick={() => bump(pack.id, 1)} aria-label="More">
+                    +
+                  </button>
+                </div>
+              </article>
+            );
+          })}
         </div>
       </section>
 
-      <section className="signup-page__packs" aria-label="Studio packs">
-        <h2>Studio & shop packs</h2>
-        <div className="signup-page__grid">
-          {studioPacks.map((pack) => (
-            <article key={pack.id} className="signup-pack">
-              <div>
-                <strong>{pack.name}</strong>
-                <span>₹{pack.unitPriceInr}</span>
-              </div>
-              <p>{pack.description}</p>
-              <div className="signup-pack__qty">
-                <button type="button" onClick={() => bump(pack.id, -1)} aria-label="Decrease">
-                  −
-                </button>
-                <span>{qty[pack.id] ?? 0}</span>
-                <button type="button" onClick={() => bump(pack.id, 1)} aria-label="Increase">
-                  +
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
+      {studioPacks.length ? (
+        <section className="signup-page__packs" aria-label="Shop packs">
+          <h2>For photo shops</h2>
+          <p className="signup-page__hint">
+            Bigger packs for studios — same simple idea: more photos.
+          </p>
+          <div className="signup-page__grid">
+            {studioPacks.map((pack) => {
+              const slots = pack.maxMappings * pack.albumsIncluded;
+              const selected = (qty[pack.id] ?? 0) > 0;
+              return (
+                <article
+                  key={pack.id}
+                  className={`signup-pack${selected ? ' signup-pack--on' : ''}`}
+                >
+                  <div>
+                    <strong>{pack.name}</strong>
+                    <span>₹{pack.unitPriceInr}</span>
+                  </div>
+                  <p>{slots} photos · unlimited albums</p>
+                  <div className="signup-pack__qty">
+                    <button type="button" onClick={() => bump(pack.id, -1)} aria-label="Less">
+                      −
+                    </button>
+                    <span>{qty[pack.id] ?? 0}</span>
+                    <button type="button" onClick={() => bump(pack.id, 1)} aria-label="More">
+                      +
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
 
       <aside className="signup-page__summary">
         <p>
-          <strong>Total</strong> ₹{preview.amountInr}
+          <strong>Pay now</strong> ₹{preview.amountInr}
         </p>
         <p>
-          {preview.merge
-            ? `${preview.mappings} photos · 1 album credit`
-            : `${preview.albums} album credit(s)`}
+          {preview.mappings > 0
+            ? `+${preview.mappings} photo${preview.mappings === 1 ? '' : 's'}`
+            : 'Tap + to choose'}
         </p>
       </aside>
 
@@ -268,8 +285,15 @@ export const SignupPage = () => {
           />
         </Form.Item>
 
-        <Button type="primary" htmlType="submit" size="large" block loading={submitting}>
-          Pay & create account
+        <Button
+          type="primary"
+          htmlType="submit"
+          size="large"
+          block
+          loading={submitting}
+          className="signup-page__pay"
+        >
+          Pay & start
         </Button>
       </Form>
 

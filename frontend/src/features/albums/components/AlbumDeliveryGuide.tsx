@@ -35,32 +35,40 @@ export const AlbumDeliveryGuide = ({ albumId, current }: AlbumDeliveryGuideProps
 
   const tabs: Array<{
     key: DeliveryStepKey;
+    n: string;
     label: string;
+    short: string;
     done: boolean;
     path: string;
   }> = [
     {
       key: 'media',
-      label: 'Photos & videos',
+      n: '1',
+      label: 'Add photo & video',
+      short: 'Add',
       done: mediaDone,
       path: albumMediaPath(albumId),
     },
     {
       key: 'map',
-      label: 'Link print → video',
+      n: '2',
+      label: 'Link them',
+      short: 'Link',
       done: mapDone,
       path: albumMapPath(albumId, total > 0),
     },
     {
       key: 'share',
-      label: 'Share',
+      n: '3',
+      label: 'Get QR',
+      short: 'QR',
       done: shareDone,
       path: albumSharePath(albumId),
     },
   ];
 
   return (
-    <nav className="album-tabs" aria-label="Album sections">
+    <nav className="album-tabs" aria-label="3 easy steps">
       {tabs.map((tab) => {
         const isCurrent = current === tab.key;
         return (
@@ -82,7 +90,11 @@ export const AlbumDeliveryGuide = ({ albumId, current }: AlbumDeliveryGuideProps
               navigate(tab.path);
             }}
           >
-            {tab.label}
+            <span className="album-tabs__n" aria-hidden>
+              {tab.done && !isCurrent ? '✓' : tab.n}
+            </span>
+            <span className="album-tabs__label album-tabs__label--full">{tab.label}</span>
+            <span className="album-tabs__label album-tabs__label--short">{tab.short}</span>
           </button>
         );
       })}

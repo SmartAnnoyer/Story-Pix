@@ -1447,22 +1447,23 @@ export const TargetFrameVideo = ({
     </div>
   ) : null;
 
-  // Full-screen double-tap catcher — below chrome/controls, above video.
+  // Double-tap to enter fullscreen — only while playing in the print frame.
+  // Fullscreen seeks must not be covered by this catcher.
   const doubleTapCatcher =
-    active && !needsTap && (isPlaying || reveal || showFullscreen) ? (
+    active && !needsTap && !showFullscreen && (isPlaying || reveal) ? (
       <div
         role="presentation"
         aria-hidden
-        style={{
-          position: 'fixed',
-          inset: 0,
-          zIndex: 10085,
-          pointerEvents: 'auto',
-          background: 'transparent',
-          touchAction: 'manipulation',
-        }}
+        className="ar-video-dbltap-catcher"
         onPointerUp={handleStageDoubleTap}
       />
+    ) : null;
+
+  const frameFullscreenHint =
+    active && !needsTap && !showFullscreen && (isPlaying || reveal) ? (
+      <p className="ar-video-fs-hint" aria-hidden>
+        Double tap for full screen
+      </p>
     ) : null;
 
   const fullscreenTransport =
@@ -1471,6 +1472,7 @@ export const TargetFrameVideo = ({
         className="ar-video-fs-controls"
         onPointerDown={(event) => event.stopPropagation()}
         onPointerUp={(event) => event.stopPropagation()}
+        onTouchStart={(event) => event.stopPropagation()}
         onClick={(event) => event.stopPropagation()}
       >
         <button
@@ -1503,14 +1505,35 @@ export const TargetFrameVideo = ({
               '--seek-pct': `${duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0}%`,
             } as CSSProperties
           }
+          onPointerDown={(event) => {
+            event.stopPropagation();
+            seekingRef.current = true;
+          }}
           onChange={(event) => handleSeekInput(Number(event.target.value))}
-          onPointerUp={handleSeekCommit}
-          onTouchEnd={handleSeekCommit}
+          onPointerUp={(event) => {
+            event.stopPropagation();
+            handleSeekCommit();
+          }}
+          onTouchEnd={(event) => {
+            event.stopPropagation();
+            handleSeekCommit();
+          }}
           onMouseUp={handleSeekCommit}
           onBlur={handleSeekCommit}
         />
         <span className="ar-video-fs-controls__time">{formatClock(duration)}</span>
       </div>
+    ) : null;
+
+  // Double-tap on video (not controls) to exit fullscreen.
+  const fullscreenDblTapExit =
+    showFullscreen && active && !needsTap ? (
+      <div
+        role="presentation"
+        aria-hidden
+        className="ar-video-fs-dbltap"
+        onPointerUp={handleStageDoubleTap}
+      />
     ) : null;
 
   return createPortal(
@@ -1560,6 +1583,7 @@ export const TargetFrameVideo = ({
           }
         >
           {showFullscreen ? null : <div className="ar-video-frame-edge" aria-hidden />}
+          {frameFullscreenHint}
           <div className="ar-video-media" ref={mediaRef}>
             {needsTap ? (
               <button
@@ -1578,6 +1602,7 @@ export const TargetFrameVideo = ({
       </div>
 
       {doubleTapCatcher}
+      {fullscreenDblTapExit}
       {fullscreenTransport}
       {playbackChrome}
     </>,

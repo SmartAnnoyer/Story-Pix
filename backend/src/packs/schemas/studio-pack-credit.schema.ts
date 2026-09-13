@@ -3,7 +3,7 @@ import { Document, Types } from 'mongoose';
 
 export type StudioPackCreditDocument = StudioPackCredit & Document;
 
-/** Batch of album credits granted to a studio from one pack assignment. */
+/** Batch of mapping slots granted to a studio from one pack assignment/purchase. */
 @Schema({ timestamps: true, collection: 'studio_pack_credits' })
 export class StudioPackCredit {
   @Prop({ type: Types.ObjectId, ref: 'Studio', required: true, index: true })
@@ -18,6 +18,10 @@ export class StudioPackCredit {
   @Prop({ required: true, trim: true })
   packName!: string;
 
+  /**
+   * Pack “size” label (e.g. 10 for Mini). Slot math uses totalCredits as
+   * mapping slots: maxMappings × albumsIncluded × quantity at grant time.
+   */
   @Prop({ type: Number, required: true, min: 1 })
   maxMappings!: number;
 
@@ -25,11 +29,23 @@ export class StudioPackCredit {
   @Prop({ type: Number, required: true, min: 1 })
   scanLimit!: number;
 
+  /** Total photo-mapping slots granted by this credit row. */
   @Prop({ type: Number, required: true, min: 0 })
   totalCredits!: number;
 
+  /**
+   * Legacy field — kept for admin UI. Live remaining capacity is computed as
+   * sum(totalCredits) − studio active mappings.
+   */
   @Prop({ type: Number, required: true, min: 0 })
   remainingCredits!: number;
+
+  /**
+   * `album` = legacy album-slot credits (pre pooled mappings).
+   * `mapping` = totalCredits / remainingCredits are photo-mapping slots.
+   */
+  @Prop({ type: String, enum: ['album', 'mapping'], default: 'mapping' })
+  creditUnit!: 'album' | 'mapping';
 
   @Prop({ type: Number, required: true, min: 0 })
   unitPriceInr!: number;

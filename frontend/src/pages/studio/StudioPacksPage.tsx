@@ -8,7 +8,6 @@ import {
 } from '@/services/checkout.service';
 import { useStudioPackSummaryQuery, packKeys } from '@/hooks/usePackQueries';
 import type { AlbumPack } from '@/types/pack.types';
-import { AlbumPackTier } from '@/types/pack.types';
 import { useQueryClient } from '@tanstack/react-query';
 import '../SignupPage.css';
 
@@ -47,11 +46,12 @@ export const StudioPacksPage = () => {
       .filter(Boolean) as Array<{ pack: AlbumPack; quantity: number }>;
 
     const amountInr = selected.reduce((sum, row) => sum + row.pack.unitPriceInr * row.quantity, 0);
-    const personalOnly =
-      selected.length > 0 && selected.every((row) => row.pack.tier === AlbumPackTier.PERSONAL);
-    const mappings = selected.reduce((sum, row) => sum + row.pack.maxMappings * row.quantity, 0);
+    const photos = selected.reduce(
+      (sum, row) => sum + row.pack.maxMappings * row.pack.albumsIncluded * row.quantity,
+      0,
+    );
 
-    return { amountInr, mappings, personalOnly };
+    return { amountInr, photos };
   }, [items, packs]);
 
   const bump = (packId: string, delta: number) => {
@@ -63,7 +63,7 @@ export const StudioPacksPage = () => {
 
   const handlePurchase = async () => {
     if (!items.length) {
-      setError('Add at least one pack to recharge');
+      setError('Tap + to add photos');
       return;
     }
     setSubmitting(true);
@@ -76,16 +76,16 @@ export const StudioPacksPage = () => {
         currency: order.currency,
         keyId: order.keyId,
         provider: order.provider,
-        description: 'Story-PIX pack recharge',
+        description: 'Story-PIX photos',
       });
       await checkoutService.verifyRecharge(payment);
       await queryClient.invalidateQueries({ queryKey: packKeys.studioSummary() });
       await queryClient.invalidateQueries({ queryKey: packKeys.studioCredits() });
       await queryClient.invalidateQueries({ queryKey: packKeys.studioHistory() });
       setQty({});
-      message.success('Packs added to your studio');
+      message.success('Photos added');
     } catch (err) {
-      setError(getErrorMessage(err, 'Recharge failed'));
+      setError(getErrorMessage(err, 'Payment failed'));
     } finally {
       setSubmitting(false);
     }
@@ -99,37 +99,44 @@ export const StudioPacksPage = () => {
     );
   }
 
+  const left = summary?.remainingMappingSlots ?? summary?.remainingAlbumCredits ?? 0;
+  const used = summary?.usedMappingSlots ?? summary?.usedCredits ?? 0;
+  const total = summary?.grantedMappingSlots ?? summary?.totalAssignedCredits ?? 0;
+
   return (
-    <div className="signup-page" style={{ maxWidth: 920, margin: '0 auto', padding: '1.5rem' }}>
+    <div className="signup-page" style={{ maxWidth: 920, margin: '0 auto', padding: '1rem 0' }}>
       <header className="signup-page__header">
         <h1>Buy / recharge packs</h1>
         <p>
-          You have <strong>{summary?.remainingAlbumCredits ?? 0}</strong> album credit(s) left.
-          Stack personal packs (5+3=8 photos) or add studio packs anytime.
+          <strong>{left} left</strong> · {used} used · {total} total
         </p>
       </header>
 
       {error ? <Alert type="error" showIcon message={error} /> : null}
 
       <div className="signup-page__grid">
-        {packs.map((pack) => (
-          <article key={pack.id} className="signup-pack">
-            <div>
-              <strong>{pack.name}</strong>
-              <span>₹{pack.unitPriceInr}</span>
-            </div>
-            <p>{pack.description}</p>
-            <div className="signup-pack__qty">
-              <button type="button" onClick={() => bump(pack.id, -1)}>
-                −
-              </button>
-              <span>{qty[pack.id] ?? 0}</span>
-              <button type="button" onClick={() => bump(pack.id, 1)}>
-                +
-              </button>
-            </div>
-          </article>
-        ))}
+        {packs.map((pack) => {
+          const photos = pack.maxMappings * pack.albumsIncluded;
+          const selected = (qty[pack.id] ?? 0) > 0;
+          return (
+            <article key={pack.id} className={`signup-pack${selected ? ' signup-pack--on' : ''}`}>
+              <div>
+                <strong>{photos} photos</strong>
+                <span>₹{pack.unitPriceInr}</span>
+              </div>
+              <p>{pack.name}</p>
+              <div className="signup-pack__qty">
+                <button type="button" onClick={() => bump(pack.id, -1)} aria-label="Less">
+                  −
+                </button>
+                <span>{qty[pack.id] ?? 0}</span>
+                <button type="button" onClick={() => bump(pack.id, 1)} aria-label="More">
+                  +
+                </button>
+              </div>
+            </article>
+          );
+        })}
       </div>
 
       <aside className="signup-page__summary">
@@ -137,19 +144,21 @@ export const StudioPacksPage = () => {
           <strong>Total</strong> ₹{preview.amountInr}
         </p>
         <p>
-          {preview.personalOnly && preview.mappings > 0
-            ? `${preview.mappings} photos (merged)`
-            : `${items.length} line item(s)`}
+          {preview.photos > 0
+            ? `+${preview.photos} photo${preview.photos === 1 ? '' : 's'}`
+            : 'Tap + to choose'}
         </p>
       </aside>
 
       <Button
         type="primary"
         size="large"
+        block
         loading={submitting}
+        className="signup-page__pay"
         onClick={() => void handlePurchase()}
       >
-        Pay & add packs
+        Pay & add photos
       </Button>
     </div>
   );

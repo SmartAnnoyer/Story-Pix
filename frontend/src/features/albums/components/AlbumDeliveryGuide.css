@@ -1,58 +1,97 @@
-@import url('https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap');
-
 .album-tabs {
-  --at-ink: #1c1b22;
-  --at-muted: #6a6772;
-  --at-line: #e6e4ea;
+  --at-ink: var(--sp-text-dark, #1a1a2e);
+  --at-muted: var(--sp-text-muted, #5c5c66);
+  --at-line: var(--sp-line, #e6e4ea);
   --at-paper: #f7f6f9;
-  --at-accent: #5b2cdb;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
+  --at-accent: var(--sp-primary, #6b2cdb);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
   margin-bottom: 1.15rem;
-  padding: 0.3rem;
-  border-radius: 10px;
+  padding: 0.4rem;
+  border-radius: 16px;
   border: 1px solid var(--at-line);
   background: #fff;
-  font-family: Figtree, system-ui, sans-serif;
+  font-family: var(--sp-font, Figtree, system-ui, sans-serif);
+  box-shadow: 0 6px 20px rgba(26, 26, 46, 0.04);
 }
 
 .album-tabs__tab {
-  flex: 1 1 auto;
-  min-height: 2.35rem;
-  padding: 0.4rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-height: 3.4rem;
+  padding: 0.5rem 0.35rem;
   border: 0;
-  border-radius: 8px;
+  border-radius: 12px;
   background: transparent;
   font: inherit;
-  font-size: 0.88rem;
-  font-weight: 650;
+  font-size: 0.78rem;
+  font-weight: 700;
   color: var(--at-muted);
   cursor: pointer;
   text-align: center;
+  line-height: 1.2;
   transition:
     background 0.15s ease,
     color 0.15s ease;
 }
 
-.album-tabs__tab:hover {
-  color: var(--at-ink);
-  background: var(--at-paper);
+.album-tabs__n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 999px;
+  background: #efeaf8;
+  color: var(--at-accent);
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
 .album-tabs__tab--on {
-  color: var(--at-accent);
-  background: #f3eefc;
+  color: #fff;
+  background: var(--sp-gradient);
+}
+
+.album-tabs__tab--on .album-tabs__n {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
 }
 
 .album-tabs__tab--done {
   color: var(--at-ink);
 }
 
-@media (max-width: 520px) {
+.album-tabs__tab--done .album-tabs__n {
+  background: #e8f5ef;
+  color: #0f7a4f;
+}
+
+.album-tabs__label--full {
+  display: none;
+}
+
+.album-tabs__label--short {
+  display: block;
+}
+
+@media (min-width: 520px) {
   .album-tabs__tab {
-    flex: 1 1 calc(50% - 0.35rem);
-    font-size: 0.82rem;
-    padding: 0.4rem 0.55rem;
+    flex-direction: row;
+    gap: 0.45rem;
+    font-size: 0.88rem;
+    min-height: 2.75rem;
+  }
+
+  .album-tabs__label--full {
+    display: block;
+  }
+
+  .album-tabs__label--short {
+    display: none;
   }
 }

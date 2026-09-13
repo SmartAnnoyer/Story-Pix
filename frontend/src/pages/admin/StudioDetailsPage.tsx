@@ -85,7 +85,7 @@ export const StudioDetailsPage = () => {
   const packOptions = (packs ?? [])
     .filter((pack) => pack.isActive)
     .map((pack) => ({
-      label: `${pack.name} · ${pack.albumsIncluded > 1 ? `${pack.albumsIncluded} albums` : '1 album'} · up to ${pack.maxMappings} photos · ₹${pack.unitPriceInr}`,
+      label: `${pack.name} · ${pack.maxMappings * pack.albumsIncluded} mappings · ₹${pack.unitPriceInr}`,
       value: pack.id,
     }));
 
@@ -154,24 +154,26 @@ export const StudioDetailsPage = () => {
         />
       </div>
 
-      <Card title="Album packs" className="mb-6">
+      <Card title="Photo-mapping packs" className="mb-6">
         <Paragraph type="secondary" className="!mb-2">
-          Activate / Suspend controls login access only — there is no plan end date. When album
-          credits run out, the studio stays active; add another Mini, Standard, or Bundle pack after
-          offline payment to unlock more albums.
+          Activate / Suspend controls login access only. Packs add photo-mapping slots to a studio
+          pool. Albums are unlimited (each gets its own QR); only mappings are limited.
         </Paragraph>
         <Paragraph type="secondary" className="!mb-4">
-          Remaining: <Text strong>{packSummary?.remainingAlbumCredits ?? 0}</Text> /{' '}
-          {packSummary?.totalAssignedCredits ?? 0}
-          {(packSummary?.remainingAlbumCredits ?? 0) <= 0 ? (
+          Mapping slots left:{' '}
+          <Text strong>
+            {packSummary?.remainingMappingSlots ?? packSummary?.remainingAlbumCredits ?? 0}
+          </Text>{' '}
+          / {packSummary?.grantedMappingSlots ?? packSummary?.totalAssignedCredits ?? 0}
+          {(packSummary?.remainingMappingSlots ?? packSummary?.remainingAlbumCredits ?? 0) <= 0 ? (
             <>
               {' '}
-              <Tag color="warning">Out of credits — add a pack below</Tag>
+              <Tag color="warning">Out of mapping slots — add a pack below</Tag>
             </>
           ) : (
             <>
               {' '}
-              <Tag color="success">Can create albums</Tag>
+              <Tag color="success">Can link photos</Tag>
             </>
           )}
         </Paragraph>
@@ -185,8 +187,8 @@ export const StudioDetailsPage = () => {
           columns={[
             { title: 'Pack', dataIndex: 'packName' },
             {
-              title: 'Left',
-              render: (_, row) => `${row.remainingCredits} / ${row.totalCredits}`,
+              title: 'Mapping slots',
+              render: (_, row) => row.totalCredits,
             },
           ]}
           locale={{ emptyText: 'No packs yet' }}

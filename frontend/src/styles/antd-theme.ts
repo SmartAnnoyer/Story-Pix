@@ -6,21 +6,22 @@ export const antdTheme: ThemeConfig = {
     colorPrimary: brand.colors.primary,
     colorLink: brand.colors.primary,
     colorLinkHover: brand.colors.primaryHover,
-    borderRadius: 8,
-    fontFamily:
-      "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
-    colorBgLayout: brand.colors.surface,
+    borderRadius: 14,
+    fontFamily: "Figtree, system-ui, -apple-system, 'Segoe UI', sans-serif",
+    colorBgLayout: brand.colors.surfaceAlt,
     colorText: brand.colors.ink,
     colorTextSecondary: brand.colors.inkMuted,
   },
   components: {
     Layout: {
       headerBg: '#ffffff',
-      bodyBg: brand.colors.surface,
+      bodyBg: brand.colors.surfaceAlt,
       siderBg: '#ffffff',
     },
     Button: {
-      controlHeight: 40,
+      controlHeight: 48,
+      borderRadius: 999,
+      fontWeight: 700,
     },
     Menu: {
       itemSelectedColor: brand.colors.primary,

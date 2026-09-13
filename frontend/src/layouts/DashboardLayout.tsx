@@ -1,7 +1,14 @@
-import { useMemo } from 'react';
-import { Avatar, Button, Dropdown, Layout } from 'antd';
+import { useMemo, type ReactNode } from 'react';
+import { Avatar, Dropdown, Layout } from 'antd';
+import {
+  AppstoreOutlined,
+  ArrowLeftOutlined,
+  HomeOutlined,
+  LogoutOutlined,
+  ShoppingOutlined,
+  UserOutlined,
+} from '@ant-design/icons';
 import { BrandLogo } from '@/components/BrandLogo';
-import { ArrowLeftOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/auth.store';
 import { useLogoutMutation } from '@/hooks/useAuthQueries';
@@ -15,6 +22,7 @@ type NavItem = {
   key: string;
   label: string;
   path: string;
+  icon?: ReactNode;
 };
 
 function getBackTarget(
@@ -39,7 +47,13 @@ function getBackTarget(
     return { label: 'Home', path: ROUTES.ADMIN_DASHBOARD };
   }
 
-  if (pathname === ROUTES.DASHBOARD || pathname === ROUTES.ALBUMS) return null;
+  if (
+    pathname === ROUTES.DASHBOARD ||
+    pathname === ROUTES.ALBUMS ||
+    pathname === ROUTES.STUDIO_PACKS
+  ) {
+    return null;
+  }
 
   if (pathname === ROUTES.ALBUM_CREATE) {
     return { label: 'Albums', path: ROUTES.ALBUMS };
@@ -73,13 +87,24 @@ export const DashboardLayout = () => {
     () =>
       isSuperAdmin
         ? [
-            { key: 'home', label: 'Home', path: ROUTES.ADMIN_DASHBOARD },
-            { key: 'studios', label: 'Studios', path: ROUTES.STUDIOS },
-            { key: 'catalog', label: 'Catalog', path: ROUTES.CATALOG },
+            { key: 'home', label: 'Home', path: ROUTES.ADMIN_DASHBOARD, icon: <HomeOutlined /> },
+            {
+              key: 'studios',
+              label: 'Studios',
+              path: ROUTES.STUDIOS,
+              icon: <AppstoreOutlined />,
+            },
+            { key: 'catalog', label: 'Catalog', path: ROUTES.CATALOG, icon: <ShoppingOutlined /> },
           ]
         : [
-            { key: 'home', label: 'Home', path: ROUTES.DASHBOARD },
-            { key: 'albums', label: 'Albums', path: ROUTES.ALBUMS },
+            { key: 'home', label: 'Home', path: ROUTES.DASHBOARD, icon: <HomeOutlined /> },
+            { key: 'albums', label: 'Albums', path: ROUTES.ALBUMS, icon: <AppstoreOutlined /> },
+            {
+              key: 'packs',
+              label: 'Buy packs',
+              path: ROUTES.STUDIO_PACKS,
+              icon: <ShoppingOutlined />,
+            },
           ],
     [isSuperAdmin],
   );
@@ -100,7 +125,6 @@ export const DashboardLayout = () => {
 
   const back = getBackTarget(location.pathname, isSuperAdmin);
   const homePath = isSuperAdmin ? ROUTES.ADMIN_DASHBOARD : ROUTES.DASHBOARD;
-  const navLabel = isSuperAdmin ? 'Admin' : 'Studio';
 
   const handleLogout = async () => {
     try {
@@ -124,7 +148,9 @@ export const DashboardLayout = () => {
       }}
       placement="bottomRight"
     >
-      <Avatar icon={<UserOutlined />} className="cursor-pointer" />
+      <button type="button" className="app-shell__avatar-btn" aria-label="Account">
+        <Avatar icon={<UserOutlined />} size={40} />
+      </button>
     </Dropdown>
   );
 
@@ -132,10 +158,23 @@ export const DashboardLayout = () => {
     <Layout className="app-shell app-shell--admin min-h-screen">
       <Header className="app-shell__header app-shell__header--admin !h-auto !leading-none">
         <div className="app-shell__admin-left">
-          <Link to={homePath} className="app-shell__brand-link" aria-label="Home">
-            <BrandLogo variant="nav" height={40} />
-          </Link>
-          <nav className="app-shell__admin-nav" aria-label={navLabel}>
+          {back ? (
+            <button
+              type="button"
+              className="app-shell__back-btn"
+              onClick={() => navigate(back.path)}
+              aria-label={`Back to ${back.label}`}
+            >
+              <ArrowLeftOutlined />
+              <span className="app-shell__back-label">{back.label}</span>
+            </button>
+          ) : (
+            <Link to={homePath} className="app-shell__brand-link" aria-label="Story-PIX home">
+              <BrandLogo variant="nav" height={44} className="app-shell__brand-logo--desktop" />
+              <BrandLogo variant="full" height={52} className="app-shell__brand-logo--mobile" />
+            </Link>
+          )}
+          <nav className="app-shell__admin-nav app-shell__admin-nav--desktop" aria-label="Main">
             {primaryTabs.map((item) => (
               <Link
                 key={item.key}
@@ -149,24 +188,27 @@ export const DashboardLayout = () => {
             ))}
           </nav>
         </div>
-        <div className="app-shell__admin-right">
-          {back ? (
-            <Button
-              type="text"
-              className="app-shell__back"
-              icon={<ArrowLeftOutlined />}
-              onClick={() => navigate(back.path)}
-            >
-              {back.label}
-            </Button>
-          ) : null}
-          {userMenu}
-        </div>
+        <div className="app-shell__admin-right">{userMenu}</div>
       </Header>
 
-      <Content className="app-shell__content app-shell__content--admin">
+      <Content className="app-shell__content app-shell__content--admin app-shell__content--with-tabbar">
         <Outlet />
       </Content>
+
+      <nav className="app-tabbar" aria-label="Main">
+        {primaryTabs.map((item) => (
+          <Link
+            key={item.key}
+            to={item.path}
+            className={`app-tabbar__item${activeTab === item.key ? ' app-tabbar__item--active' : ''}`}
+          >
+            <span className="app-tabbar__icon" aria-hidden>
+              {item.icon}
+            </span>
+            {item.label}
+          </Link>
+        ))}
+      </nav>
     </Layout>
   );
 };

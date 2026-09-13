@@ -2,22 +2,28 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap');
+
 :root {
-  --sp-primary-purple: #8a2be2;
-  --sp-primary-blue: #2196f3;
-  --sp-accent-pink: #ff4fa3;
+  /* Story-PIX logo palette */
+  --sp-primary: #6b2cdb;
+  --sp-primary-hover: #5a24bc;
+  --sp-primary-purple: #6b2cdb;
+  --sp-primary-blue: #3b4fe8;
+  --sp-accent-pink: #e93a8a;
+  --sp-accent-magenta: #ff4fa3;
   --sp-accent-orange: #ff7a45;
   --sp-accent-yellow: #ffc233;
-  --sp-bg-dark: #0f0f14;
+  --sp-bg-dark: #0a0a0f;
   --sp-bg-light: #ffffff;
-  --sp-text-dark: #1a1a1a;
-  --sp-gradient: linear-gradient(
-    135deg,
-    #8a2be2 0%,
-    #2196f3 38%,
-    #ff4fa3 72%,
-    #ff7a45 100%
-  );
+  --sp-bg-soft: #f5f4f8;
+  --sp-text-dark: #1a1a2e;
+  --sp-text-muted: #5c5c66;
+  --sp-line: #e6e4ea;
+  --sp-gradient: linear-gradient(135deg, #3b4fe8 0%, #6b2cdb 40%, #e93a8a 78%, #ff4fa3 100%);
+  --sp-radius: 14px;
+  --sp-touch: 48px;
+  --sp-font: Figtree, system-ui, -apple-system, sans-serif;
 }
 
 *,
@@ -61,17 +67,10 @@ html.viewer-route #root {
 
 body {
   margin: 0;
-  font-family:
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    Roboto,
-    'Helvetica Neue',
-    Arial,
-    sans-serif;
+  font-family: var(--sp-font);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: var(--sp-bg-light);
+  background-color: var(--sp-bg-soft);
   color: var(--sp-text-dark);
 }
 
@@ -79,6 +78,31 @@ body {
   min-height: 100vh;
 }
 
-.ant-layout-sider .ant-menu-item-selected {
-  font-weight: 600;
+.sp-btn-gradient {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--sp-touch);
+  padding: 0.75rem 1.35rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sp-gradient);
+  color: #fff !important;
+  font-family: var(--sp-font);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+  box-shadow: 0 10px 28px rgba(107, 44, 219, 0.28);
+  cursor: pointer;
+}
+
+.sp-btn-gradient:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.sp-btn-gradient:active:not(:disabled) {
+  transform: scale(0.98);
 }

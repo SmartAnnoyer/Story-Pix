@@ -136,7 +136,7 @@ export const AlbumDetailsPage = () => {
   return (
     <div className="studio-home album-studio album-details">
       <header className="studio-home__hero">
-        <p className="studio-home__eyebrow">Album</p>
+        <p className="studio-home__eyebrow">Step 3 · QR</p>
         <div className="album-details__hero-row">
           <div>
             <h1>{album.albumName}</h1>
@@ -188,27 +188,16 @@ export const AlbumDetailsPage = () => {
 
       <section className="album-studio__strip" aria-label="Album capacity">
         <article className="album-studio__stat">
-          <span>Plan</span>
-          <strong className="album-studio__stat-text">
-            {album.packName ?? album.packCode ?? '—'}
-          </strong>
+          <span>Album QR</span>
+          <strong className="album-studio__stat-text">Own guest link</strong>
         </article>
         <article className="album-studio__stat">
-          <span>Photos</span>
-          <strong>Up to {album.maxMappings ?? 25}</strong>
+          <span>Guest views / photo</span>
+          <strong>{(album.scansPerMapping ?? 1000).toLocaleString('en-IN')}</strong>
         </article>
         <article className="album-studio__stat">
-          <span>Guest views used</span>
-          <strong>
-            {(album.scanUsage ?? 0).toLocaleString('en-IN')}
-            <small>
-              {' '}
-              /{' '}
-              {((album.scansPerMapping ?? 1000) * (album.maxMappings ?? 25)).toLocaleString(
-                'en-IN',
-              )}
-            </small>
-          </strong>
+          <span>Album guest views used</span>
+          <strong>{(album.scanUsage ?? 0).toLocaleString('en-IN')}</strong>
         </article>
       </section>
 

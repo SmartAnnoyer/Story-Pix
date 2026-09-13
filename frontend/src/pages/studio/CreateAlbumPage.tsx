@@ -1,55 +1,50 @@
 import { useNavigate } from 'react-router-dom';
-import { Card, Typography, message } from 'antd';
+import { message } from 'antd';
 import { AlbumForm } from '@/features/albums/components/AlbumForm';
 import { useCreateAlbumMutation } from '@/hooks/useAlbumQueries';
-import { useStudioPackCreditsQuery } from '@/hooks/usePackQueries';
+import { useStudioPackSummaryQuery } from '@/hooks/usePackQueries';
 import { getErrorMessage } from '@/api/client';
 import { ROUTES } from '@/routes/paths';
 import type { CreateAlbumPayload } from '@/types/album.types';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-
-const { Title, Paragraph } = Typography;
+import { BrandLogo } from '@/components/BrandLogo';
+import '../DashboardPage.css';
+import './CreateAlbumPage.css';
 
 export const CreateAlbumPage = () => {
   const navigate = useNavigate();
   const createMutation = useCreateAlbumMutation();
-  const { data: packCredits, isLoading } = useStudioPackCreditsQuery();
+  const { data: packs, isLoading } = useStudioPackSummaryQuery();
 
   const handleSubmit = async (values: CreateAlbumPayload) => {
     try {
       const album = await createMutation.mutateAsync(values);
       if (!album?.id) {
-        message.warning(
-          'Album created, but the response was missing an id. Open it from the albums list.',
-        );
+        message.warning('Album created — open it from Albums.');
         navigate(ROUTES.ALBUMS);
         return;
       }
-      message.success('Album created. Now add the printed photo and the video.');
+      message.success('Next: add your photo and video');
       navigate(ROUTES.ALBUM_MEDIA.replace(':id', album.id));
     } catch (error) {
-      message.error(getErrorMessage(error, 'Unable to create album'));
+      message.error(getErrorMessage(error, 'Could not create album'));
     }
   };
 
   if (isLoading) return <LoadingSpinner />;
 
   return (
-    <div>
-      <Title level={3} className="!mb-1">
-        New album
-      </Title>
-      <Paragraph type="secondary" className="!mb-6">
-        Name the event, then upload the print and the video that plays on it.
-      </Paragraph>
-      <Card>
-        <AlbumForm
-          mode="create"
-          packCredits={packCredits ?? []}
-          onSubmit={handleSubmit}
-          isSubmitting={createMutation.isPending}
-        />
-      </Card>
+    <div className="studio-home create-album">
+      <header className="create-album__hero">
+        <BrandLogo variant="icon" height={48} />
+        <h1>New album</h1>
+      </header>
+      <AlbumForm
+        mode="create"
+        remainingMappingSlots={packs?.remainingMappingSlots ?? packs?.remainingAlbumCredits}
+        onSubmit={handleSubmit}
+        isSubmitting={createMutation.isPending}
+      />
     </div>
   );
 };

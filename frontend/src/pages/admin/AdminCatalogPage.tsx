@@ -8,7 +8,7 @@ import './AdminCatalogPage.css';
 type CatalogTab = 'packs' | 'history';
 
 const TABS: { key: CatalogTab; label: string }[] = [
-  { key: 'packs', label: 'Album packs' },
+  { key: 'packs', label: 'Packs' },
   { key: 'history', label: 'History' },
 ];
 
@@ -76,8 +76,8 @@ const PacksTab = () => {
   return (
     <>
       <p className="catalog-page__hint">
-        Mini / Standard set photos per album. Bundles add multiple album credits. Every mapped photo
-        gets 1,000 plays.
+        Mini / Standard / bundles add photo-mapping slots to a studio pool. Albums are unlimited.
+        Every mapped photo gets 1,000 plays.
       </p>
       <Table
         rowKey="id"
@@ -91,13 +91,16 @@ const PacksTab = () => {
             dataIndex: 'tier',
             render: (tier: string) => <Tag color={tierColor[tier] ?? 'default'}>{tier}</Tag>,
           },
-          { title: 'Photos max', dataIndex: 'maxMappings' },
+          { title: 'Photos / unit', dataIndex: 'maxMappings' },
           {
             title: 'Plays / photo',
             dataIndex: 'scansPerMapping',
             render: (v: number) => (v ?? 1000).toLocaleString('en-IN'),
           },
-          { title: 'Albums in pack', dataIndex: 'albumsIncluded' },
+          {
+            title: 'Mapping slots',
+            render: (_: unknown, pack: AlbumPack) => pack.maxMappings * pack.albumsIncluded,
+          },
           {
             title: 'List price',
             dataIndex: 'unitPriceInr',

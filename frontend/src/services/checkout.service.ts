@@ -8,6 +8,8 @@ export type CartItem = { packId: string; quantity: number };
 export type CartQuote = {
   amountInr: number;
   totalMappings: number;
+  totalMappingSlots?: number;
+  /** @deprecated Albums are unlimited. */
   totalAlbumCredits: number;
   mergesPersonalPacks: boolean;
   lines: Array<{
@@ -18,6 +20,7 @@ export type CartQuote = {
     quantity: number;
     maxMappings: number;
     albumsIncluded: number;
+    mappingSlots?: number;
     lineTotalInr: number;
   }>;
 };

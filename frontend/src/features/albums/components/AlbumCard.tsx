@@ -1,39 +1,23 @@
-import { Card, Typography } from 'antd';
+import { BrandLogo } from '@/components/BrandLogo';
 import type { Album } from '@/types/album.types';
 import { AlbumStatusBadge } from './AlbumStatusBadge';
-
-const { Text } = Typography;
+import './AlbumCard.css';
 
 interface AlbumCardProps {
-  album: Pick<Album, 'id' | 'albumName' | 'coverImage' | 'status' | 'createdAt'>;
+  album: Pick<Album, 'id' | 'albumName' | 'status' | 'createdAt'>;
   onClick?: () => void;
 }
 
 export const AlbumCard = ({ album, onClick }: AlbumCardProps) => {
   return (
-    <Card hoverable={Boolean(onClick)} className="h-full overflow-hidden" onClick={onClick}>
-      <div className="mb-3 aspect-video overflow-hidden rounded-md bg-gray-100">
-        {album.coverImage ? (
-          <img
-            src={album.coverImage}
-            alt={album.albumName}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center text-sm text-gray-400">
-            No cover
-          </div>
-        )}
+    <button type="button" className="sp-album-card" onClick={onClick}>
+      <div className="sp-album-card__cover" aria-hidden>
+        <BrandLogo variant="full" height={56} />
       </div>
-      <div className="font-medium">{album.albumName}</div>
-      <div className="mt-2">
+      <div className="sp-album-card__body">
+        <div className="sp-album-card__name">{album.albumName}</div>
         <AlbumStatusBadge status={album.status} />
       </div>
-      {album.createdAt ? (
-        <Text type="secondary" className="mt-2 block text-xs">
-          {new Date(album.createdAt).toLocaleDateString()}
-        </Text>
-      ) : null}
-    </Card>
+    </button>
   );
 };

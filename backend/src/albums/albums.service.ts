@@ -90,6 +90,7 @@ export class AlbumsService {
   async create(studioId: string, userId: string, dto: CreateAlbumDto) {
     const albumCode = await this.generateUniqueAlbumCode();
     const slug = await this.generateUniqueSlug(dto.albumName);
+    const quota = await this.packsService.getMappingQuota(studioId);
 
     const album = await this.albumModel.create({
       studioId: new Types.ObjectId(studioId),
@@ -106,32 +107,13 @@ export class AlbumsService {
       status: AlbumStatus.DRAFT,
       isPublished: false,
       publishedAt: null,
-      maxMappings: 25,
+      // Soft display hint — hard limit is studio-wide mapping pool.
+      maxMappings: Math.max(quota.remainingMappingSlots, 1),
       scansPerMapping: SCANS_PER_MAPPING,
-      scanLimit: 25 * SCANS_PER_MAPPING,
+      scanLimit: Math.max(quota.remainingMappingSlots, 1) * SCANS_PER_MAPPING,
       scanUsage: 0,
       createdBy: new Types.ObjectId(userId),
     });
-
-    try {
-      const consumed = await this.packsService.consumeCreditForAlbum({
-        studioId,
-        packCreditId: dto.packCreditId,
-        albumId: album._id.toString(),
-        performedBy: userId,
-      });
-      album.packCreditId = new Types.ObjectId(consumed.creditId);
-      album.packCode = consumed.packCode;
-      album.packName = consumed.packName;
-      album.maxMappings = consumed.maxMappings;
-      album.scansPerMapping = consumed.scansPerMapping || SCANS_PER_MAPPING;
-      album.scanLimit = album.maxMappings * album.scansPerMapping;
-      album.scanUsage = 0;
-      await album.save();
-    } catch (error) {
-      await this.albumModel.deleteOne({ _id: album._id }).exec();
-      throw error;
-    }
 
     await this.usageService.incrementAlbumCount(studioId);
     void this.trackEvent(studioId, album._id.toString(), AnalyticsEventType.ALBUM_CREATED);
@@ -146,8 +128,8 @@ export class AlbumsService {
 
   async assertMappingCapacity(studioId: string, albumId: string) {
     const album = await this.findDocument(studioId, albumId);
-    const maxMappings = album.maxMappings ?? 25;
-    const count = await this.arTargetModel
+    const quota = await this.packsService.assertStudioHasMappingSlot(studioId);
+    const usedInAlbum = await this.arTargetModel
       .countDocuments({
         albumId: album._id,
         studioId: this.toObjectId(studioId),
@@ -156,15 +138,20 @@ export class AlbumsService {
       })
       .exec();
 
-    if (count >= maxMappings) {
-      throw new BadRequestException({
-        message: `This album allows up to ${maxMappings} mappings for its pack.`,
-        code: 'ALBUM_MAPPING_LIMIT',
-        details: { maxMappings, used: count },
-      });
+    // Keep album soft cap in sync with remaining studio pool for UI.
+    const softMax = usedInAlbum + quota.remainingMappingSlots;
+    if ((album.maxMappings ?? 0) !== softMax) {
+      album.maxMappings = softMax;
+      album.scanLimit = softMax * (album.scansPerMapping || SCANS_PER_MAPPING);
+      await album.save();
     }
 
-    return { album, maxMappings, used: count };
+    return {
+      album,
+      maxMappings: softMax,
+      used: usedInAlbum,
+      remainingMappingSlots: quota.remainingMappingSlots,
+    };
   }
 
   async assertMappingScanAvailable(arTargetId: string) {

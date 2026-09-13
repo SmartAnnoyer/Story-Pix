@@ -1,0 +1,45 @@
+.sp-album-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--sp-line, #e6e4ea);
+  border-radius: 16px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  box-shadow: 0 8px 20px rgba(26, 26, 46, 0.04);
+}
+
+.sp-album-card:active {
+  transform: scale(0.99);
+}
+
+.sp-album-card__cover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 7.5rem;
+  padding: 1.1rem 1rem;
+  background:
+    radial-gradient(ellipse 80% 70% at 30% 0%, rgba(59, 79, 232, 0.18), transparent 55%),
+    radial-gradient(ellipse 70% 60% at 100% 20%, rgba(233, 58, 138, 0.16), transparent 50%),
+    #0a0a0f;
+}
+
+.sp-album-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.9rem 1rem 1rem;
+}
+
+.sp-album-card__name {
+  font-size: 1.02rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  color: var(--sp-text-dark, #1a1a2e);
+  line-height: 1.3;
+}

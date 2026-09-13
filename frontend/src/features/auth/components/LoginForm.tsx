@@ -26,8 +26,12 @@ export const LoginForm = ({ onSubmit, errorMessage, isSubmitting }: LoginFormPro
 
   return (
     <Form layout="vertical" onFinish={handleSubmit(onSubmit)} requiredMark={false}>
-      <h1 className="mb-1 text-[1.65rem] font-bold tracking-tight text-gray-900">Studio sign-in</h1>
-      <p className="mb-6 text-sm text-gray-500">Use the email Story-PIX gave your studio.</p>
+      <h1 className="mb-1 text-[1.65rem] font-extrabold tracking-tight text-gray-900">
+        Welcome back
+      </h1>
+      <p className="mb-6 text-[0.95rem] leading-snug text-gray-500">
+        Sign in with your email and password to make living photos.
+      </p>
 
       {errorMessage ? (
         <Alert message={errorMessage} type="error" showIcon className="mb-4" />
@@ -82,7 +86,7 @@ export const LoginForm = ({ onSubmit, errorMessage, isSubmitting }: LoginFormPro
       </div>
 
       <Button type="primary" htmlType="submit" size="large" block loading={isSubmitting}>
-        Continue
+        Sign in
       </Button>
     </Form>
   );

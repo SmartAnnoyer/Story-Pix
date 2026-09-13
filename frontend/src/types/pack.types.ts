@@ -39,8 +39,10 @@ export interface StudioPackCredit {
   packName: string;
   maxMappings: number;
   scansPerMapping: number;
+  /** Photo-mapping slots granted by this purchase. */
   totalCredits: number;
   remainingCredits: number;
+  creditUnit?: 'album' | 'mapping';
   unitPriceInr: number;
   totalPriceInr: number;
   assignedBy: string | null;
@@ -51,6 +53,10 @@ export interface StudioPackCredit {
 }
 
 export interface StudioPackSummary {
+  grantedMappingSlots?: number;
+  usedMappingSlots?: number;
+  remainingMappingSlots?: number;
+  /** @deprecated Prefer remainingMappingSlots — albums are unlimited. */
   remainingAlbumCredits: number;
   totalAssignedCredits: number;
   usedCredits: number;

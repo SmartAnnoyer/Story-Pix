@@ -6,13 +6,13 @@ import {
   useDeleteArTargetMutation,
 } from '@/hooks/useArTargetQueries';
 import { useAlbumQuery } from '@/hooks/useAlbumQueries';
+import { useStudioPackSummaryQuery } from '@/hooks/usePackQueries';
 import { MappingTable } from '@/features/ar/components/MappingTable';
 import { AlbumDeliveryGuide } from '@/features/albums/components/AlbumDeliveryGuide';
 import { albumSharePath } from '@/features/albums/utils/album-delivery';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { ROUTES } from '@/routes/paths';
 import { getErrorMessage } from '@/api/client';
-import { MAX_AR_ITEMS_PER_ALBUM } from '@/features/media/utils/media-limits';
 import { ArTargetStatus } from '@/types/ar-target.types';
 import '@/pages/DashboardPage.css';
 import './AlbumStudioPages.css';
@@ -21,6 +21,7 @@ export const ArMappingsPage = () => {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const { data: album, isLoading: albumLoading } = useAlbumQuery(id);
+  const { data: packs } = useStudioPackSummaryQuery();
   const { data, isLoading, refetch } = useAlbumArTargetsQuery(id, { limit: 100 });
   const archiveMutation = useArchiveArTargetMutation();
   const deleteMutation = useDeleteArTargetMutation();
@@ -28,8 +29,8 @@ export const ArMappingsPage = () => {
   if (albumLoading || !album) return <LoadingSpinner />;
 
   const mappingCount = data?.items.length ?? 0;
-  const maxMappings = album.maxMappings ?? MAX_AR_ITEMS_PER_ALBUM;
-  const atMappingCap = mappingCount >= maxMappings;
+  const studioRemaining = packs?.remainingMappingSlots ?? packs?.remainingAlbumCredits ?? 0;
+  const atMappingCap = studioRemaining <= 0;
   const liveCount = (data?.items ?? []).filter(
     (item) => item.status === ArTargetStatus.ACTIVE,
   ).length;
@@ -59,7 +60,7 @@ export const ArMappingsPage = () => {
   return (
     <div className="studio-home album-studio">
       <header className="studio-home__hero">
-        <p className="studio-home__eyebrow">Link print → video</p>
+        <p className="studio-home__eyebrow">Step 2 · Link</p>
         <h1>{album.albumName}</h1>
         <div className="studio-home__actions">
           <button
@@ -69,9 +70,9 @@ export const ArMappingsPage = () => {
             onClick={() => navigate(ROUTES.ALBUM_AR_MAPPING_CREATE.replace(':id', id))}
           >
             {atMappingCap
-              ? `Album full (${maxMappings} photos)`
+              ? 'Buy more photos first'
               : isEmpty
-                ? 'Link your first photo'
+                ? 'Link photo + video'
                 : 'Link another photo'}
           </button>
           <button
@@ -86,10 +87,10 @@ export const ArMappingsPage = () => {
 
       <section className="album-studio__strip" aria-label="Link status">
         <article className="album-studio__stat">
-          <span>Linked</span>
+          <span>Linked in this album</span>
           <strong>
             {mappingCount}
-            <small> / {maxMappings}</small>
+            <small> · {studioRemaining} left in studio</small>
           </strong>
         </article>
         <article className="album-studio__stat album-studio__stat--live">
@@ -114,6 +115,7 @@ export const ArMappingsPage = () => {
           <button
             type="button"
             className="studio-home__btn studio-home__btn--primary"
+            disabled={atMappingCap}
             onClick={() => navigate(ROUTES.ALBUM_AR_MAPPING_CREATE.replace(':id', id))}
           >
             Link print → video

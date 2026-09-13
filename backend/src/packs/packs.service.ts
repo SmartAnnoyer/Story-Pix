@@ -7,12 +7,13 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { AlbumPackTier, PackLedgerAction } from '../common/enums';
+import { AlbumPackTier, ArTargetStatus, PackLedgerAction } from '../common/enums';
 import { SCANS_PER_MAPPING } from '../common/constants/pack.constants';
 import { AlbumPack, AlbumPackDocument } from './schemas/album-pack.schema';
 import { StudioPackCredit, StudioPackCreditDocument } from './schemas/studio-pack-credit.schema';
 import { PackLedgerEntry, PackLedgerEntryDocument } from './schemas/pack-ledger.schema';
 import { Studio, StudioDocument } from '../studios/schemas/studio.schema';
+import { ArTarget, ArTargetDocument } from '../ar-targets/schemas/ar-target.schema';
 import {
   AssignPackDto,
   CreateAlbumPackDto,
@@ -21,10 +22,11 @@ import {
 } from './dto/pack.dto';
 
 /**
- * Sell by photo count + album bundles.
- * Every mapped photo always gets SCANS_PER_MAPPING (1000) plays — not a marketing upsell.
+ * Sell by photo-mapping slots (pooled across the studio).
+ * Albums are unlimited (each gets its own QR); packs only add mapping capacity.
+ * Every mapped photo always gets SCANS_PER_MAPPING (1000) plays.
  *
- * Bundle packs = multiple album credits for busy shops (discount), not extra scans.
+ * Bundle packs = discounted bulk mapping slots (albumsIncluded × maxMappings).
  */
 const DEFAULT_PACKS: Array<
   Omit<CreateAlbumPackDto, 'features'> & {
@@ -42,19 +44,20 @@ const DEFAULT_PACKS: Array<
     scanLimit: SCANS_PER_MAPPING,
     albumsIncluded: 1,
     unitPriceInr: 199,
-    features: ['1 living photo', '1,000 plays', 'Stack with other personal packs'],
+    features: ['1 living photo', '1,000 plays', 'Stackable · unlimited albums'],
     sortOrder: 1,
   },
   {
     code: 'photo_2',
     name: '2 Photos',
     tier: AlbumPackTier.PERSONAL,
-    description: 'Two living photos. Combine with other packs (e.g. 2+3=5).',
+    description:
+      'Two living photos. Combine with other packs (e.g. 2+3=5). Split across albums as you like.',
     maxMappings: 2,
     scanLimit: SCANS_PER_MAPPING,
     albumsIncluded: 1,
     unitPriceInr: 349,
-    features: ['2 living photos', '1,000 plays each', 'Stackable'],
+    features: ['2 living photos', '1,000 plays each', 'Stackable · unlimited albums'],
     sortOrder: 2,
   },
   {
@@ -95,26 +98,28 @@ const DEFAULT_PACKS: Array<
   },
   {
     code: 'mini_10',
-    name: 'Mini Album',
+    name: 'Mini',
     tier: AlbumPackTier.MINIMAL,
-    description: 'Smaller album — up to 10 living photos. Each photo gets 1,000 guest plays.',
+    description:
+      '10 living-photo slots for your studio. Split across any number of albums (each album has its own QR).',
     maxMappings: 10,
     scanLimit: SCANS_PER_MAPPING,
     albumsIncluded: 1,
     unitPriceInr: 999,
-    features: ['Up to 10 photos', '1,000 plays per photo', 'Lifetime hosting'],
+    features: ['10 photo mappings', 'Unlimited albums / QRs', '1,000 plays per photo'],
     sortOrder: 10,
   },
   {
     code: 'standard_25',
-    name: 'Standard Album',
+    name: 'Standard',
     tier: AlbumPackTier.STANDARD,
-    description: 'Full album — up to 25 living photos. Each photo gets 1,000 guest plays.',
+    description:
+      '25 living-photo slots. Create as many albums as you need and share capacity across them.',
     maxMappings: 25,
     scanLimit: SCANS_PER_MAPPING,
     albumsIncluded: 1,
     unitPriceInr: 2499,
-    features: ['Up to 25 photos', '1,000 plays per photo', 'Lifetime hosting'],
+    features: ['25 photo mappings', 'Unlimited albums / QRs', '1,000 plays per photo'],
     sortOrder: 20,
   },
   {
@@ -122,37 +127,37 @@ const DEFAULT_PACKS: Array<
     name: '5-Album Bundle',
     tier: AlbumPackTier.VOLUME,
     description:
-      'Busy shops: pay once for 5 Standard albums (5 clients). Each album up to 25 photos · 1,000 plays/photo. ~10% off.',
+      'Busy shops: 125 living-photo slots (5×25). Split across as many albums/QRs as you want. ~10% off.',
     maxMappings: 25,
     scanLimit: SCANS_PER_MAPPING,
     albumsIncluded: 5,
     unitPriceInr: 11249,
-    features: ['5 album credits', 'Up to 25 photos each', '1,000 plays per photo', '~10% off'],
+    features: ['125 photo mappings', 'Unlimited albums / QRs', '1,000 plays per photo', '~10% off'],
     sortOrder: 40,
   },
   {
     code: 'bundle_10_albums',
-    name: '10-Album Bundle',
+    name: '10× Standard Bundle',
     tier: AlbumPackTier.VOLUME,
     description:
-      'Growing studios: 10 Standard albums in one purchase. ~20% off vs buying one-by-one.',
+      'Growing studios: 250 living-photo slots. Split across any number of albums. ~20% off.',
     maxMappings: 25,
     scanLimit: SCANS_PER_MAPPING,
     albumsIncluded: 10,
     unitPriceInr: 19999,
-    features: ['10 album credits', 'Up to 25 photos each', '1,000 plays per photo', '~20% off'],
+    features: ['250 photo mappings', 'Unlimited albums / QRs', '1,000 plays per photo', '~20% off'],
     sortOrder: 50,
   },
   {
     code: 'bundle_20_albums',
-    name: '20-Album Bundle',
+    name: '20× Standard Bundle',
     tier: AlbumPackTier.VOLUME,
-    description: 'High-volume shops: 20 Standard albums in one purchase. Best rate (~30% off).',
+    description: 'High-volume shops: 500 living-photo slots. Best rate (~30% off).',
     maxMappings: 25,
     scanLimit: SCANS_PER_MAPPING,
     albumsIncluded: 20,
     unitPriceInr: 34999,
-    features: ['20 album credits', 'Up to 25 photos each', '1,000 plays per photo', '~30% off'],
+    features: ['500 photo mappings', 'Unlimited albums / QRs', '1,000 plays per photo', '~30% off'],
     sortOrder: 60,
   },
 ];
@@ -166,13 +171,10 @@ const LEGACY_PACK_CODES = [
   'volume_20_standard',
 ];
 
-export type ConsumedPackCredit = {
-  creditId: string;
-  packId: string;
-  packCode: string;
-  packName: string;
-  maxMappings: number;
-  scansPerMapping: number;
+export type MappingQuota = {
+  grantedMappingSlots: number;
+  usedMappingSlots: number;
+  remainingMappingSlots: number;
 };
 
 @Injectable()
@@ -184,10 +186,55 @@ export class PacksService implements OnModuleInit {
     @InjectModel(PackLedgerEntry.name)
     private readonly ledgerModel: Model<PackLedgerEntryDocument>,
     @InjectModel(Studio.name) private readonly studioModel: Model<StudioDocument>,
+    @InjectModel(ArTarget.name) private readonly arTargetModel: Model<ArTargetDocument>,
   ) {}
 
   async onModuleInit() {
     await this.seedDefaultPacks();
+    await this.normalizeLegacyAlbumCredits();
+  }
+
+  /** Mapping slots granted by one pack purchase line. */
+  mappingSlotsFromPack(pack: { maxMappings: number; albumsIncluded: number }, quantity = 1) {
+    const qty = Math.max(1, Math.floor(quantity || 1));
+    return Math.max(0, pack.maxMappings) * Math.max(1, pack.albumsIncluded) * qty;
+  }
+
+  async countUsedMappingSlots(studioId: string) {
+    return this.arTargetModel
+      .countDocuments({
+        studioId: new Types.ObjectId(studioId),
+        status: { $ne: ArTargetStatus.ARCHIVED },
+        deletedAt: null,
+      })
+      .exec();
+  }
+
+  async getMappingQuota(studioId: string): Promise<MappingQuota> {
+    await this.normalizeLegacyAlbumCredits(studioId);
+    const credits = await this.creditModel
+      .find({ studioId: new Types.ObjectId(studioId), isActive: true })
+      .exec();
+    const grantedMappingSlots = credits.reduce((sum, credit) => sum + credit.totalCredits, 0);
+    const usedMappingSlots = await this.countUsedMappingSlots(studioId);
+    return {
+      grantedMappingSlots,
+      usedMappingSlots,
+      remainingMappingSlots: Math.max(0, grantedMappingSlots - usedMappingSlots),
+    };
+  }
+
+  async assertStudioHasMappingSlot(studioId: string) {
+    const quota = await this.getMappingQuota(studioId);
+    if (quota.remainingMappingSlots <= 0) {
+      throw new ForbiddenException({
+        message:
+          'No photo-mapping slots left. Buy or recharge a pack to link more print → video photos.',
+        code: 'PACK_MAPPING_SLOTS_EXHAUSTED',
+        details: quota,
+      });
+    }
+    return quota;
   }
 
   async findAll(includeInactive = false) {
@@ -238,7 +285,7 @@ export class PacksService implements OnModuleInit {
     if (!pack || !pack.isActive) throw new NotFoundException('Pack not found or inactive');
 
     const quantity = dto.quantity ?? 1;
-    const creditsGranted = pack.albumsIncluded * quantity;
+    const slotsGranted = this.mappingSlotsFromPack(pack, quantity);
     const totalPriceInr = pack.unitPriceInr * quantity;
 
     const credit = await this.creditModel.create({
@@ -248,8 +295,9 @@ export class PacksService implements OnModuleInit {
       packName: pack.name,
       maxMappings: pack.maxMappings,
       scanLimit: SCANS_PER_MAPPING,
-      totalCredits: creditsGranted,
-      remainingCredits: creditsGranted,
+      totalCredits: slotsGranted,
+      remainingCredits: slotsGranted,
+      creditUnit: 'mapping',
       unitPriceInr: pack.unitPriceInr,
       totalPriceInr,
       assignedBy: performedBy ? new Types.ObjectId(performedBy) : null,
@@ -265,7 +313,7 @@ export class PacksService implements OnModuleInit {
       packCode: pack.code,
       packName: pack.name,
       action: performedBy ? PackLedgerAction.ASSIGN : PackLedgerAction.PURCHASE,
-      quantity: creditsGranted,
+      quantity: slotsGranted,
       unitPriceInr: pack.unitPriceInr,
       totalPriceInr,
       performedBy: performedBy ? new Types.ObjectId(performedBy) : null,
@@ -276,8 +324,8 @@ export class PacksService implements OnModuleInit {
   }
 
   /**
-   * Fulfill a cart. Personal packs (tier=personal) in the same cart are merged so
-   * 5+3 becomes one album credit with 8 mappings. Studio packs assign normally.
+   * Fulfill a cart. Personal packs in the same cart merge into one credit row
+   * (5+3 → 8 mapping slots). Studio packs each grant maxMappings × albumsIncluded × qty.
    */
   async fulfillCart(
     studioId: string,
@@ -307,7 +355,7 @@ export class PacksService implements OnModuleInit {
 
     if (personal.length) {
       const totalMappings = personal.reduce(
-        (sum, row) => sum + row.pack.maxMappings * row.quantity,
+        (sum, row) => sum + this.mappingSlotsFromPack(row.pack, row.quantity),
         0,
       );
       const totalPriceInr = personal.reduce(
@@ -324,8 +372,9 @@ export class PacksService implements OnModuleInit {
         packName: `${totalMappings}-photo pack`,
         maxMappings: totalMappings,
         scanLimit: SCANS_PER_MAPPING,
-        totalCredits: 1,
-        remainingCredits: 1,
+        totalCredits: totalMappings,
+        remainingCredits: totalMappings,
+        creditUnit: 'mapping',
         unitPriceInr: totalPriceInr,
         totalPriceInr,
         assignedBy: performedBy ? new Types.ObjectId(performedBy) : null,
@@ -341,7 +390,7 @@ export class PacksService implements OnModuleInit {
         packCode: credit.packCode,
         packName: credit.packName,
         action: PackLedgerAction.PURCHASE,
-        quantity: 1,
+        quantity: totalMappings,
         unitPriceInr: totalPriceInr,
         totalPriceInr,
         performedBy: performedBy ? new Types.ObjectId(performedBy) : null,
@@ -372,8 +421,7 @@ export class PacksService implements OnModuleInit {
     if (!items.length) throw new BadRequestException('Cart is empty');
 
     let amountInr = 0;
-    let totalMappings = 0;
-    let totalAlbumCredits = 0;
+    let totalMappingSlots = 0;
     const lines: Array<{
       packId: string;
       code: string;
@@ -382,6 +430,7 @@ export class PacksService implements OnModuleInit {
       quantity: number;
       maxMappings: number;
       albumsIncluded: number;
+      mappingSlots: number;
       lineTotalInr: number;
     }> = [];
 
@@ -391,10 +440,10 @@ export class PacksService implements OnModuleInit {
       if (!pack || !pack.isActive) {
         throw new NotFoundException(`Pack not found or inactive: ${item.packId}`);
       }
+      const mappingSlots = this.mappingSlotsFromPack(pack, quantity);
       const lineTotalInr = pack.unitPriceInr * quantity;
       amountInr += lineTotalInr;
-      totalMappings += pack.maxMappings * quantity;
-      totalAlbumCredits += pack.albumsIncluded * quantity;
+      totalMappingSlots += mappingSlots;
       lines.push({
         packId: pack._id.toString(),
         code: pack.code,
@@ -403,6 +452,7 @@ export class PacksService implements OnModuleInit {
         quantity,
         maxMappings: pack.maxMappings,
         albumsIncluded: pack.albumsIncluded,
+        mappingSlots,
         lineTotalInr,
       });
     }
@@ -411,16 +461,17 @@ export class PacksService implements OnModuleInit {
 
     return {
       amountInr,
-      totalMappings: personalOnly
-        ? lines.reduce((sum, line) => sum + line.maxMappings * line.quantity, 0)
-        : totalMappings,
-      totalAlbumCredits: personalOnly ? 1 : totalAlbumCredits,
+      totalMappings: totalMappingSlots,
+      totalMappingSlots,
+      /** @deprecated Albums are unlimited — kept for older clients. */
+      totalAlbumCredits: 0,
       mergesPersonalPacks: personalOnly,
       lines,
     };
   }
 
   async listStudioCredits(studioId: string) {
+    await this.normalizeLegacyAlbumCredits(studioId);
     const credits = await this.creditModel
       .find({ studioId: new Types.ObjectId(studioId), isActive: true })
       .sort({ createdAt: -1 })
@@ -430,83 +481,32 @@ export class PacksService implements OnModuleInit {
 
   async getStudioPackSummary(studioId: string) {
     const credits = await this.listStudioCredits(studioId);
-    const remainingAlbumCredits = credits.reduce((sum, item) => sum + item.remainingCredits, 0);
-    const totalAssigned = credits.reduce((sum, item) => sum + item.totalCredits, 0);
-    const usedCredits = totalAssigned - remainingAlbumCredits;
+    const quota = await this.getMappingQuota(studioId);
 
     return {
-      remainingAlbumCredits,
-      totalAssignedCredits: totalAssigned,
-      usedCredits,
+      grantedMappingSlots: quota.grantedMappingSlots,
+      usedMappingSlots: quota.usedMappingSlots,
+      remainingMappingSlots: quota.remainingMappingSlots,
+      /** @deprecated Use remainingMappingSlots — albums are unlimited. */
+      remainingAlbumCredits: quota.remainingMappingSlots,
+      totalAssignedCredits: quota.grantedMappingSlots,
+      usedCredits: quota.usedMappingSlots,
       credits,
     };
   }
 
-  async consumeCreditForAlbum(input: {
+  /**
+   * @deprecated Album create no longer consumes credits. Kept for rare callers.
+   */
+  async consumeCreditForAlbum(_input: {
     studioId: string;
     packCreditId?: string;
     albumId: string;
     performedBy: string;
-  }): Promise<ConsumedPackCredit> {
-    const studioObjectId = new Types.ObjectId(input.studioId);
-    let credit: StudioPackCreditDocument | null = null;
-
-    if (input.packCreditId) {
-      credit = await this.creditModel
-        .findOne({
-          _id: input.packCreditId,
-          studioId: studioObjectId,
-          isActive: true,
-          remainingCredits: { $gt: 0 },
-        })
-        .exec();
-      if (!credit) {
-        throw new BadRequestException('Selected pack credit is not available');
-      }
-    } else {
-      credit = await this.creditModel
-        .findOne({
-          studioId: studioObjectId,
-          isActive: true,
-          remainingCredits: { $gt: 0 },
-        })
-        .sort({ createdAt: 1 })
-        .exec();
-      if (!credit) {
-        throw new ForbiddenException({
-          message: 'No album pack credits left. Ask Story-PIX admin to enable a pack.',
-          code: 'PACK_CREDITS_EXHAUSTED',
-        });
-      }
-    }
-
-    credit.remainingCredits -= 1;
-    await credit.save();
-
-    await this.ledgerModel.create({
-      studioId: studioObjectId,
-      packId: credit.packId,
-      creditId: credit._id,
-      albumId: new Types.ObjectId(input.albumId),
-      packCode: credit.packCode,
-      packName: credit.packName,
-      action: PackLedgerAction.CONSUME,
-      quantity: 1,
-      unitPriceInr: credit.unitPriceInr,
-      totalPriceInr: 0,
-      performedBy: new Types.ObjectId(input.performedBy),
-      notes: null,
-    });
-
-    return {
-      creditId: credit._id.toString(),
-      packId: credit.packId.toString(),
-      packCode: credit.packCode,
-      packName: credit.packName,
-      maxMappings: credit.maxMappings,
-      // Trust floor — never stamp fewer than 1000 plays per photo.
-      scansPerMapping: SCANS_PER_MAPPING,
-    };
+  }): Promise<never> {
+    throw new BadRequestException(
+      'Album creation no longer consumes pack credits. Packs unlock photo mappings only.',
+    );
   }
 
   async listLedger(query: QueryPackLedgerDto) {
@@ -579,8 +579,11 @@ export class PacksService implements OnModuleInit {
       packName: credit.packName,
       maxMappings: credit.maxMappings,
       scansPerMapping: credit.scanLimit || SCANS_PER_MAPPING,
+      /** Photo-mapping slots granted by this purchase. */
       totalCredits: credit.totalCredits,
-      remainingCredits: credit.remainingCredits,
+      /** Same as totalCredits for mapping-unit rows (pool remaining is studio-wide). */
+      remainingCredits: credit.totalCredits,
+      creditUnit: credit.creditUnit ?? 'mapping',
       unitPriceInr: credit.unitPriceInr,
       totalPriceInr: credit.totalPriceInr,
       assignedBy: credit.assignedBy?.toString() ?? null,
@@ -644,5 +647,28 @@ export class PacksService implements OnModuleInit {
       { code: { $in: LEGACY_PACK_CODES } },
       { $set: { isActive: false } },
     );
+  }
+
+  /**
+   * One-time: convert album-slot credits → mapping slots (× maxMappings).
+   * Heuristic: album-unit rows have totalCredits < maxMappings (e.g. Mini 1×10).
+   */
+  private async normalizeLegacyAlbumCredits(studioId?: string) {
+    const filter: Record<string, unknown> = {
+      $or: [{ creditUnit: { $exists: false } }, { creditUnit: 'album' }],
+    };
+    if (studioId) filter.studioId = new Types.ObjectId(studioId);
+
+    const legacy = await this.creditModel.find(filter).exec();
+    for (const credit of legacy) {
+      const maxMappings = Math.max(1, credit.maxMappings || 1);
+      if (credit.totalCredits < maxMappings) {
+        credit.totalCredits *= maxMappings;
+        credit.remainingCredits *= maxMappings;
+      }
+      credit.creditUnit = 'mapping';
+      credit.remainingCredits = credit.totalCredits;
+      await credit.save();
+    }
   }
 }
