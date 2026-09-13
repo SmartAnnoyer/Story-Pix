@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Alert, message } from 'antd';
+import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { AlbumTable } from '@/features/albums/components/AlbumTable';
 import { useAlbumActionMutation, useAlbumsQuery } from '@/hooks/useAlbumQueries';
@@ -42,7 +43,11 @@ export const AlbumsListPage = () => {
   const { data, isLoading } = useAlbumsQuery(queryParams);
   const actionMutation = useAlbumActionMutation();
   const mappingsLeft = packs?.remainingMappingSlots ?? packs?.remainingAlbumCredits ?? 0;
+  const mappingsTotal = packs?.grantedMappingSlots ?? packs?.totalAssignedCredits ?? 0;
+  const albumTotal = data?.pagination.total ?? 0;
+  const showSearch = albumTotal > 5 || Boolean(search) || Boolean(searchInput.trim());
   const showArchive = filter !== AlbumStatus.ARCHIVED;
+  const canCreate = mappingsLeft > 0;
 
   const applySearch = () => {
     setSearch(searchInput.trim());
@@ -71,14 +76,22 @@ export const AlbumsListPage = () => {
     <div className="studio-home albums-page">
       <header className="studio-home__hero albums-page__hero">
         <h1>Albums</h1>
-        <div className="studio-home__actions">
+        <div className="albums-page__create-row">
           <button
             type="button"
-            className="studio-home__btn studio-home__btn--primary"
+            className="studio-home__btn studio-home__btn--primary albums-page__create-btn"
+            disabled={!canCreate}
             onClick={() => navigate(ROUTES.ALBUM_CREATE)}
           >
-            Start album
+            <PlusOutlined aria-hidden />
+            Create album
           </button>
+          <span className="albums-page__mappings">
+            Mappings left{' '}
+            <strong>
+              {mappingsLeft}/{mappingsTotal}
+            </strong>
+          </span>
         </div>
       </header>
 
@@ -101,21 +114,28 @@ export const AlbumsListPage = () => {
       ) : null}
 
       <div className="albums-page__toolbar">
-        <div className="albums-page__search">
-          <input
-            type="search"
-            placeholder="Search by album or client"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') applySearch();
-            }}
-            aria-label="Search albums"
-          />
-          <button type="button" onClick={applySearch}>
-            Search
-          </button>
-        </div>
+        {showSearch ? (
+          <div className="albums-page__search">
+            <input
+              type="search"
+              placeholder="Search for album"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') applySearch();
+              }}
+              aria-label="Search for album"
+            />
+            <button
+              type="button"
+              className="albums-page__search-btn"
+              onClick={applySearch}
+              aria-label="Search"
+            >
+              <SearchOutlined aria-hidden />
+            </button>
+          </div>
+        ) : null}
         <div className="albums-page__filters" role="group" aria-label="Album status">
           {FILTERS.map((option) => (
             <button
@@ -133,21 +153,23 @@ export const AlbumsListPage = () => {
         </div>
       </div>
 
-      <AlbumTable
-        albums={data?.items ?? []}
-        loading={isLoading}
-        pagination={{
-          page,
-          limit,
-          total: data?.pagination.total ?? 0,
-        }}
-        onPageChange={(p, ps) => {
-          setPage(p);
-          setLimit(ps);
-        }}
-        onArchive={showArchive ? handleArchive : undefined}
-        onDelete={handleDelete}
-      />
+      <div className="albums-page__list">
+        <AlbumTable
+          albums={data?.items ?? []}
+          loading={isLoading}
+          pagination={{
+            page,
+            limit,
+            total: albumTotal,
+          }}
+          onPageChange={(p, ps) => {
+            setPage(p);
+            setLimit(ps);
+          }}
+          onArchive={showArchive ? handleArchive : undefined}
+          onDelete={handleDelete}
+        />
+      </div>
     </div>
   );
 };

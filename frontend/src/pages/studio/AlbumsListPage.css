@@ -9,6 +9,33 @@
   max-width: 100%;
 }
 
+.albums-page__create-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+}
+
+.albums-page__create-btn {
+  gap: 0.35rem;
+  min-height: 2.1rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.82rem;
+}
+
+.albums-page__mappings {
+  font-size: 0.84rem;
+  font-weight: 560;
+  color: #6a6772;
+  white-space: nowrap;
+}
+
+.albums-page__mappings strong {
+  color: #5b2cdb;
+  font-weight: 700;
+}
+
 .albums-page__toolbar {
   display: flex;
   flex-direction: column;
@@ -20,7 +47,8 @@
 
 .albums-page__search {
   display: flex;
-  gap: 0.45rem;
+  align-items: center;
+  gap: 0.4rem;
   width: 100%;
   max-width: 28rem;
   min-width: 0;
@@ -44,17 +72,24 @@
   box-shadow: 0 0 0 3px rgba(91, 44, 219, 0.12);
 }
 
-.albums-page__search button {
+.albums-page__search-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  min-height: 2.45rem;
-  padding: 0 0.95rem;
-  border: none;
+  width: 2.45rem;
+  height: 2.45rem;
+  border: 1px solid #e6e4ea;
   border-radius: 8px;
-  font: inherit;
-  font-weight: 650;
-  color: #fff;
+  font-size: 1rem;
+  color: #5b2cdb;
   cursor: pointer;
-  background: #1c1b22;
+  background: #fff;
+}
+
+.albums-page__search-btn:hover {
+  border-color: #b7a4ef;
+  background: #f7f4ff;
 }
 
 .albums-page__filters {
@@ -84,13 +119,17 @@
   background: #5b2cdb;
 }
 
+.albums-page__list {
+  width: 100%;
+  min-width: 0;
+}
+
 @media (max-width: 480px) {
   .albums-page__search {
     max-width: none;
-    flex-direction: column;
   }
 
-  .albums-page .studio-home__btn {
-    width: 100%;
+  .albums-page__create-btn {
+    width: auto;
   }
 }

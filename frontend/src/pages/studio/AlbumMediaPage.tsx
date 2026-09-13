@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { message } from 'antd';
 import { useAlbumQuery } from '@/hooks/useAlbumQueries';
 import { useAlbumMediaQuery, useDeleteMediaMutation } from '@/hooks/useMediaQueries';
@@ -8,11 +8,7 @@ import { UploadProgressList } from '@/features/media/components/UploadProgressLi
 import { PhotoGallery } from '@/features/media/components/PhotoGallery';
 import { VideoGallery } from '@/features/media/components/VideoGallery';
 import { AlbumDeliveryGuide } from '@/features/albums/components/AlbumDeliveryGuide';
-import {
-  albumMapPath,
-  albumSharePath,
-  getReadyMediaCounts,
-} from '@/features/albums/utils/album-delivery';
+import { getReadyMediaCounts } from '@/features/albums/utils/album-delivery';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { AlbumStatus } from '@/types/album.types';
 import { MediaStatus, MediaType } from '@/types/media.types';
@@ -24,7 +20,6 @@ import './AlbumMediaPage.css';
 
 export const AlbumMediaPage = () => {
   const { id = '' } = useParams();
-  const navigate = useNavigate();
   const { data: album, isLoading: albumLoading } = useAlbumQuery(id);
   const {
     data: mediaData,
@@ -52,7 +47,6 @@ export const AlbumMediaPage = () => {
 
   const isArchived = album.status === AlbumStatus.ARCHIVED;
   const canMap = readyPhotos.length > 0 && readyVideos.length > 0;
-  const hasMappings = (mappings?.items.length ?? 0) > 0;
   const waiting =
     processing ||
     photos.some((item) => item.status !== MediaStatus.READY) ||
@@ -90,68 +84,34 @@ export const AlbumMediaPage = () => {
       <header className="studio-home__hero">
         <p className="studio-home__eyebrow">Photos & videos</p>
         <h1>{album.albumName}</h1>
-        <div className="studio-home__actions">
-          {canMap ? (
-            <button
-              type="button"
-              className="studio-home__btn studio-home__btn--primary"
-              onClick={() => navigate(albumMapPath(id, hasMappings))}
-            >
-              Link print → video
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="studio-home__btn studio-home__btn--ghost"
-            onClick={() => navigate(albumSharePath(id))}
-          >
-            Share
-          </button>
-        </div>
       </header>
 
-      <section className="album-studio__strip" aria-label="Media status">
-        <article className="album-studio__stat">
-          <span>Photos ready</span>
-          <strong>
-            {readyPhotos.length}
-            <small> / {photos.length}</small>
-          </strong>
-        </article>
-        <article className="album-studio__stat">
-          <span>Videos ready</span>
-          <strong>
-            {readyVideos.length}
-            <small> / {videos.length}</small>
-          </strong>
-        </article>
-        <article className={`album-studio__stat${canMap ? ' album-studio__stat--accent' : ''}`}>
-          <span>Status</span>
-          <strong className="album-studio__stat-text">{statusLabel}</strong>
-        </article>
+      <section
+        className="album-studio__strip album-studio__strip--inline"
+        aria-label="Media status"
+      >
+        <p className="album-studio__inline-stats">
+          <span>
+            Photos ready{' '}
+            <strong>
+              {readyPhotos.length}/{photos.length}
+            </strong>
+          </span>
+          <span aria-hidden>·</span>
+          <span>
+            Videos ready{' '}
+            <strong>
+              {readyVideos.length}/{videos.length}
+            </strong>
+          </span>
+          <span aria-hidden>·</span>
+          <span className={canMap ? 'album-studio__status-ready' : undefined}>{statusLabel}</span>
+        </p>
       </section>
 
       <AlbumDeliveryGuide albumId={id} current="media" />
 
-      {canMap ? (
-        <div className="album-media__cta">
-          <div>
-            <strong>{hasMappings ? 'Ready to link more' : 'Add a living photo'}</strong>
-            <p>
-              {hasMappings
-                ? 'Link another printed photo to a video, or continue to Share.'
-                : 'Next step: connect the print to the video that should play on it.'}
-            </p>
-          </div>
-          <button
-            type="button"
-            className="studio-home__btn studio-home__btn--primary"
-            onClick={() => navigate(albumMapPath(id, hasMappings))}
-          >
-            {hasMappings ? 'Link another' : 'Link print → video'}
-          </button>
-        </div>
-      ) : (
+      {!canMap ? (
         <div className="album-media__cta album-media__cta--muted">
           <div>
             <strong>
@@ -168,7 +128,7 @@ export const AlbumMediaPage = () => {
             <p>The photo is what they print. The video is what plays on the phone.</p>
           </div>
         </div>
-      )}
+      ) : null}
 
       <div className="album-media__uploads">
         <UploadProgressList />

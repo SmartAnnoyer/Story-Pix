@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { DeleteOutlined, EditOutlined, FolderOpenOutlined, InboxOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import type { Album } from '@/types/album.types';
 import { AlbumStatus } from '@/types/album.types';
@@ -58,7 +59,6 @@ export const AlbumTable = ({
                 className="album-card__open"
                 onClick={() => navigate(ROUTES.ALBUM_DETAILS.replace(':id', album.id))}
               >
-                <span className="album-card__code">{album.albumCode}</span>
                 <h2 className="album-card__name">{album.albumName}</h2>
                 <p className="album-card__client">{album.customerName}</p>
               </button>
@@ -84,6 +84,7 @@ export const AlbumTable = ({
                 className="album-card__btn album-card__btn--ghost"
                 onClick={() => navigate(ROUTES.ALBUM_DETAILS.replace(':id', album.id))}
               >
+                <FolderOpenOutlined aria-hidden />
                 Open
               </button>
               <button
@@ -91,6 +92,7 @@ export const AlbumTable = ({
                 className="album-card__btn album-card__btn--ghost"
                 onClick={() => navigate(ROUTES.ALBUM_EDIT.replace(':id', album.id))}
               >
+                <EditOutlined aria-hidden />
                 Edit
               </button>
               {onArchive && album.status !== AlbumStatus.ARCHIVED ? (
@@ -101,6 +103,7 @@ export const AlbumTable = ({
                     setPending({ type: 'archive', id: album.id, name: album.albumName })
                   }
                 >
+                  <InboxOutlined aria-hidden />
                   Archive
                 </button>
               ) : null}
@@ -117,6 +120,7 @@ export const AlbumTable = ({
                     })
                   }
                 >
+                  <DeleteOutlined aria-hidden />
                   Delete
                 </button>
               ) : null}

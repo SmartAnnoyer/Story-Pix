@@ -1,3 +1,4 @@
+import { LinkOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { message } from 'antd';
 import {
@@ -9,7 +10,6 @@ import { useAlbumQuery } from '@/hooks/useAlbumQueries';
 import { useStudioPackSummaryQuery } from '@/hooks/usePackQueries';
 import { MappingTable } from '@/features/ar/components/MappingTable';
 import { AlbumDeliveryGuide } from '@/features/albums/components/AlbumDeliveryGuide';
-import { albumSharePath } from '@/features/albums/utils/album-delivery';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { ROUTES } from '@/routes/paths';
 import { getErrorMessage } from '@/api/client';
@@ -57,50 +57,44 @@ export const ArMappingsPage = () => {
     }
   };
 
+  const linkLabel = atMappingCap
+    ? 'Buy more photos first'
+    : isEmpty
+      ? 'Link photo + video'
+      : 'Link another photo';
+
   return (
     <div className="studio-home album-studio">
-      <header className="studio-home__hero">
-        <p className="studio-home__eyebrow">Step 2 · Link</p>
-        <h1>{album.albumName}</h1>
-        <div className="studio-home__actions">
-          <button
-            type="button"
-            className="studio-home__btn studio-home__btn--primary"
-            disabled={atMappingCap}
-            onClick={() => navigate(ROUTES.ALBUM_AR_MAPPING_CREATE.replace(':id', id))}
-          >
-            {atMappingCap
-              ? 'Buy more photos first'
-              : isEmpty
-                ? 'Link photo + video'
-                : 'Link another photo'}
-          </button>
-          <button
-            type="button"
-            className="studio-home__btn studio-home__btn--ghost"
-            onClick={() => navigate(albumSharePath(id))}
-          >
-            Share
-          </button>
+      <header className="studio-home__hero album-studio__hero-row">
+        <div className="album-studio__hero-copy">
+          <p className="studio-home__eyebrow">Step 2 · Link</p>
+          <h1>{album.albumName}</h1>
         </div>
+        <button
+          type="button"
+          className="studio-home__btn studio-home__btn--primary album-studio__hero-action"
+          disabled={atMappingCap}
+          onClick={() => navigate(ROUTES.ALBUM_AR_MAPPING_CREATE.replace(':id', id))}
+        >
+          <LinkOutlined aria-hidden />
+          {linkLabel}
+        </button>
       </header>
 
-      <section className="album-studio__strip" aria-label="Link status">
-        <article className="album-studio__stat">
-          <span>Linked in this album</span>
-          <strong>
-            {mappingCount}
-            <small> · {studioRemaining} left in studio</small>
-          </strong>
-        </article>
-        <article className="album-studio__stat album-studio__stat--live">
-          <span>Live for guests</span>
-          <strong>{liveCount}</strong>
-        </article>
-        <article className="album-studio__stat">
-          <span>Views / photo</span>
-          <strong>{(album.scansPerMapping ?? 1000).toLocaleString('en-IN')}</strong>
-        </article>
+      <section className="album-studio__strip album-studio__strip--inline" aria-label="Link status">
+        <p className="album-studio__inline-stats">
+          <span>
+            Linked <strong>{mappingCount}</strong>
+          </span>
+          <span aria-hidden>·</span>
+          <span>
+            <strong>{studioRemaining}</strong> left in studio
+          </span>
+          <span aria-hidden>·</span>
+          <span>
+            Live <strong className="album-studio__live">{liveCount}</strong>
+          </span>
+        </p>
       </section>
 
       <AlbumDeliveryGuide albumId={id} current="map" />
@@ -112,14 +106,6 @@ export const ArMappingsPage = () => {
             Choose the printed photo and the video that should play when guests point their phone at
             it.
           </p>
-          <button
-            type="button"
-            className="studio-home__btn studio-home__btn--primary"
-            disabled={atMappingCap}
-            onClick={() => navigate(ROUTES.ALBUM_AR_MAPPING_CREATE.replace(':id', id))}
-          >
-            Link print → video
-          </button>
         </div>
       ) : (
         <MappingTable

@@ -59,16 +59,6 @@
   border-radius: 4px;
 }
 
-.album-card__code {
-  display: inline-block;
-  margin-bottom: 0.3rem;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #5b2cdb;
-}
-
 .album-card__name {
   margin: 0;
   font-size: 1.02rem;
@@ -124,6 +114,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.3rem;
   min-height: 2rem;
   padding: 0.3rem 0.7rem;
   border-radius: 8px;

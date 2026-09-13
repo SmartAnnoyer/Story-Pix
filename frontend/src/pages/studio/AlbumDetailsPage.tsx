@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { message } from 'antd';
 import {
@@ -18,11 +17,9 @@ import {
   getReadyMediaCounts,
 } from '@/features/albums/utils/album-delivery';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { ConfirmModal } from '@/components/ConfirmModal';
 import { AlbumViewerQrCard } from '@/features/studio/components/AlbumViewerQrCard';
 import { getErrorMessage } from '@/api/client';
 import { AlbumStatus } from '@/types/album.types';
-import { ROUTES } from '@/routes/paths';
 import '@/pages/DashboardPage.css';
 import './AlbumStudioPages.css';
 import './AlbumDetailsPage.css';
@@ -36,8 +33,6 @@ export const AlbumDetailsPage = () => {
   const actionMutation = useAlbumActionMutation();
   const publishMappingMutation = usePublishArTargetMutation();
   const rebuildMutation = useRebuildArScanFileMutation();
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [confirmArchive, setConfirmArchive] = useState(false);
 
   if (isLoading || !album) return <LoadingSpinner />;
 
@@ -64,36 +59,9 @@ export const AlbumDetailsPage = () => {
     }
   };
 
-  const handleUnpublish = async () => {
-    try {
-      await actionMutation.mutateAsync({ id, action: 'unpublish' });
-      message.success('Sharing stopped');
-    } catch (error) {
-      message.error(getErrorMessage(error, 'Could not stop sharing'));
-    }
-  };
-
   const handleRetryArBuild = async () => {
     await rebuildMutation.mutateAsync(id);
     message.success('Trying again — usually a few minutes');
-  };
-
-  const handleArchive = async () => {
-    await actionMutation.mutateAsync({ id, action: 'archive' });
-    message.success('Album archived');
-    navigate(ROUTES.ALBUMS);
-  };
-
-  const handleDelete = async () => {
-    try {
-      await actionMutation.mutateAsync({ id, action: 'delete' });
-      message.success('Album deleted');
-      navigate(ROUTES.ALBUMS);
-    } catch (error) {
-      message.error(getErrorMessage(error, 'Delete failed'));
-    } finally {
-      setConfirmDelete(false);
-    }
   };
 
   const sharing = actionMutation.isPending || publishMappingMutation.isPending;
@@ -148,42 +116,6 @@ export const AlbumDetailsPage = () => {
         <div className="album-details__badge">
           <AlbumStatusBadge status={album.status} />
         </div>
-        <div className="studio-home__actions" style={{ marginTop: '0.85rem' }}>
-          {album.status !== AlbumStatus.ARCHIVED ? (
-            <button
-              type="button"
-              className="studio-home__btn studio-home__btn--ghost"
-              onClick={() => navigate(ROUTES.ALBUM_EDIT.replace(':id', id))}
-            >
-              Edit
-            </button>
-          ) : null}
-          {published ? (
-            <button
-              type="button"
-              className="studio-home__btn studio-home__btn--ghost"
-              onClick={() => void handleUnpublish()}
-            >
-              Stop sharing
-            </button>
-          ) : null}
-          {album.status !== AlbumStatus.ARCHIVED ? (
-            <button
-              type="button"
-              className="studio-home__btn studio-home__btn--ghost"
-              onClick={() => setConfirmArchive(true)}
-            >
-              Archive
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="studio-home__btn studio-home__btn--ghost"
-            onClick={() => setConfirmDelete(true)}
-          >
-            Delete
-          </button>
-        </div>
       </header>
 
       <AlbumDeliveryGuide albumId={id} current="share" />
@@ -221,29 +153,6 @@ export const AlbumDetailsPage = () => {
           retrying={rebuildMutation.isPending}
         />
       </div>
-
-      <ConfirmModal
-        open={confirmArchive}
-        title="Archive this album?"
-        description="Guests will no longer be able to open it."
-        confirmLabel="Archive"
-        onCancel={() => setConfirmArchive(false)}
-        onConfirm={async () => {
-          setConfirmArchive(false);
-          await handleArchive();
-        }}
-      />
-
-      <ConfirmModal
-        open={confirmDelete}
-        title="Delete this album?"
-        description="This removes the album from your list."
-        confirmLabel="Delete"
-        tone="danger"
-        loading={actionMutation.isPending}
-        onCancel={() => setConfirmDelete(false)}
-        onConfirm={handleDelete}
-      />
     </div>
   );
 };
