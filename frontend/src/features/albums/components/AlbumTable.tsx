@@ -65,7 +65,12 @@ export const AlbumTable = ({
               <span className={statusClass(album.status)}>{albumStatusLabel(album.status)}</span>
             </div>
 
-            <div className="album-card__meta">
+            <button
+              type="button"
+              className="album-card__meta"
+              onClick={() => navigate(ROUTES.ALBUM_DETAILS.replace(':id', album.id))}
+              aria-label={`Open ${album.albumName}`}
+            >
               <div>
                 <span>Name</span>
                 <strong>{album.customerName || '—'}</strong>
@@ -76,7 +81,7 @@ export const AlbumTable = ({
                   {album.createdAt ? new Date(album.createdAt).toLocaleDateString('en-IN') : '—'}
                 </strong>
               </div>
-            </div>
+            </button>
 
             <div className="album-card__actions">
               <button

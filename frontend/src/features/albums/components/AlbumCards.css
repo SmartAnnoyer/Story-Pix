@@ -75,13 +75,28 @@
 }
 
 .album-card__meta {
+  all: unset;
+  box-sizing: border-box;
   display: grid;
   gap: 0.4rem;
+  width: 100%;
   padding: 0.7rem 0.8rem;
   border-radius: 8px;
   background: #f7f6f9;
   font-size: 0.82rem;
   min-width: 0;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+}
+
+.album-card__meta:hover {
+  background: #f0edf7;
+}
+
+.album-card__meta:focus-visible {
+  outline: 2px solid #5b2cdb;
+  outline-offset: 2px;
 }
 
 .album-card__meta div {

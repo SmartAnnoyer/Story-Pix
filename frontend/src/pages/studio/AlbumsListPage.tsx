@@ -5,22 +5,11 @@ import { useNavigate } from 'react-router-dom';
 import { AlbumTable } from '@/features/albums/components/AlbumTable';
 import { useAlbumActionMutation, useAlbumsQuery } from '@/hooks/useAlbumQueries';
 import { useStudioPackSummaryQuery } from '@/hooks/usePackQueries';
-import { AlbumStatus } from '@/types/album.types';
-import { albumStatusFilterLabel } from '@/features/albums/utils/studio-labels';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { ROUTES } from '@/routes/paths';
 import { getErrorMessage } from '@/api/client';
 import '../DashboardPage.css';
 import './AlbumsListPage.css';
-
-type AlbumFilter = 'all' | AlbumStatus.DRAFT | AlbumStatus.PUBLISHED | AlbumStatus.ARCHIVED;
-
-const FILTERS: { label: string; value: AlbumFilter }[] = [
-  { label: 'All', value: 'all' },
-  { label: albumStatusFilterLabel(AlbumStatus.DRAFT), value: AlbumStatus.DRAFT },
-  { label: albumStatusFilterLabel(AlbumStatus.PUBLISHED), value: AlbumStatus.PUBLISHED },
-  { label: albumStatusFilterLabel(AlbumStatus.ARCHIVED), value: AlbumStatus.ARCHIVED },
-];
 
 export const AlbumsListPage = () => {
   const navigate = useNavigate();
@@ -28,7 +17,6 @@ export const AlbumsListPage = () => {
   const [limit, setLimit] = useState(20);
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<AlbumFilter>('all');
   const { data: packs, isLoading: packsLoading } = useStudioPackSummaryQuery();
 
   const queryParams = useMemo(
@@ -36,9 +24,8 @@ export const AlbumsListPage = () => {
       page,
       limit,
       search: search || undefined,
-      status: filter === 'all' ? undefined : filter,
     }),
-    [page, limit, search, filter],
+    [page, limit, search],
   );
 
   const { data, isLoading } = useAlbumsQuery(queryParams);
@@ -48,7 +35,6 @@ export const AlbumsListPage = () => {
   const mappingsTotal = packs?.grantedMappingSlots ?? packs?.totalAssignedCredits ?? 0;
   const albumTotal = data?.pagination.total ?? 0;
   const showSearch = albumTotal > 5 || Boolean(search) || Boolean(searchInput.trim());
-  const showArchive = filter !== AlbumStatus.ARCHIVED;
   const canCreate = packsReady && mappingsLeft > 0;
   const outOfPhotos = packsReady && mappingsLeft <= 0;
 
@@ -118,8 +104,8 @@ export const AlbumsListPage = () => {
         />
       ) : null}
 
-      <div className="albums-page__toolbar">
-        {showSearch ? (
+      {showSearch ? (
+        <div className="albums-page__toolbar">
           <div className="albums-page__search">
             <input
               type="search"
@@ -140,23 +126,8 @@ export const AlbumsListPage = () => {
               <SearchOutlined aria-hidden />
             </button>
           </div>
-        ) : null}
-        <div className="albums-page__filters" role="group" aria-label="Album status">
-          {FILTERS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              className={`albums-page__chip${filter === option.value ? ' albums-page__chip--on' : ''}`}
-              onClick={() => {
-                setFilter(option.value);
-                setPage(1);
-              }}
-            >
-              {option.label}
-            </button>
-          ))}
         </div>
-      </div>
+      ) : null}
 
       <div className="albums-page__list">
         <AlbumTable
@@ -171,7 +142,7 @@ export const AlbumsListPage = () => {
             setPage(p);
             setLimit(ps);
           }}
-          onArchive={showArchive ? handleArchive : undefined}
+          onArchive={handleArchive}
           onDelete={handleDelete}
         />
       </div>

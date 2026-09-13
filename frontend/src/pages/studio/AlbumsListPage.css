@@ -115,33 +115,6 @@
   background: #f7f4ff;
 }
 
-.albums-page__filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  width: 100%;
-  min-width: 0;
-}
-
-.albums-page__chip {
-  min-height: 2rem;
-  padding: 0.3rem 0.75rem;
-  border-radius: 8px;
-  border: 1px solid #e6e4ea;
-  background: #fff;
-  font: inherit;
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: #6a6772;
-  cursor: pointer;
-}
-
-.albums-page__chip--on {
-  color: #fff;
-  border-color: #5b2cdb;
-  background: #5b2cdb;
-}
-
 .albums-page__list {
   width: 100%;
   min-width: 0;
