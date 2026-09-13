@@ -163,18 +163,21 @@
 }
 
 .album-card__status--published {
-  color: #067647;
-  background: #ecfdf3;
+  color: #6b2cdb;
+  background: #f3eefc;
+  border: 1px solid rgba(107, 44, 219, 0.22);
 }
 
 .album-card__status--draft {
-  color: #175cd3;
-  background: #eff8ff;
+  color: #3b4fe8;
+  background: #eef0ff;
+  border: 1px solid rgba(59, 79, 232, 0.2);
 }
 
 .album-card__status--archived {
-  color: #b54708;
-  background: #fffaeb;
+  color: #5c5c66;
+  background: #f3f3f5;
+  border: 1px solid rgba(92, 92, 102, 0.18);
 }
 
 .albums-grid__empty,

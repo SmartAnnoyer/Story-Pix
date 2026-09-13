@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Dropdown, message } from 'antd';
+import { message } from 'antd';
 import {
   useAlbumActionMutation,
   useAlbumQuery,
@@ -17,6 +18,7 @@ import {
   getReadyMediaCounts,
 } from '@/features/albums/utils/album-delivery';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { ConfirmModal } from '@/components/ConfirmModal';
 import { AlbumViewerQrCard } from '@/features/studio/components/AlbumViewerQrCard';
 import { getErrorMessage } from '@/api/client';
 import { AlbumStatus } from '@/types/album.types';
@@ -34,6 +36,8 @@ export const AlbumDetailsPage = () => {
   const actionMutation = useAlbumActionMutation();
   const publishMappingMutation = usePublishArTargetMutation();
   const rebuildMutation = useRebuildArScanFileMutation();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmArchive, setConfirmArchive] = useState(false);
 
   if (isLoading || !album) return <LoadingSpinner />;
 
@@ -54,7 +58,7 @@ export const AlbumDetailsPage = () => {
       if (album.status !== AlbumStatus.PUBLISHED) {
         await actionMutation.mutateAsync({ id, action: 'publish' });
       }
-      message.success('Shared with client. QR appears when the album is ready for phones.');
+      message.success('Shared with client');
     } catch (error) {
       message.error(getErrorMessage(error, 'Could not share yet'));
     }
@@ -63,7 +67,7 @@ export const AlbumDetailsPage = () => {
   const handleUnpublish = async () => {
     try {
       await actionMutation.mutateAsync({ id, action: 'unpublish' });
-      message.success('Sharing stopped. Guests cannot open this album.');
+      message.success('Sharing stopped');
     } catch (error) {
       message.error(getErrorMessage(error, 'Could not stop sharing'));
     }
@@ -87,6 +91,8 @@ export const AlbumDetailsPage = () => {
       navigate(ROUTES.ALBUMS);
     } catch (error) {
       message.error(getErrorMessage(error, 'Delete failed'));
+    } finally {
+      setConfirmDelete(false);
     }
   };
 
@@ -137,69 +143,48 @@ export const AlbumDetailsPage = () => {
     <div className="studio-home album-studio album-details">
       <header className="studio-home__hero">
         <p className="studio-home__eyebrow">Step 3 · QR</p>
-        <div className="album-details__hero-row">
-          <div>
-            <h1>{album.albumName}</h1>
-            <p className="album-details__client">For {album.customerName}</p>
-            <div className="album-details__badge">
-              <AlbumStatusBadge status={album.status} />
-            </div>
-          </div>
-          <Dropdown
-            menu={{
-              items: [
-                album.status !== AlbumStatus.ARCHIVED
-                  ? {
-                      key: 'edit',
-                      label: 'Edit album details',
-                      onClick: () => navigate(ROUTES.ALBUM_EDIT.replace(':id', id)),
-                    }
-                  : null,
-                {
-                  key: 'insights',
-                  label: 'Guest activity',
-                  onClick: () => navigate(ROUTES.ALBUM_INSIGHTS.replace(':id', id)),
-                },
-                published
-                  ? {
-                      key: 'unpublish',
-                      label: 'Stop sharing',
-                      onClick: () => void handleUnpublish(),
-                    }
-                  : null,
-                album.status !== AlbumStatus.ARCHIVED
-                  ? { key: 'archive', label: 'Archive', onClick: () => void handleArchive() }
-                  : null,
-                {
-                  key: 'delete',
-                  label: 'Delete',
-                  danger: true,
-                  onClick: () => void handleDelete(),
-                },
-              ].filter(Boolean),
-            }}
-          >
-            <button type="button" className="studio-home__btn studio-home__btn--ghost">
-              More
+        <h1>{album.albumName}</h1>
+        <p className="album-details__client">For {album.customerName}</p>
+        <div className="album-details__badge">
+          <AlbumStatusBadge status={album.status} />
+        </div>
+        <div className="studio-home__actions" style={{ marginTop: '0.85rem' }}>
+          {album.status !== AlbumStatus.ARCHIVED ? (
+            <button
+              type="button"
+              className="studio-home__btn studio-home__btn--ghost"
+              onClick={() => navigate(ROUTES.ALBUM_EDIT.replace(':id', id))}
+            >
+              Edit
             </button>
-          </Dropdown>
+          ) : null}
+          {published ? (
+            <button
+              type="button"
+              className="studio-home__btn studio-home__btn--ghost"
+              onClick={() => void handleUnpublish()}
+            >
+              Stop sharing
+            </button>
+          ) : null}
+          {album.status !== AlbumStatus.ARCHIVED ? (
+            <button
+              type="button"
+              className="studio-home__btn studio-home__btn--ghost"
+              onClick={() => setConfirmArchive(true)}
+            >
+              Archive
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="studio-home__btn studio-home__btn--ghost"
+            onClick={() => setConfirmDelete(true)}
+          >
+            Delete
+          </button>
         </div>
       </header>
-
-      <section className="album-studio__strip" aria-label="Album capacity">
-        <article className="album-studio__stat">
-          <span>Album QR</span>
-          <strong className="album-studio__stat-text">Own guest link</strong>
-        </article>
-        <article className="album-studio__stat">
-          <span>Guest views / photo</span>
-          <strong>{(album.scansPerMapping ?? 1000).toLocaleString('en-IN')}</strong>
-        </article>
-        <article className="album-studio__stat">
-          <span>Album guest views used</span>
-          <strong>{(album.scanUsage ?? 0).toLocaleString('en-IN')}</strong>
-        </article>
-      </section>
 
       <AlbumDeliveryGuide albumId={id} current="share" />
 
@@ -236,6 +221,29 @@ export const AlbumDetailsPage = () => {
           retrying={rebuildMutation.isPending}
         />
       </div>
+
+      <ConfirmModal
+        open={confirmArchive}
+        title="Archive this album?"
+        description="Guests will no longer be able to open it."
+        confirmLabel="Archive"
+        onCancel={() => setConfirmArchive(false)}
+        onConfirm={async () => {
+          setConfirmArchive(false);
+          await handleArchive();
+        }}
+      />
+
+      <ConfirmModal
+        open={confirmDelete}
+        title="Delete this album?"
+        description="This removes the album from your list."
+        confirmLabel="Delete"
+        tone="danger"
+        loading={actionMutation.isPending}
+        onCancel={() => setConfirmDelete(false)}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 };

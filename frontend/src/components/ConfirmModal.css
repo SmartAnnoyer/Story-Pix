@@ -1,0 +1,114 @@
+.sp-confirm {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 1rem;
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  background: rgba(10, 10, 15, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: sp-confirm-fade 0.2s ease-out;
+}
+
+@media (min-width: 560px) {
+  .sp-confirm {
+    align-items: center;
+  }
+}
+
+.sp-confirm__card {
+  width: min(100%, 420px);
+  padding: 1.35rem 1.25rem 1.2rem;
+  border-radius: 22px;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    linear-gradient(135deg, #3b4fe8, #6b2cdb, #e93a8a, #ff4fa3) border-box;
+  box-shadow: 0 24px 60px rgba(26, 26, 46, 0.28);
+  text-align: center;
+  font-family: var(--sp-font, Figtree, system-ui, sans-serif);
+  animation: sp-confirm-up 0.22s ease-out;
+}
+
+.sp-confirm__brand {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.75rem;
+}
+
+.sp-confirm__title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--sp-text-dark, #1a1a2e);
+}
+
+.sp-confirm__desc {
+  margin: 0.55rem 0 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--sp-text-muted, #5c5c66);
+}
+
+.sp-confirm__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+  margin-top: 1.25rem;
+}
+
+.sp-confirm__btn {
+  min-height: 48px;
+  padding: 0.65rem 1rem;
+  border-radius: 999px;
+  border: 0;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.sp-confirm__btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.sp-confirm__btn--ghost {
+  background: #f3f1f7;
+  color: var(--sp-text-dark, #1a1a2e);
+}
+
+.sp-confirm__btn--solid {
+  color: #fff;
+  background: var(--sp-gradient);
+  box-shadow: 0 10px 24px rgba(107, 44, 219, 0.28);
+}
+
+.sp-confirm__btn--danger {
+  background: linear-gradient(135deg, #c81e4a, #e93a8a 55%, #ff4fa3);
+  box-shadow: 0 10px 24px rgba(200, 30, 74, 0.28);
+}
+
+@keyframes sp-confirm-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes sp-confirm-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

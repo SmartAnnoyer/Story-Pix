@@ -104,62 +104,68 @@ export const StudioPacksPage = () => {
   const total = summary?.grantedMappingSlots ?? summary?.totalAssignedCredits ?? 0;
 
   return (
-    <div className="signup-page" style={{ maxWidth: 920, margin: '0 auto', padding: '1rem 0' }}>
-      <header className="signup-page__header">
-        <h1>Buy / recharge packs</h1>
-        <p>
-          <strong>{left} left</strong> · {used} used · {total} total
-        </p>
-      </header>
+    <div className="signup-page signup-page--docked signup-page--in-shell">
+      <div className="signup-page__scroll">
+        <header className="signup-page__header">
+          <h1>Buy / recharge packs</h1>
+          <p>
+            <strong>{left} left</strong> · {used} used · {total} total
+          </p>
+        </header>
 
-      {error ? <Alert type="error" showIcon message={error} /> : null}
+        {error ? <Alert type="error" showIcon message={error} /> : null}
 
-      <div className="signup-page__grid">
-        {packs.map((pack) => {
-          const photos = pack.maxMappings * pack.albumsIncluded;
-          const selected = (qty[pack.id] ?? 0) > 0;
-          return (
-            <article key={pack.id} className={`signup-pack${selected ? ' signup-pack--on' : ''}`}>
-              <div>
-                <strong>{photos} photos</strong>
-                <span>₹{pack.unitPriceInr}</span>
-              </div>
-              <p>{pack.name}</p>
-              <div className="signup-pack__qty">
-                <button type="button" onClick={() => bump(pack.id, -1)} aria-label="Less">
-                  −
-                </button>
-                <span>{qty[pack.id] ?? 0}</span>
-                <button type="button" onClick={() => bump(pack.id, 1)} aria-label="More">
-                  +
-                </button>
-              </div>
-            </article>
-          );
-        })}
+        <div className="signup-page__grid">
+          {packs.map((pack) => {
+            const photos = pack.maxMappings * pack.albumsIncluded;
+            const selected = (qty[pack.id] ?? 0) > 0;
+            return (
+              <article
+                key={pack.id}
+                className={`signup-pack${selected ? ' signup-pack--on' : ''}`}
+              >
+                <div>
+                  <strong>{photos} photos</strong>
+                  <span>₹{pack.unitPriceInr}</span>
+                </div>
+                <p>{pack.name}</p>
+                <div className="signup-pack__qty">
+                  <button type="button" onClick={() => bump(pack.id, -1)} aria-label="Less">
+                    −
+                  </button>
+                  <span>{qty[pack.id] ?? 0}</span>
+                  <button type="button" onClick={() => bump(pack.id, 1)} aria-label="More">
+                    +
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
       </div>
 
-      <aside className="signup-page__summary">
-        <p>
-          <strong>Total</strong> ₹{preview.amountInr}
-        </p>
-        <p>
-          {preview.photos > 0
-            ? `+${preview.photos} photo${preview.photos === 1 ? '' : 's'}`
-            : 'Tap + to choose'}
-        </p>
-      </aside>
-
-      <Button
-        type="primary"
-        size="large"
-        block
-        loading={submitting}
-        className="signup-page__pay"
-        onClick={() => void handlePurchase()}
-      >
-        Pay & add photos
-      </Button>
+      <div className="signup-page__dock">
+        <aside className="signup-page__summary">
+          <p>
+            <strong>Total</strong> ₹{preview.amountInr}
+          </p>
+          <p>
+            {preview.photos > 0
+              ? `+${preview.photos} photo${preview.photos === 1 ? '' : 's'}`
+              : 'Tap + to choose'}
+          </p>
+        </aside>
+        <Button
+          type="primary"
+          size="large"
+          block
+          loading={submitting}
+          className="signup-page__pay"
+          onClick={() => void handlePurchase()}
+        >
+          Pay & add photos
+        </Button>
+      </div>
     </div>
   );
 };

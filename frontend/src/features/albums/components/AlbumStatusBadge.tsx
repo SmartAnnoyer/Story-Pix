@@ -1,13 +1,12 @@
+import { Tag } from 'antd';
 import { AlbumStatus } from '@/types/album.types';
 import { albumStatusLabel } from '../utils/studio-labels';
-import { Tag } from 'antd';
-
-const COLORS: Record<AlbumStatus, string> = {
-  [AlbumStatus.DRAFT]: 'default',
-  [AlbumStatus.PUBLISHED]: 'success',
-  [AlbumStatus.ARCHIVED]: 'warning',
-};
+import './AlbumStatusBadge.css';
 
 export const AlbumStatusBadge = ({ status }: { status: AlbumStatus }) => {
-  return <Tag color={COLORS[status] ?? 'default'}>{albumStatusLabel(status)}</Tag>;
+  return (
+    <Tag className={`sp-status-badge sp-status-badge--${status}`}>
+      {albumStatusLabel(status)}
+    </Tag>
+  );
 };

@@ -11,8 +11,8 @@ export const NotFoundPage = () => {
       title="404"
       subTitle="Sorry, the page you visited does not exist."
       extra={
-        <Button type="primary" onClick={() => navigate(ROUTES.DASHBOARD)}>
-          Back to Dashboard
+        <Button type="primary" onClick={() => navigate(ROUTES.ALBUMS)}>
+          Back to albums
         </Button>
       }
     />

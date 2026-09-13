@@ -52,7 +52,7 @@ export const AlbumsListPage = () => {
   const handleArchive = async (id: string) => {
     try {
       await actionMutation.mutateAsync({ id, action: 'archive' });
-      message.success('Album archived — guests can no longer open it');
+      message.success('Album archived');
     } catch (error) {
       message.error(getErrorMessage(error, 'Archive failed'));
     }
@@ -69,8 +69,7 @@ export const AlbumsListPage = () => {
 
   return (
     <div className="studio-home albums-page">
-      <header className="studio-home__hero">
-        <p className="studio-home__eyebrow">Studio</p>
+      <header className="studio-home__hero albums-page__hero">
         <h1>Albums</h1>
         <div className="studio-home__actions">
           <button
@@ -79,13 +78,6 @@ export const AlbumsListPage = () => {
             onClick={() => navigate(ROUTES.ALBUM_CREATE)}
           >
             Start album
-          </button>
-          <button
-            type="button"
-            className="studio-home__btn studio-home__btn--ghost"
-            onClick={() => navigate(ROUTES.STUDIO_PACKS)}
-          >
-            Buy / recharge packs →
           </button>
         </div>
       </header>
@@ -96,14 +88,13 @@ export const AlbumsListPage = () => {
           type="warning"
           showIcon
           message="No photos left"
-          description={
+          action={
             <button
               type="button"
               className="sp-btn-gradient"
-              style={{ marginTop: 8, width: '100%' }}
               onClick={() => navigate(ROUTES.STUDIO_PACKS)}
             >
-              Buy / recharge packs →
+              Buy packs
             </button>
           }
         />

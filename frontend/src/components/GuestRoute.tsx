@@ -11,7 +11,7 @@ export const GuestRoute = () => {
   }
 
   if (isAuthenticated) {
-    return <Navigate to={ROUTES.DASHBOARD} replace />;
+    return <Navigate to={ROUTES.ALBUMS} replace />;
   }
 
   return <Outlet />;

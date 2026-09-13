@@ -69,17 +69,16 @@ export const SignupPage = () => {
       .filter(Boolean) as Array<{ pack: AlbumPack; quantity: number }>;
 
     if (!selected.length) {
-      return { amountInr: 0, mappings: 0, merge: false };
+      return { amountInr: 0, mappings: 0 };
     }
 
-    const personalOnly = selected.every((row) => row.pack.tier === AlbumPackTier.PERSONAL);
     const amountInr = selected.reduce((sum, row) => sum + row.pack.unitPriceInr * row.quantity, 0);
     const mappings = selected.reduce(
       (sum, row) => sum + row.pack.maxMappings * row.pack.albumsIncluded * row.quantity,
       0,
     );
 
-    return { amountInr, mappings, merge: personalOnly };
+    return { amountInr, mappings };
   }, [items, packs]);
 
   const bump = (packId: string, delta: number) => {
@@ -119,7 +118,7 @@ export const SignupPage = () => {
       if ('accessToken' in session && session.accessToken && session.user) {
         setAuth(session.user, session.accessToken);
         message.success('Account ready — welcome to Story-PIX');
-        navigate(ROUTES.DASHBOARD, { replace: true });
+        navigate(ROUTES.ALBUMS, { replace: true });
         return;
       }
       message.success('Payment received — please sign in');
@@ -140,60 +139,22 @@ export const SignupPage = () => {
   }
 
   return (
-    <div className="signup-page">
-      <header className="signup-page__header">
-        <h1>Start with Story-PIX</h1>
-        <p>
-          1) Tap how many photos you need · 2) Enter email & password · 3) Pay. Then link your photo
-          to a video and share the QR.
-        </p>
-      </header>
+    <div className="signup-page signup-page--docked">
+      <div className="signup-page__scroll">
+        <header className="signup-page__header">
+          <h1>Start with Story-PIX</h1>
+          <p>1) Choose photos · 2) Email & password · 3) Pay</p>
+        </header>
 
-      {error ? (
-        <Alert type="error" showIcon message={error} className="signup-page__alert" />
-      ) : null}
+        {error ? (
+          <Alert type="error" showIcon message={error} className="signup-page__alert" />
+        ) : null}
 
-      <section className="signup-page__packs" aria-label="How many photos">
-        <h2>How many photos?</h2>
-        <p className="signup-page__hint">
-          Tap + on a size. You can mix (example: 5 + 3 = 8 photos). Make as many albums as you want.
-        </p>
-        <div className="signup-page__grid">
-          {personalPacks.map((pack) => {
-            const selected = (qty[pack.id] ?? 0) > 0;
-            return (
-              <article key={pack.id} className={`signup-pack${selected ? ' signup-pack--on' : ''}`}>
-                <div>
-                  <strong>
-                    {pack.maxMappings} photo{pack.maxMappings === 1 ? '' : 's'}
-                  </strong>
-                  <span>₹{pack.unitPriceInr}</span>
-                </div>
-                <p>Each photo gets 1,000 guest plays</p>
-                <div className="signup-pack__qty">
-                  <button type="button" onClick={() => bump(pack.id, -1)} aria-label="Less">
-                    −
-                  </button>
-                  <span>{qty[pack.id] ?? 0}</span>
-                  <button type="button" onClick={() => bump(pack.id, 1)} aria-label="More">
-                    +
-                  </button>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      </section>
-
-      {studioPacks.length ? (
-        <section className="signup-page__packs" aria-label="Shop packs">
-          <h2>For photo shops</h2>
-          <p className="signup-page__hint">
-            Bigger packs for studios — same simple idea: more photos.
-          </p>
+        <section className="signup-page__packs" aria-label="How many photos">
+          <h2>How many photos?</h2>
+          <p className="signup-page__hint">Tap + on a size. Mix sizes if you want (5 + 3 = 8).</p>
           <div className="signup-page__grid">
-            {studioPacks.map((pack) => {
-              const slots = pack.maxMappings * pack.albumsIncluded;
+            {personalPacks.map((pack) => {
               const selected = (qty[pack.id] ?? 0) > 0;
               return (
                 <article
@@ -201,10 +162,12 @@ export const SignupPage = () => {
                   className={`signup-pack${selected ? ' signup-pack--on' : ''}`}
                 >
                   <div>
-                    <strong>{pack.name}</strong>
+                    <strong>
+                      {pack.maxMappings} photo{pack.maxMappings === 1 ? '' : 's'}
+                    </strong>
                     <span>₹{pack.unitPriceInr}</span>
                   </div>
-                  <p>{slots} photos · unlimited albums</p>
+                  <p>1,000 guest plays each</p>
                   <div className="signup-pack__qty">
                     <button type="button" onClick={() => bump(pack.id, -1)} aria-label="Less">
                       −
@@ -219,75 +182,119 @@ export const SignupPage = () => {
             })}
           </div>
         </section>
-      ) : null}
 
-      <aside className="signup-page__summary">
-        <p>
-          <strong>Pay now</strong> ₹{preview.amountInr}
+        {studioPacks.length ? (
+          <section className="signup-page__packs" aria-label="Shop packs">
+            <h2>For photo shops</h2>
+            <div className="signup-page__grid">
+              {studioPacks.map((pack) => {
+                const slots = pack.maxMappings * pack.albumsIncluded;
+                const selected = (qty[pack.id] ?? 0) > 0;
+                return (
+                  <article
+                    key={pack.id}
+                    className={`signup-pack${selected ? ' signup-pack--on' : ''}`}
+                  >
+                    <div>
+                      <strong>{pack.name}</strong>
+                      <span>₹{pack.unitPriceInr}</span>
+                    </div>
+                    <p>{slots} photos</p>
+                    <div className="signup-pack__qty">
+                      <button type="button" onClick={() => bump(pack.id, -1)} aria-label="Less">
+                        −
+                      </button>
+                      <span>{qty[pack.id] ?? 0}</span>
+                      <button type="button" onClick={() => bump(pack.id, 1)} aria-label="More">
+                        +
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
+
+        <Form
+          id="signup-form"
+          layout="vertical"
+          onFinish={handleSubmit(onSubmit)}
+          requiredMark={false}
+        >
+          <Form.Item
+            label="Email"
+            validateStatus={errors.email ? 'error' : ''}
+            help={errors.email?.message}
+          >
+            <Controller
+              name="email"
+              control={control}
+              render={({ field }) => (
+                <Input {...field} size="large" autoComplete="email" placeholder="you@email.com" />
+              )}
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="Password"
+            validateStatus={errors.password ? 'error' : ''}
+            help={errors.password?.message}
+          >
+            <Controller
+              name="password"
+              control={control}
+              render={({ field }) => (
+                <Input.Password
+                  {...field}
+                  size="large"
+                  autoComplete="new-password"
+                  placeholder="Create a password"
+                />
+              )}
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="Confirm password"
+            validateStatus={errors.confirmPassword ? 'error' : ''}
+            help={errors.confirmPassword?.message}
+          >
+            <Controller
+              name="confirmPassword"
+              control={control}
+              render={({ field }) => (
+                <Input.Password
+                  {...field}
+                  size="large"
+                  autoComplete="new-password"
+                  placeholder="Confirm password"
+                />
+              )}
+            />
+          </Form.Item>
+        </Form>
+
+        <p className="signup-page__footer">
+          Already have an account? <Link to={ROUTES.LOGIN}>Sign in</Link>
         </p>
-        <p>
-          {preview.mappings > 0
-            ? `+${preview.mappings} photo${preview.mappings === 1 ? '' : 's'}`
-            : 'Tap + to choose'}
-        </p>
-      </aside>
+      </div>
 
-      <Form layout="vertical" onFinish={handleSubmit(onSubmit)} requiredMark={false}>
-        <Form.Item
-          label="Email"
-          validateStatus={errors.email ? 'error' : ''}
-          help={errors.email?.message}
-        >
-          <Controller
-            name="email"
-            control={control}
-            render={({ field }) => (
-              <Input {...field} size="large" autoComplete="email" placeholder="you@email.com" />
-            )}
-          />
-        </Form.Item>
-
-        <Form.Item
-          label="Password"
-          validateStatus={errors.password ? 'error' : ''}
-          help={errors.password?.message}
-        >
-          <Controller
-            name="password"
-            control={control}
-            render={({ field }) => (
-              <Input.Password
-                {...field}
-                size="large"
-                autoComplete="new-password"
-                placeholder="Create a password"
-              />
-            )}
-          />
-        </Form.Item>
-
-        <Form.Item
-          label="Confirm password"
-          validateStatus={errors.confirmPassword ? 'error' : ''}
-          help={errors.confirmPassword?.message}
-        >
-          <Controller
-            name="confirmPassword"
-            control={control}
-            render={({ field }) => (
-              <Input.Password
-                {...field}
-                size="large"
-                autoComplete="new-password"
-                placeholder="Confirm password"
-              />
-            )}
-          />
-        </Form.Item>
-
+      <div className="signup-page__dock">
+        <aside className="signup-page__summary">
+          <p>
+            <strong>Pay now</strong> ₹{preview.amountInr}
+          </p>
+          <p>
+            {preview.mappings > 0
+              ? `+${preview.mappings} photo${preview.mappings === 1 ? '' : 's'}`
+              : 'Tap + to choose'}
+          </p>
+        </aside>
         <Button
           type="primary"
           htmlType="submit"
+          form="signup-form"
           size="large"
           block
           loading={submitting}
@@ -295,11 +302,7 @@ export const SignupPage = () => {
         >
           Pay & start
         </Button>
-      </Form>
-
-      <p className="signup-page__footer">
-        Already have an account? <Link to={ROUTES.LOGIN}>Sign in</Link>
-      </p>
+      </div>
     </div>
   );
 };

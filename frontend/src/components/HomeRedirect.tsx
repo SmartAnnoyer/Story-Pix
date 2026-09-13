@@ -19,5 +19,5 @@ export const HomeRedirect = () => {
     return <Navigate to={ROUTES.ADMIN_DASHBOARD} replace />;
   }
 
-  return <Navigate to={ROUTES.DASHBOARD} replace />;
+  return <Navigate to={ROUTES.ALBUMS} replace />;
 };

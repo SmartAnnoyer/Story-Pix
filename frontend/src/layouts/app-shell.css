@@ -45,6 +45,40 @@
   overflow: visible;
 }
 
+.app-shell__hello {
+  margin: 0;
+  min-width: 0;
+  font-size: 0.92rem;
+  font-weight: 650;
+  color: var(--sp-text-muted, #5c5c66);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-shell__hello strong {
+  color: var(--sp-text-dark, #1a1a2e);
+  font-weight: 800;
+}
+
+.app-shell__logout-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: #f3f1f7;
+  color: var(--sp-primary, #6b2cdb);
+  font-size: 1.15rem;
+  cursor: pointer;
+}
+
+.app-shell__logout-btn:hover {
+  background: #efeaf8;
+}
+
 .app-shell__brand-logo--desktop {
   display: none;
 }
@@ -192,6 +226,11 @@
     display: flex;
   }
 
+  .app-shell__hello {
+    max-width: none;
+    font-size: 1rem;
+  }
+
   .app-tabbar {
     display: none;
   }
@@ -200,6 +239,17 @@
   .app-shell__content--with-tabbar {
     max-width: 960px;
     padding: 1.35rem 1.5rem 2rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .app-shell__hello {
+    max-width: 7.2rem;
+    font-size: 0.8rem;
+  }
+
+  .app-shell__back-label {
+    display: none;
   }
 }
 

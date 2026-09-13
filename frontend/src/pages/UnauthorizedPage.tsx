@@ -11,8 +11,8 @@ export const UnauthorizedPage = () => {
       title="403"
       subTitle="Sorry, you are not authorized to access this page."
       extra={
-        <Button type="primary" onClick={() => navigate(ROUTES.DASHBOARD)}>
-          Back to Dashboard
+        <Button type="primary" onClick={() => navigate(ROUTES.ALBUMS)}>
+          Back to albums
         </Button>
       }
     />

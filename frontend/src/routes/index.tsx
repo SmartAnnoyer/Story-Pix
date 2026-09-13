@@ -7,7 +7,6 @@ import { LoginPage } from '@/pages/LoginPage';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { ChangePasswordPage } from '@/pages/ChangePasswordPage';
-import { DashboardPage } from '@/pages/DashboardPage';
 import { UnauthorizedPage } from '@/pages/UnauthorizedPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { AdminDashboardPage } from '@/pages/admin/AdminDashboardPage';
@@ -46,12 +45,12 @@ export const AppRoutes = () => {
 
         <Route element={<ProtectedRoute allowedRoles={[UserRole.STUDIO_ADMIN]} />}>
           <Route element={<DashboardLayout />}>
-            <Route path={ROUTES.DASHBOARD} element={<DashboardPage />} />
+            <Route path={ROUTES.DASHBOARD} element={<Navigate to={ROUTES.ALBUMS} replace />} />
             <Route
               path={ROUTES.STUDIO_PROFILE}
-              element={<Navigate to={ROUTES.DASHBOARD} replace />}
+              element={<Navigate to={ROUTES.ALBUMS} replace />}
             />
-            <Route path={ROUTES.STUDIO_PLAN} element={<Navigate to={ROUTES.DASHBOARD} replace />} />
+            <Route path={ROUTES.STUDIO_PLAN} element={<Navigate to={ROUTES.ALBUMS} replace />} />
             <Route path={ROUTES.STUDIO_PACKS} element={<StudioPacksPage />} />
             <Route path={ROUTES.ALBUMS} element={<AlbumsListPage />} />
             <Route path={ROUTES.ALBUM_CREATE} element={<CreateAlbumPage />} />
@@ -63,11 +62,11 @@ export const AppRoutes = () => {
             <Route path={ROUTES.ALBUM_AR_MAPPING_EDIT} element={<EditMappingPage />} />
             <Route
               path={ROUTES.STUDIO_ANALYTICS}
-              element={<Navigate to={ROUTES.DASHBOARD} replace />}
+              element={<Navigate to={ROUTES.ALBUMS} replace />}
             />
             <Route
               path={ROUTES.STUDIO_ANALYTICS_REPORTS}
-              element={<Navigate to={ROUTES.DASHBOARD} replace />}
+              element={<Navigate to={ROUTES.ALBUMS} replace />}
             />
             <Route path={ROUTES.ALBUM_INSIGHTS} element={<AlbumInsightsPage />} />
             <Route path={ROUTES.CHANGE_PASSWORD} element={<ChangePasswordPage />} />

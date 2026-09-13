@@ -119,9 +119,6 @@
 }
 
 .signup-page__summary {
-  position: sticky;
-  bottom: calc(0.5rem + env(safe-area-inset-bottom));
-  z-index: 5;
   display: flex;
   justify-content: space-between;
   gap: 1rem;
@@ -145,6 +142,69 @@
   background: var(--sp-gradient) !important;
   font-size: 1.08rem !important;
   font-weight: 800 !important;
+}
+
+.signup-page--docked {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: 0 !important;
+  gap: 0;
+}
+
+.signup-page__scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  flex: 1;
+  padding: 1rem 0 1.25rem;
+  /* Leave room for fixed dock so last packs fully scroll into view */
+  padding-bottom: calc(11.5rem + env(safe-area-inset-bottom));
+}
+
+.signup-page--in-shell .signup-page__scroll {
+  /* Tab bar (~3.6rem) + dock (~7.5rem) */
+  padding-bottom: calc(12.5rem + env(safe-area-inset-bottom));
+}
+
+.signup-page__dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 45;
+  display: grid;
+  gap: 0.65rem;
+  width: 100%;
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 0.75rem 1rem calc(0.85rem + env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, rgba(245, 244, 248, 0), rgba(245, 244, 248, 0.96) 28%, #f5f4f8);
+  pointer-events: none;
+}
+
+.signup-page__dock > * {
+  pointer-events: auto;
+}
+
+.signup-page--in-shell .signup-page__dock {
+  /* Sit above the app tab bar */
+  bottom: calc(3.55rem + env(safe-area-inset-bottom));
+  padding-bottom: 0.75rem;
+  max-width: 720px;
+}
+
+@media (min-width: 768px) {
+  .signup-page--in-shell .signup-page__dock {
+    bottom: 0;
+    padding-bottom: calc(0.85rem + env(safe-area-inset-bottom));
+    max-width: 960px;
+  }
+
+  .signup-page--in-shell .signup-page__scroll {
+    padding-bottom: calc(10.5rem + env(safe-area-inset-bottom));
+  }
 }
 
 .signup-page__footer {

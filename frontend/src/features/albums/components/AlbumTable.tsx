@@ -1,8 +1,9 @@
-import { Popconfirm } from 'antd';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Album } from '@/types/album.types';
 import { AlbumStatus } from '@/types/album.types';
 import { albumStatusLabel } from '@/features/albums/utils/studio-labels';
+import { ConfirmModal } from '@/components/ConfirmModal';
 import { ROUTES } from '@/routes/paths';
 import './AlbumCards.css';
 
@@ -19,6 +20,11 @@ function statusClass(status: AlbumStatus): string {
   return `album-card__status album-card__status--${status}`;
 }
 
+type PendingAction =
+  | { type: 'archive'; id: string; name: string }
+  | { type: 'delete'; id: string; name: string; published: boolean }
+  | null;
+
 export const AlbumTable = ({
   albums,
   loading,
@@ -28,6 +34,7 @@ export const AlbumTable = ({
   onDelete,
 }: AlbumTableProps) => {
   const navigate = useNavigate();
+  const [pending, setPending] = useState<PendingAction>(null);
   const totalPages = Math.max(1, Math.ceil(pagination.total / pagination.limit));
   const canPrev = pagination.page > 1;
   const canNext = pagination.page < totalPages;
@@ -87,33 +94,31 @@ export const AlbumTable = ({
                 Edit
               </button>
               {onArchive && album.status !== AlbumStatus.ARCHIVED ? (
-                <Popconfirm
-                  title="Archive this album?"
-                  description="Guests will no longer be able to open it by scanning the QR. You can still find it under Archived."
-                  okText="Archive"
-                  onConfirm={() => onArchive(album.id)}
+                <button
+                  type="button"
+                  className="album-card__btn album-card__btn--ghost"
+                  onClick={() =>
+                    setPending({ type: 'archive', id: album.id, name: album.albumName })
+                  }
                 >
-                  <button type="button" className="album-card__btn album-card__btn--ghost">
-                    Archive
-                  </button>
-                </Popconfirm>
+                  Archive
+                </button>
               ) : null}
               {onDelete ? (
-                <Popconfirm
-                  title="Delete this album?"
-                  description={
-                    album.status === AlbumStatus.PUBLISHED
-                      ? 'It will be unpublished and removed from your list.'
-                      : 'This permanently removes the album from your list.'
+                <button
+                  type="button"
+                  className="album-card__btn album-card__btn--danger"
+                  onClick={() =>
+                    setPending({
+                      type: 'delete',
+                      id: album.id,
+                      name: album.albumName,
+                      published: album.status === AlbumStatus.PUBLISHED,
+                    })
                   }
-                  okText="Delete"
-                  okButtonProps={{ danger: true }}
-                  onConfirm={() => onDelete(album.id)}
                 >
-                  <button type="button" className="album-card__btn album-card__btn--danger">
-                    Delete
-                  </button>
-                </Popconfirm>
+                  Delete
+                </button>
               ) : null}
             </div>
           </article>
@@ -145,6 +150,41 @@ export const AlbumTable = ({
           </div>
         </div>
       ) : null}
+
+      <ConfirmModal
+        open={pending?.type === 'archive'}
+        title="Archive this album?"
+        description={
+          pending?.type === 'archive'
+            ? `"${pending.name}" will stop working for guests. You can still find it under Archived.`
+            : undefined
+        }
+        confirmLabel="Archive"
+        onCancel={() => setPending(null)}
+        onConfirm={() => {
+          if (pending?.type === 'archive') onArchive?.(pending.id);
+          setPending(null);
+        }}
+      />
+
+      <ConfirmModal
+        open={pending?.type === 'delete'}
+        title="Delete this album?"
+        description={
+          pending?.type === 'delete'
+            ? pending.published
+              ? `"${pending.name}" will be unpublished and removed from your list.`
+              : `"${pending.name}" will be permanently removed from your list.`
+            : undefined
+        }
+        confirmLabel="Delete"
+        tone="danger"
+        onCancel={() => setPending(null)}
+        onConfirm={() => {
+          if (pending?.type === 'delete') onDelete?.(pending.id);
+          setPending(null);
+        }}
+      />
     </div>
   );
 };

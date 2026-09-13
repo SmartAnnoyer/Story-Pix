@@ -1,14 +1,14 @@
-import { useMemo, type ReactNode } from 'react';
-import { Avatar, Dropdown, Layout } from 'antd';
+import { useMemo, useState, type ReactNode } from 'react';
+import { Layout } from 'antd';
 import {
   AppstoreOutlined,
   ArrowLeftOutlined,
   HomeOutlined,
   LogoutOutlined,
   ShoppingOutlined,
-  UserOutlined,
 } from '@ant-design/icons';
 import { BrandLogo } from '@/components/BrandLogo';
+import { ConfirmModal } from '@/components/ConfirmModal';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/auth.store';
 import { useLogoutMutation } from '@/hooks/useAuthQueries';
@@ -47,11 +47,7 @@ function getBackTarget(
     return { label: 'Home', path: ROUTES.ADMIN_DASHBOARD };
   }
 
-  if (
-    pathname === ROUTES.DASHBOARD ||
-    pathname === ROUTES.ALBUMS ||
-    pathname === ROUTES.STUDIO_PACKS
-  ) {
+  if (pathname === ROUTES.ALBUMS || pathname === ROUTES.STUDIO_PACKS || pathname === ROUTES.DASHBOARD) {
     return null;
   }
 
@@ -70,10 +66,10 @@ function getBackTarget(
   }
 
   if (pathname.startsWith('/settings')) {
-    return { label: 'Home', path: ROUTES.DASHBOARD };
+    return { label: 'Albums', path: ROUTES.ALBUMS };
   }
 
-  return { label: 'Home', path: ROUTES.DASHBOARD };
+  return { label: 'Albums', path: ROUTES.ALBUMS };
 }
 
 export const DashboardLayout = () => {
@@ -81,6 +77,7 @@ export const DashboardLayout = () => {
   const location = useLocation();
   const { user } = useAuthStore();
   const logoutMutation = useLogoutMutation();
+  const [logoutOpen, setLogoutOpen] = useState(false);
   const isSuperAdmin = user?.role === UserRole.SUPER_ADMIN;
 
   const primaryTabs: NavItem[] = useMemo(
@@ -97,7 +94,6 @@ export const DashboardLayout = () => {
             { key: 'catalog', label: 'Catalog', path: ROUTES.CATALOG, icon: <ShoppingOutlined /> },
           ]
         : [
-            { key: 'home', label: 'Home', path: ROUTES.DASHBOARD, icon: <HomeOutlined /> },
             { key: 'albums', label: 'Albums', path: ROUTES.ALBUMS, icon: <AppstoreOutlined /> },
             {
               key: 'packs',
@@ -124,35 +120,17 @@ export const DashboardLayout = () => {
         : undefined);
 
   const back = getBackTarget(location.pathname, isSuperAdmin);
-  const homePath = isSuperAdmin ? ROUTES.ADMIN_DASHBOARD : ROUTES.DASHBOARD;
+  const homePath = isSuperAdmin ? ROUTES.ADMIN_DASHBOARD : ROUTES.ALBUMS;
+  const greetingName = user?.firstName?.trim() || user?.email?.split('@')[0] || 'there';
 
   const handleLogout = async () => {
     try {
       await logoutMutation.mutateAsync();
     } finally {
+      setLogoutOpen(false);
       navigate(ROUTES.LOGIN);
     }
   };
-
-  const userMenu = (
-    <Dropdown
-      menu={{
-        items: [
-          {
-            key: 'logout',
-            icon: <LogoutOutlined />,
-            label: 'Log out',
-            onClick: () => void handleLogout(),
-          },
-        ],
-      }}
-      placement="bottomRight"
-    >
-      <button type="button" className="app-shell__avatar-btn" aria-label="Account">
-        <Avatar icon={<UserOutlined />} size={40} />
-      </button>
-    </Dropdown>
-  );
 
   return (
     <Layout className="app-shell app-shell--admin min-h-screen">
@@ -168,12 +146,16 @@ export const DashboardLayout = () => {
               <ArrowLeftOutlined />
               <span className="app-shell__back-label">{back.label}</span>
             </button>
-          ) : (
-            <Link to={homePath} className="app-shell__brand-link" aria-label="Story-PIX home">
-              <BrandLogo variant="nav" height={44} className="app-shell__brand-logo--desktop" />
-              <BrandLogo variant="full" height={52} className="app-shell__brand-logo--mobile" />
-            </Link>
-          )}
+          ) : null}
+          <Link to={homePath} className="app-shell__brand-link" aria-label="Story-PIX home">
+            <BrandLogo variant="nav" height={40} className="app-shell__brand-logo--desktop" />
+            <BrandLogo variant="full" height={48} className="app-shell__brand-logo--mobile" />
+          </Link>
+          {!isSuperAdmin ? (
+            <p className="app-shell__hello">
+              Hi, <strong>{greetingName}</strong>
+            </p>
+          ) : null}
           <nav className="app-shell__admin-nav app-shell__admin-nav--desktop" aria-label="Main">
             {primaryTabs.map((item) => (
               <Link
@@ -188,7 +170,16 @@ export const DashboardLayout = () => {
             ))}
           </nav>
         </div>
-        <div className="app-shell__admin-right">{userMenu}</div>
+        <div className="app-shell__admin-right">
+          <button
+            type="button"
+            className="app-shell__logout-btn"
+            aria-label="Log out"
+            onClick={() => setLogoutOpen(true)}
+          >
+            <LogoutOutlined />
+          </button>
+        </div>
       </Header>
 
       <Content className="app-shell__content app-shell__content--admin app-shell__content--with-tabbar">
@@ -209,6 +200,18 @@ export const DashboardLayout = () => {
           </Link>
         ))}
       </nav>
+
+      <ConfirmModal
+        open={logoutOpen}
+        title="Log out?"
+        description="You can sign back in anytime with your email and password."
+        confirmLabel="Log out"
+        cancelLabel="Stay"
+        tone="danger"
+        loading={logoutMutation.isPending}
+        onCancel={() => setLogoutOpen(false)}
+        onConfirm={handleLogout}
+      />
     </Layout>
   );
 };

@@ -10,9 +10,9 @@ export const LoginPage = () => {
   const location = useLocation();
   const loginMutation = useLoginMutation();
 
+  const rawFrom = (location.state as { from?: { pathname: string } })?.from?.pathname;
   const from =
-    (location.state as { from?: { pathname: string } })?.from?.pathname ??
-    ROUTES.DASHBOARD;
+    !rawFrom || rawFrom === ROUTES.DASHBOARD || rawFrom === '/' ? ROUTES.ALBUMS : rawFrom;
 
   const handleSubmit = async (values: { email: string; password: string }) => {
     try {
