@@ -37,8 +37,8 @@ export class StudioPackCredit {
   @Prop({ type: Number, required: true, min: 0 })
   totalPriceInr!: number;
 
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
-  assignedBy!: Types.ObjectId;
+  @Prop({ type: Types.ObjectId, ref: 'User', default: null })
+  assignedBy?: Types.ObjectId | null;
 
   @Prop({ type: String, default: null })
   notes?: string | null;

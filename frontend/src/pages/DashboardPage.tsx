@@ -53,7 +53,11 @@ export const DashboardPage = () => {
           <span className="studio-home__stat-label">Albums you can create</span>
           <strong className="studio-home__stat-value">{albumsLeft}</strong>
           <span className="studio-home__stat-meta">
-            {canCreateAlbum ? 'From your plans' : 'Contact Story-PIX to add more albums'}
+            {canCreateAlbum ? (
+              'From your packs'
+            ) : (
+              <Link to={ROUTES.STUDIO_PACKS}>Buy / recharge packs</Link>
+            )}
           </span>
         </article>
         <article className="studio-home__stat">
@@ -140,9 +144,13 @@ export const DashboardPage = () => {
           </ul>
         ) : (
           <p className="studio-home__empty">
-            No plan enabled yet. Contact Story-PIX after payment to unlock albums.
+            No packs yet. <Link to={ROUTES.STUDIO_PACKS}>Buy your first pack</Link> to unlock
+            albums.
           </p>
         )}
+        <p style={{ marginTop: '1rem' }}>
+          <Link to={ROUTES.STUDIO_PACKS}>Buy / recharge packs →</Link>
+        </p>
       </section>
 
       <ol className="studio-home__steps">

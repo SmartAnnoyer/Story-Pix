@@ -25,3 +25,4 @@ export * from './role.enum';
 export * from './studio-status.enum';
 export * from './subscription-status.enum';
 export * from './user-status.enum';
+export * from './checkout-order.enum';

@@ -224,6 +224,79 @@ export class StudiosService {
     };
   }
 
+  /** Self-serve signup after successful pack payment — password chosen by customer. */
+  async createFromPaidSignup(input: {
+    email: string;
+    password: string;
+    studioName?: string;
+    ownerName?: string;
+  }) {
+    const email = input.email.toLowerCase().trim();
+    const existingStudio = await this.studioModel.findOne({ email, deletedAt: null }).exec();
+    if (existingStudio) {
+      throw new ConflictException('A studio with this email already exists');
+    }
+
+    const existingAdmin = await this.usersService.findByEmail(email);
+    if (existingAdmin) {
+      throw new ConflictException('Email is already registered');
+    }
+
+    const localPart = email.split('@')[0] || 'Studio';
+    const studioName = (input.studioName?.trim() || localPart).slice(0, 80);
+    const ownerName = (input.ownerName?.trim() || studioName).slice(0, 80);
+    const studioCode = await this.generateUniqueStudioCode();
+    const passwordHash = await this.usersService.hashPassword(input.password);
+
+    const studio = await this.studioModel.create({
+      studioCode,
+      studioName,
+      ownerName,
+      email,
+      phone: '',
+      address: '',
+      website: '',
+      status: StudioStatus.ACTIVE,
+    });
+
+    await this.subscriptionService.createTrialSubscription(studio._id.toString(), email);
+
+    const firstName = ownerName.split(/\s+/)[0] || 'Creator';
+    const lastName = ownerName.split(/\s+/).slice(1).join(' ') || 'Account';
+
+    const admin = await this.usersService.createStudioAdmin({
+      studioId: studio._id.toString(),
+      email,
+      firstName,
+      lastName,
+      passwordHash,
+      temporaryPasswordPlain: '',
+    });
+
+    // Clear temp password so they are not forced through first-login change.
+    admin.temporaryPasswordPlain = undefined;
+    await admin.save();
+
+    const refreshedStudio = await this.studioModel.findById(studio._id).exec();
+
+    void this.eventBus.publish({
+      eventType: DomainEventType.USER_WELCOME,
+      studioId: studio._id.toString(),
+      recipientEmail: email,
+      metadata: {
+        studioName,
+        studioCode,
+        firstName,
+      },
+    });
+
+    return {
+      studio: this.serializeStudio(refreshedStudio!),
+      userId: admin._id.toString(),
+      email,
+    };
+  }
+
   async update(id: string, dto: UpdateStudioDto) {
     const studio = await this.studioModel.findOne({ _id: id, deletedAt: null }).exec();
 

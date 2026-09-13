@@ -72,11 +72,11 @@ export const LoginForm = ({ onSubmit, errorMessage, isSubmitting }: LoginFormPro
         />
       </Form.Item>
 
-      <div className="mb-5 text-right">
-        <Link
-          to={ROUTES.FORGOT_PASSWORD}
-          className="text-sm text-primary-600 hover:text-primary-700"
-        >
+      <div className="mb-5 flex items-center justify-between gap-3 text-sm">
+        <Link to={ROUTES.SIGNUP} className="text-primary-600 hover:text-primary-700">
+          Create account
+        </Link>
+        <Link to={ROUTES.FORGOT_PASSWORD} className="text-primary-600 hover:text-primary-700">
           Forgot password?
         </Link>
       </div>

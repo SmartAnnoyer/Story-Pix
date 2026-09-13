@@ -76,9 +76,14 @@ export const LandingPage = () => {
             Open studio
           </Link>
         ) : (
-          <Link className="sp-land__btn sp-land__btn--nav" to={ROUTES.LOGIN}>
-            Log in
-          </Link>
+          <>
+            <Link className="sp-land__btn sp-land__btn--nav" to={ROUTES.SIGNUP}>
+              Sign up
+            </Link>
+            <Link className="sp-land__btn sp-land__btn--nav" to={ROUTES.LOGIN}>
+              Log in
+            </Link>
+          </>
         )}
       </header>
 
@@ -100,8 +105,8 @@ export const LandingPage = () => {
                   Go to dashboard
                 </Link>
               ) : (
-                <Link className="sp-land__btn sp-land__btn--ghost" to={ROUTES.LOGIN}>
-                  Studio log in
+                <Link className="sp-land__btn sp-land__btn--ghost" to={ROUTES.SIGNUP}>
+                  Create account
                 </Link>
               )}
             </div>

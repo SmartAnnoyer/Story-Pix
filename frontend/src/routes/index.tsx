@@ -28,6 +28,8 @@ import { AdminCatalogPage } from '@/pages/admin/AdminCatalogPage';
 import { ROUTES } from '@/routes/paths';
 import { UserRole } from '@/types/auth.types';
 import { LandingPage } from '@/pages/LandingPage';
+import { SignupPage } from '@/pages/SignupPage';
+import { StudioPacksPage } from '@/pages/studio/StudioPacksPage';
 
 export const AppRoutes = () => {
   return (
@@ -36,6 +38,7 @@ export const AppRoutes = () => {
         <Route element={<GuestRoute />}>
           <Route element={<AuthLayout />}>
             <Route path={ROUTES.LOGIN} element={<LoginPage />} />
+            <Route path={ROUTES.SIGNUP} element={<SignupPage />} />
             <Route path={ROUTES.FORGOT_PASSWORD} element={<ForgotPasswordPage />} />
             <Route path={ROUTES.RESET_PASSWORD} element={<ResetPasswordPage />} />
           </Route>
@@ -49,10 +52,7 @@ export const AppRoutes = () => {
               element={<Navigate to={ROUTES.DASHBOARD} replace />}
             />
             <Route path={ROUTES.STUDIO_PLAN} element={<Navigate to={ROUTES.DASHBOARD} replace />} />
-            <Route
-              path={ROUTES.STUDIO_PACKS}
-              element={<Navigate to={ROUTES.DASHBOARD} replace />}
-            />
+            <Route path={ROUTES.STUDIO_PACKS} element={<StudioPacksPage />} />
             <Route path={ROUTES.ALBUMS} element={<AlbumsListPage />} />
             <Route path={ROUTES.ALBUM_CREATE} element={<CreateAlbumPage />} />
             <Route path={ROUTES.ALBUM_EDIT} element={<EditAlbumPage />} />

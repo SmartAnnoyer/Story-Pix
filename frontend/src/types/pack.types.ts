@@ -1,4 +1,5 @@
 export enum AlbumPackTier {
+  PERSONAL = 'personal',
   MINIMAL = 'minimal',
   STANDARD = 'standard',
   PROFESSIONAL = 'professional',
@@ -7,6 +8,7 @@ export enum AlbumPackTier {
 
 export enum PackLedgerAction {
   ASSIGN = 'assign',
+  PURCHASE = 'purchase',
   CONSUME = 'consume',
   REVOKE = 'revoke',
 }
@@ -41,7 +43,7 @@ export interface StudioPackCredit {
   remainingCredits: number;
   unitPriceInr: number;
   totalPriceInr: number;
-  assignedBy: string;
+  assignedBy: string | null;
   notes: string | null;
   isActive: boolean;
   createdAt: string | null;

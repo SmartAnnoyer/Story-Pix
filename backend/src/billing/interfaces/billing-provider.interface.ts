@@ -14,9 +14,9 @@ export interface BillingSubscriptionResult {
 }
 
 export interface CreateOrderInput {
-  studioId: string;
-  subscriptionId: string;
-  planId: string;
+  studioId?: string;
+  subscriptionId?: string;
+  planId?: string;
   amount: number;
   currency: string;
   receipt: string;

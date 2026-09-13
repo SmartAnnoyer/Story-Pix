@@ -34,6 +34,66 @@ const DEFAULT_PACKS: Array<
   }
 > = [
   {
+    code: 'photo_1',
+    name: '1 Photo',
+    tier: AlbumPackTier.PERSONAL,
+    description: 'One living photo — perfect for a single gift. 1,000 guest plays.',
+    maxMappings: 1,
+    scanLimit: SCANS_PER_MAPPING,
+    albumsIncluded: 1,
+    unitPriceInr: 199,
+    features: ['1 living photo', '1,000 plays', 'Stack with other personal packs'],
+    sortOrder: 1,
+  },
+  {
+    code: 'photo_2',
+    name: '2 Photos',
+    tier: AlbumPackTier.PERSONAL,
+    description: 'Two living photos. Combine with other packs (e.g. 2+3=5).',
+    maxMappings: 2,
+    scanLimit: SCANS_PER_MAPPING,
+    albumsIncluded: 1,
+    unitPriceInr: 349,
+    features: ['2 living photos', '1,000 plays each', 'Stackable'],
+    sortOrder: 2,
+  },
+  {
+    code: 'photo_3',
+    name: '3 Photos',
+    tier: AlbumPackTier.PERSONAL,
+    description: 'Three living photos — great for a small set. Stackable.',
+    maxMappings: 3,
+    scanLimit: SCANS_PER_MAPPING,
+    albumsIncluded: 1,
+    unitPriceInr: 499,
+    features: ['3 living photos', '1,000 plays each', 'Stackable'],
+    sortOrder: 3,
+  },
+  {
+    code: 'photo_4',
+    name: '4 Photos',
+    tier: AlbumPackTier.PERSONAL,
+    description: 'Four living photos. Add another pack anytime to grow.',
+    maxMappings: 4,
+    scanLimit: SCANS_PER_MAPPING,
+    albumsIncluded: 1,
+    unitPriceInr: 649,
+    features: ['4 living photos', '1,000 plays each', 'Stackable'],
+    sortOrder: 4,
+  },
+  {
+    code: 'photo_5',
+    name: '5 Photos',
+    tier: AlbumPackTier.PERSONAL,
+    description: 'Five living photos. Want 8? Add a 3-photo pack.',
+    maxMappings: 5,
+    scanLimit: SCANS_PER_MAPPING,
+    albumsIncluded: 1,
+    unitPriceInr: 799,
+    features: ['5 living photos', '1,000 plays each', 'Stackable'],
+    sortOrder: 5,
+  },
+  {
     code: 'mini_10',
     name: 'Mini Album',
     tier: AlbumPackTier.MINIMAL,
@@ -173,7 +233,7 @@ export class PacksService implements OnModuleInit {
     return this.serializePack(pack);
   }
 
-  async assignToStudio(dto: AssignPackDto, performedBy: string) {
+  async assignToStudio(dto: AssignPackDto, performedBy?: string | null) {
     const pack = await this.packModel.findById(dto.packId).exec();
     if (!pack || !pack.isActive) throw new NotFoundException('Pack not found or inactive');
 
@@ -192,7 +252,7 @@ export class PacksService implements OnModuleInit {
       remainingCredits: creditsGranted,
       unitPriceInr: pack.unitPriceInr,
       totalPriceInr,
-      assignedBy: new Types.ObjectId(performedBy),
+      assignedBy: performedBy ? new Types.ObjectId(performedBy) : null,
       notes: dto.notes ?? null,
       isActive: true,
     });
@@ -204,15 +264,160 @@ export class PacksService implements OnModuleInit {
       albumId: null,
       packCode: pack.code,
       packName: pack.name,
-      action: PackLedgerAction.ASSIGN,
+      action: performedBy ? PackLedgerAction.ASSIGN : PackLedgerAction.PURCHASE,
       quantity: creditsGranted,
       unitPriceInr: pack.unitPriceInr,
       totalPriceInr,
-      performedBy: new Types.ObjectId(performedBy),
+      performedBy: performedBy ? new Types.ObjectId(performedBy) : null,
       notes: dto.notes ?? null,
     });
 
     return this.serializeCredit(credit);
+  }
+
+  /**
+   * Fulfill a cart. Personal packs (tier=personal) in the same cart are merged so
+   * 5+3 becomes one album credit with 8 mappings. Studio packs assign normally.
+   */
+  async fulfillCart(
+    studioId: string,
+    items: Array<{ packId: string; quantity: number }>,
+    performedBy?: string | null,
+    notes?: string | null,
+  ) {
+    if (!items.length) throw new BadRequestException('Cart is empty');
+
+    const resolved: Array<{
+      pack: AlbumPackDocument;
+      quantity: number;
+    }> = [];
+
+    for (const item of items) {
+      const quantity = Math.max(1, Math.floor(item.quantity || 1));
+      const pack = await this.packModel.findById(item.packId).exec();
+      if (!pack || !pack.isActive) {
+        throw new NotFoundException(`Pack not found or inactive: ${item.packId}`);
+      }
+      resolved.push({ pack, quantity });
+    }
+
+    const personal = resolved.filter((row) => row.pack.tier === AlbumPackTier.PERSONAL);
+    const rest = resolved.filter((row) => row.pack.tier !== AlbumPackTier.PERSONAL);
+    const results: ReturnType<typeof this.serializeCredit>[] = [];
+
+    if (personal.length) {
+      const totalMappings = personal.reduce(
+        (sum, row) => sum + row.pack.maxMappings * row.quantity,
+        0,
+      );
+      const totalPriceInr = personal.reduce(
+        (sum, row) => sum + row.pack.unitPriceInr * row.quantity,
+        0,
+      );
+      const codes = personal.map((row) => `${row.pack.code}×${row.quantity}`).join('+');
+      const primary = personal[0].pack;
+
+      const credit = await this.creditModel.create({
+        studioId: new Types.ObjectId(studioId),
+        packId: primary._id,
+        packCode: `cart_${totalMappings}`,
+        packName: `${totalMappings}-photo pack`,
+        maxMappings: totalMappings,
+        scanLimit: SCANS_PER_MAPPING,
+        totalCredits: 1,
+        remainingCredits: 1,
+        unitPriceInr: totalPriceInr,
+        totalPriceInr,
+        assignedBy: performedBy ? new Types.ObjectId(performedBy) : null,
+        notes: notes ?? `Merged personal packs: ${codes}`,
+        isActive: true,
+      });
+
+      await this.ledgerModel.create({
+        studioId: credit.studioId,
+        packId: primary._id,
+        creditId: credit._id,
+        albumId: null,
+        packCode: credit.packCode,
+        packName: credit.packName,
+        action: PackLedgerAction.PURCHASE,
+        quantity: 1,
+        unitPriceInr: totalPriceInr,
+        totalPriceInr,
+        performedBy: performedBy ? new Types.ObjectId(performedBy) : null,
+        notes: credit.notes ?? null,
+      });
+
+      results.push(this.serializeCredit(credit));
+    }
+
+    for (const row of rest) {
+      results.push(
+        await this.assignToStudio(
+          {
+            studioId,
+            packId: row.pack._id.toString(),
+            quantity: row.quantity,
+            notes: notes ?? undefined,
+          },
+          performedBy,
+        ),
+      );
+    }
+
+    return results;
+  }
+
+  async quoteCart(items: Array<{ packId: string; quantity: number }>) {
+    if (!items.length) throw new BadRequestException('Cart is empty');
+
+    let amountInr = 0;
+    let totalMappings = 0;
+    let totalAlbumCredits = 0;
+    const lines: Array<{
+      packId: string;
+      code: string;
+      name: string;
+      tier: string;
+      quantity: number;
+      maxMappings: number;
+      albumsIncluded: number;
+      lineTotalInr: number;
+    }> = [];
+
+    for (const item of items) {
+      const quantity = Math.max(1, Math.floor(item.quantity || 1));
+      const pack = await this.packModel.findById(item.packId).exec();
+      if (!pack || !pack.isActive) {
+        throw new NotFoundException(`Pack not found or inactive: ${item.packId}`);
+      }
+      const lineTotalInr = pack.unitPriceInr * quantity;
+      amountInr += lineTotalInr;
+      totalMappings += pack.maxMappings * quantity;
+      totalAlbumCredits += pack.albumsIncluded * quantity;
+      lines.push({
+        packId: pack._id.toString(),
+        code: pack.code,
+        name: pack.name,
+        tier: pack.tier,
+        quantity,
+        maxMappings: pack.maxMappings,
+        albumsIncluded: pack.albumsIncluded,
+        lineTotalInr,
+      });
+    }
+
+    const personalOnly = lines.every((line) => line.tier === AlbumPackTier.PERSONAL);
+
+    return {
+      amountInr,
+      totalMappings: personalOnly
+        ? lines.reduce((sum, line) => sum + line.maxMappings * line.quantity, 0)
+        : totalMappings,
+      totalAlbumCredits: personalOnly ? 1 : totalAlbumCredits,
+      mergesPersonalPacks: personalOnly,
+      lines,
+    };
   }
 
   async listStudioCredits(studioId: string) {
@@ -378,7 +583,7 @@ export class PacksService implements OnModuleInit {
       remainingCredits: credit.remainingCredits,
       unitPriceInr: credit.unitPriceInr,
       totalPriceInr: credit.totalPriceInr,
-      assignedBy: credit.assignedBy.toString(),
+      assignedBy: credit.assignedBy?.toString() ?? null,
       notes: credit.notes ?? null,
       isActive: credit.isActive,
       createdAt: doc.createdAt?.toISOString() ?? null,

@@ -15,6 +15,7 @@ import { StudioModule } from '../studio/studio.module';
 import { BillingModule } from '../billing/billing.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PacksModule } from '../packs/packs.module';
+import { CheckoutModule } from '../checkout/checkout.module';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { RolesGuard } from '../guards/roles.guard';
 import { PermissionsGuard } from '../guards/permissions.guard';
@@ -50,6 +51,7 @@ import { RequestIdMiddleware } from '../middleware/request-id.middleware';
     BillingModule,
     NotificationsModule,
     PacksModule,
+    CheckoutModule,
   ],
   providers: [
     {

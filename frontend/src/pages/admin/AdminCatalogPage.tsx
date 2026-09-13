@@ -21,6 +21,7 @@ const tierColor: Record<string, string> = {
 
 const actionColor: Record<PackLedgerAction, string> = {
   assign: 'green',
+  purchase: 'purple',
   consume: 'blue',
   revoke: 'red',
 };

@@ -43,7 +43,9 @@ export class ManualBillingProvider extends IBillingProvider {
 
   async createOrder(input: CreateOrderInput): Promise<CreateOrderResult> {
     const orderId = `order_manual_${randomBytes(8).toString('hex')}`;
-    this.logger.log(`Manual billing order created: ${orderId} for studio ${input.studioId}`);
+    this.logger.log(
+      `Manual billing order created: ${orderId} amount=${input.amount} studio=${input.studioId ?? 'n/a'}`,
+    );
     return {
       orderId,
       amount: input.amount,
