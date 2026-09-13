@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { message } from 'antd';
 import { MappingForm } from '@/features/ar/components/MappingForm';
 import { AlbumDeliveryGuide } from '@/features/albums/components/AlbumDeliveryGuide';
-import { albumMediaPath } from '@/features/albums/utils/album-delivery';
+import { albumMediaPath, albumSharePath } from '@/features/albums/utils/album-delivery';
 import { useAlbumQuery } from '@/hooks/useAlbumQueries';
 import { useAlbumMediaQuery } from '@/hooks/useMediaQueries';
 import { useCreateArTargetMutation, usePublishArTargetMutation } from '@/hooks/useArTargetQueries';
