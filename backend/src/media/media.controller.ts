@@ -8,9 +8,11 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   Res,
 } from '@nestjs/common';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
+import { Readable } from 'stream';
 import { CurrentUser } from '../decorators/current-user.decorator';
 import { RequirePermissions, Roles } from '../decorators';
 import { Role } from '../common/enums';
@@ -23,6 +25,23 @@ import {
   SetMediaThumbnailDto,
   UpdateMediaDto,
 } from './dto/media.dto';
+
+const parseByteRange = (
+  header: string | undefined,
+  size: number,
+): { start: number; end: number } | null => {
+  if (!header || size <= 0) return null;
+  const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+  if (!match) return null;
+
+  const start = match[1] ? Number.parseInt(match[1], 10) : 0;
+  let end = match[2] ? Number.parseInt(match[2], 10) : size - 1;
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+  if (start >= size) return null;
+  end = Math.min(end, size - 1);
+  if (end < start) return null;
+  return { start, end };
+};
 
 @Controller('media')
 @Roles(Role.STUDIO_ADMIN, Role.STUDIO_STAFF)
@@ -92,16 +111,41 @@ export class MediaController {
   async getPreview(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
-    const { buffer, contentType } = await this.mediaService.getPreviewBuffer(
-      this.assertStudioId(user),
+    const studioId = this.assertStudioId(user);
+    const asset = await this.mediaService.resolveOriginalPreviewAsset(studioId, id);
+    const totalSize = asset.sizeBytes;
+    const range = parseByteRange(req.headers.range, totalSize);
+    const stream = await this.mediaService.openOriginalPreviewStream(
+      studioId,
       id,
-      'original',
+      range ?? undefined,
     );
-    res.setHeader('Content-Type', contentType);
+
+    res.setHeader('Content-Type', stream.contentType || asset.contentType);
+    res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('Cache-Control', 'private, max-age=300');
-    res.send(buffer);
+
+    if (range && totalSize > 0) {
+      const chunkSize = range.end - range.start + 1;
+      res.status(206);
+      res.setHeader('Content-Range', `bytes ${range.start}-${range.end}/${totalSize}`);
+      res.setHeader('Content-Length', String(stream.contentLength || chunkSize));
+    } else if (stream.contentLength > 0) {
+      res.setHeader('Content-Length', String(stream.contentLength));
+    } else if (totalSize > 0) {
+      res.setHeader('Content-Length', String(totalSize));
+    }
+
+    const body = stream.body;
+    if (body instanceof Readable) {
+      body.pipe(res);
+      return;
+    }
+
+    Readable.fromWeb(body as never).pipe(res);
   }
 
   @Patch(':id/thumbnail')

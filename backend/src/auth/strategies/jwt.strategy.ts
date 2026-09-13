@@ -8,7 +8,11 @@ import { JwtPayload, AuthenticatedUser } from '../../common/interfaces';
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(configService: ConfigService) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+        // Allow <video>/<img> to stream authenticated media via query (Range seeks).
+        ExtractJwt.fromUrlQueryParameter('access_token'),
+      ]),
       ignoreExpiration: false,
       secretOrKey: configService.getOrThrow<string>('jwt.accessSecret'),
     });

@@ -1,6 +1,8 @@
 import type { MediaItem } from '@/types/media.types';
 import { MediaType } from '@/types/media.types';
 import { isBrokenCdnUrl } from '@/features/ar/utils/viewer-media-proxy';
+import { env } from '@/utils/env';
+import { tokenStorage } from '@/utils/storage';
 
 export type StudioMediaPreviewVariant = 'thumbnail' | 'original';
 
@@ -45,3 +47,19 @@ export const getStudioMediaPreviewPath = (
   mediaId: string,
   variant: StudioMediaPreviewVariant = 'thumbnail',
 ): string => `/media/${mediaId}/${variant === 'thumbnail' ? 'thumbnail' : 'preview'}`;
+
+/**
+ * Same-origin (API) stream URL with access token for <video>/<img>.
+ * Enables Range seeks without downloading the whole file into a blob first.
+ */
+export const getAuthenticatedMediaStreamUrl = (
+  mediaId: string,
+  variant: StudioMediaPreviewVariant = 'original',
+): string => {
+  const path = getStudioMediaPreviewPath(mediaId, variant);
+  const token = tokenStorage.getAccessToken();
+  const base = `${env.apiBaseUrl}${path.startsWith('/') ? path : `/${path}`}`;
+  if (!token) return base;
+  const join = base.includes('?') ? '&' : '?';
+  return `${base}${join}access_token=${encodeURIComponent(token)}`;
+};

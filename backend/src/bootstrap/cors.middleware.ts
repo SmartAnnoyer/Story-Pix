@@ -13,10 +13,7 @@ export const normalizeOrigin = (raw: string): string => {
 };
 
 export const parseCorsOrigins = (corsOrigin: string): string[] =>
-  corsOrigin
-    .split(',')
-    .map(normalizeOrigin)
-    .filter(Boolean);
+  corsOrigin.split(',').map(normalizeOrigin).filter(Boolean);
 
 export const createCorsConfig = (corsOrigin: string) => {
   const allowedOrigins = parseCorsOrigins(corsOrigin);
@@ -32,7 +29,8 @@ export const createCorsConfig = (corsOrigin: string) => {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'Range'],
+    exposedHeaders: ['Accept-Ranges', 'Content-Range', 'Content-Length', 'Content-Type'],
     optionsSuccessStatus: 204,
   };
 };

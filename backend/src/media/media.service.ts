@@ -290,6 +290,33 @@ export class MediaService {
     throw new NotFoundException('Thumbnail is not available yet');
   }
 
+  async resolveOriginalPreviewAsset(studioId: string, id: string) {
+    const media = await this.findDocument(studioId, id);
+    const metadata = await this.storageService.getObjectMetadata(media.r2ObjectKey);
+    return {
+      r2ObjectKey: media.r2ObjectKey,
+      contentType: media.mimeType || metadata?.contentType || 'application/octet-stream',
+      sizeBytes: metadata?.sizeBytes ?? media.fileSize ?? 0,
+    };
+  }
+
+  async openOriginalPreviewStream(
+    studioId: string,
+    id: string,
+    range?: { start: number; end: number },
+  ) {
+    const asset = await this.resolveOriginalPreviewAsset(studioId, id);
+    const stream = await this.storageService.getObjectStream(asset.r2ObjectKey, range);
+    if (!stream) {
+      throw new NotFoundException('Media preview is not available yet');
+    }
+    return {
+      ...stream,
+      contentType: stream.contentType || asset.contentType,
+      sizeBytes: asset.sizeBytes,
+    };
+  }
+
   async setMediaThumbnail(studioId: string, id: string, thumbnailBase64: string) {
     const media = await this.findDocument(studioId, id);
 

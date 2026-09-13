@@ -3,16 +3,12 @@ import { Button, Input, Modal, message } from 'antd';
 import type { MediaItem } from '@/types/media.types';
 import { MediaType } from '@/types/media.types';
 import { mediaService } from '@/services/media.service';
-import { apiClient, getErrorMessage } from '@/api/client';
+import { getErrorMessage } from '@/api/client';
 import { ConfirmModal } from '@/components/ConfirmModal';
-import {
-  StudioMediaThumbnail,
-  invalidateStudioMediaPreviewCache,
-  loadAuthenticatedMediaPreview,
-} from './StudioMediaThumbnail';
+import { StudioMediaThumbnail, invalidateStudioMediaPreviewCache } from './StudioMediaThumbnail';
 import { VideoThumbnailSelectModal } from './VideoThumbnailSelectModal';
-import { getStudioMediaPreviewPath } from '@/features/media/utils/media-preview-url';
 import { withCacheBust } from '@/features/media/utils/cache-bust';
+import { getAuthenticatedMediaStreamUrl } from '@/features/media/utils/media-preview-url';
 import { useQueryClient } from '@tanstack/react-query';
 import { mediaKeys } from '@/hooks/useMediaQueries';
 import { arTargetKeys } from '@/hooks/useArTargetQueries';
@@ -36,11 +32,11 @@ export const FilePreviewModal = ({
 }: FilePreviewModalProps) => {
   const queryClient = useQueryClient();
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [thumbPickerFile, setThumbPickerFile] = useState<File | null>(null);
+  const [coverOpen, setCoverOpen] = useState(false);
+  const [coverSrc, setCoverSrc] = useState<string | null>(null);
   const [previewSrc, setPreviewSrc] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [loadingCover, setLoadingCover] = useState(false);
   const [savingCover, setSavingCover] = useState(false);
   const [displayName, setDisplayName] = useState('');
   const [savingName, setSavingName] = useState(false);
@@ -53,13 +49,8 @@ export const FilePreviewModal = ({
   if (!item) return null;
 
   const loadPreview = async () => {
-    const direct = item.publicUrl;
-    if (direct) {
-      setPreviewSrc(direct);
-      return;
-    }
-    const blobUrl = await loadAuthenticatedMediaPreview(item.id, 'original');
-    setPreviewSrc(blobUrl);
+    // Prefer Range-capable API stream (token in query) so large videos don't fully buffer first.
+    setPreviewSrc(getAuthenticatedMediaStreamUrl(item.id, 'original'));
   };
 
   const kind = item.mediaType === MediaType.VIDEO ? 'video' : 'photo';
@@ -84,21 +75,10 @@ export const FilePreviewModal = ({
     }
   };
 
-  const openCoverPicker = async () => {
-    setLoadingCover(true);
-    try {
-      const { data } = await apiClient.get<Blob>(getStudioMediaPreviewPath(item.id, 'original'), {
-        responseType: 'blob',
-      });
-      if (!data || data.size === 0) throw new Error('Video preview unavailable');
-      const type = data.type || 'video/mp4';
-      setThumbPickerFile(new File([data], item.originalFileName, { type }));
-    } catch (error) {
-      message.error(getErrorMessage(error, 'Could not open cover picker'));
-      setThumbPickerFile(null);
-    } finally {
-      setLoadingCover(false);
-    }
+  const openCoverPicker = () => {
+    // Instant open — video seeks over Range stream; no full-file download.
+    setCoverSrc(getAuthenticatedMediaStreamUrl(item.id, 'original'));
+    setCoverOpen(true);
   };
 
   const saveDisplayName = async () => {
@@ -133,7 +113,11 @@ export const FilePreviewModal = ({
         onCancel={onClose}
         afterOpenChange={(visible) => {
           if (visible) void loadPreview();
-          else setPreviewSrc(null);
+          else {
+            setPreviewSrc(null);
+            setCoverOpen(false);
+            setCoverSrc(null);
+          }
         }}
         footer={
           onDelete ? (
@@ -181,7 +165,7 @@ export const FilePreviewModal = ({
         </div>
 
         {item.mediaType === MediaType.VIDEO ? (
-          <Button className="mb-4" loading={loadingCover} onClick={() => void openCoverPicker()}>
+          <Button className="mb-4" onClick={openCoverPicker}>
             Choose cover frame
           </Button>
         ) : null}
@@ -228,11 +212,15 @@ export const FilePreviewModal = ({
       />
 
       <VideoThumbnailSelectModal
-        open={Boolean(thumbPickerFile)}
-        file={thumbPickerFile}
+        open={coverOpen}
+        sourceUrl={coverSrc}
+        defaultDisplayName={item.originalFileName}
         confirmingOverride={savingCover}
         onCancel={() => {
-          if (!savingCover) setThumbPickerFile(null);
+          if (!savingCover) {
+            setCoverOpen(false);
+            setCoverSrc(null);
+          }
         }}
         onConfirm={async (payload) => {
           setSavingCover(true);
@@ -243,7 +231,8 @@ export const FilePreviewModal = ({
               ...updated,
               thumbnailUrl: withCacheBust(updated.thumbnailUrl),
             });
-            setThumbPickerFile(null);
+            setCoverOpen(false);
+            setCoverSrc(null);
             message.success('Cover frame updated');
           } catch (error) {
             message.error(getErrorMessage(error, 'Could not save thumbnail'));

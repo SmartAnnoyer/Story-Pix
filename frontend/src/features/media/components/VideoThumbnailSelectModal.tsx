@@ -5,7 +5,11 @@ import { stripFileExtension } from '@/features/media/utils/cache-bust';
 
 interface VideoThumbnailSelectModalProps {
   open: boolean;
-  file: File | null;
+  /** Local upload file (preferred when available). */
+  file?: File | null;
+  /** Remote/blob URL for existing library videos — avoids re-wrapping as File. */
+  sourceUrl?: string | null;
+  defaultDisplayName?: string;
   onCancel: () => void;
   onConfirm: (payload: {
     thumbnailBase64: string;
@@ -22,7 +26,9 @@ const SEEK_DEBOUNCE_MS = 120;
 
 export const VideoThumbnailSelectModal = ({
   open,
-  file,
+  file = null,
+  sourceUrl = null,
+  defaultDisplayName,
   onCancel,
   onConfirm,
   confirmingOverride,
@@ -31,6 +37,7 @@ export const VideoThumbnailSelectModal = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const seekTokenRef = useRef(0);
   const debounceRef = useRef<number | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [duration, setDuration] = useState(0);
   const [width, setWidth] = useState(0);
@@ -39,18 +46,15 @@ export const VideoThumbnailSelectModal = ({
   const [seeking, setSeeking] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [previewReady, setPreviewReady] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [displayName, setDisplayName] = useState('');
 
   const busy = confirmingOverride ?? confirming;
+  const needsCors = Boolean(videoUrl && /^https?:\/\//i.test(videoUrl));
 
-  const paintPreview = useCallback((video: HTMLVideoElement, canvas: HTMLCanvasElement) => {
-    const ctx = canvas.getContext('2d');
-    if (!ctx || video.videoWidth <= 0) return false;
-
-    const scaled = scaleToMaxEdge(video.videoWidth, video.videoHeight, 720);
-    canvas.width = scaled.width;
-    canvas.height = scaled.height;
-    ctx.drawImage(video, 0, 0, scaled.width, scaled.height);
+  const paintPreview = useCallback((video: HTMLVideoElement, _canvas: HTMLCanvasElement) => {
+    if (video.videoWidth <= 0) return false;
+    // Visible <video> is the scrubber preview; canvas is only used on confirm.
     setPreviewReady(true);
     return true;
   }, []);
@@ -87,7 +91,10 @@ export const VideoThumbnailSelectModal = ({
         }
 
         if (token !== seekTokenRef.current) return;
-        paintPreview(video, canvas);
+        if (!paintPreview(video, canvas)) {
+          setLoadFailed(true);
+          return;
+        }
         setTime(video.currentTime);
         setWidth(video.videoWidth || width);
         setHeight(video.videoHeight || height);
@@ -102,9 +109,10 @@ export const VideoThumbnailSelectModal = ({
   );
 
   useEffect(() => {
-    if (!open || !file) {
+    if (!open) {
       setVideoUrl(null);
       setPreviewReady(false);
+      setLoadFailed(false);
       setDuration(0);
       setWidth(0);
       setHeight(0);
@@ -112,19 +120,36 @@ export const VideoThumbnailSelectModal = ({
       setSeeking(false);
       setConfirming(false);
       setDisplayName('');
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
       return undefined;
     }
 
-    const url = URL.createObjectURL(file);
-    setVideoUrl(url);
+    const fallbackName = defaultDisplayName || (file ? stripFileExtension(file.name) : 'Video');
+    setDisplayName(stripFileExtension(fallbackName) || fallbackName);
     setPreviewReady(false);
-    setDisplayName(stripFileExtension(file.name));
+    setLoadFailed(false);
+
+    if (file) {
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
+      const url = URL.createObjectURL(file);
+      objectUrlRef.current = url;
+      setVideoUrl(url);
+    } else if (sourceUrl) {
+      setVideoUrl(sourceUrl);
+    } else {
+      setVideoUrl(null);
+    }
 
     return () => {
       if (debounceRef.current) window.clearTimeout(debounceRef.current);
-      URL.revokeObjectURL(url);
     };
-  }, [open, file]);
+  }, [open, file, sourceUrl, defaultDisplayName]);
 
   useEffect(() => {
     if (!open || !videoUrl) return;
@@ -138,11 +163,18 @@ export const VideoThumbnailSelectModal = ({
       void seekTo(0);
     };
 
+    const onError = () => setLoadFailed(true);
+
+    video.addEventListener('error', onError);
     if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
       boot();
     } else {
       video.addEventListener('loadedmetadata', boot, { once: true });
     }
+
+    return () => {
+      video.removeEventListener('error', onError);
+    };
   }, [open, videoUrl, seekTo]);
 
   const handleSliderChange = (value: number | number[]) => {
@@ -157,24 +189,29 @@ export const VideoThumbnailSelectModal = ({
   const handleConfirm = async () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    if (!video || !canvas || !file || !previewReady) return;
+    if (!video || !canvas || !previewReady) return;
 
     setConfirming(true);
     try {
-      // Re-seek to the chosen time so the painted frame matches the slider.
       await seekTo(time);
+      const scaled = scaleToMaxEdge(video.videoWidth, video.videoHeight, 720);
+      canvas.width = scaled.width;
+      canvas.height = scaled.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Canvas unavailable');
+      ctx.drawImage(video, 0, 0, scaled.width, scaled.height);
+
       let blob: Blob | null = await new Promise((resolve) => {
         canvas.toBlob((result) => resolve(result), 'image/jpeg', 0.82);
       });
 
       if (!blob) {
         const exportCanvas = document.createElement('canvas');
-        const scaled = scaleToMaxEdge(video.videoWidth, video.videoHeight);
         exportCanvas.width = scaled.width;
         exportCanvas.height = scaled.height;
-        const ctx = exportCanvas.getContext('2d');
-        if (!ctx) throw new Error('Canvas unavailable');
-        ctx.drawImage(video, 0, 0, scaled.width, scaled.height);
+        const exportCtx = exportCanvas.getContext('2d');
+        if (!exportCtx) throw new Error('Canvas unavailable');
+        exportCtx.drawImage(video, 0, 0, scaled.width, scaled.height);
         blob = await new Promise<Blob>((resolve, reject) => {
           exportCanvas.toBlob(
             (result) => (result ? resolve(result) : reject(new Error('Could not capture frame'))),
@@ -192,7 +229,8 @@ export const VideoThumbnailSelectModal = ({
         width: width || video.videoWidth,
         height: height || video.videoHeight,
         duration: duration || video.duration,
-        displayName: displayName.trim() || stripFileExtension(file.name),
+        displayName:
+          displayName.trim() || stripFileExtension(file?.name || defaultDisplayName || 'Video'),
       });
     } finally {
       setConfirming(false);
@@ -214,7 +252,7 @@ export const VideoThumbnailSelectModal = ({
           key="confirm"
           type="primary"
           loading={busy}
-          disabled={!previewReady || busy}
+          disabled={!previewReady || busy || loadFailed}
           onClick={() => void handleConfirm()}
         >
           Use this frame
@@ -238,16 +276,24 @@ export const VideoThumbnailSelectModal = ({
       </div>
 
       <div className="video-thumb-picker">
-        <canvas ref={canvasRef} className="video-thumb-picker__preview" />
-        {!previewReady ? <div className="video-thumb-picker__loading">Loading video…</div> : null}
         <video
           ref={videoRef}
           src={videoUrl ?? undefined}
-          className="hidden"
+          className="video-thumb-picker__video"
           playsInline
           muted
-          preload="auto"
+          preload="metadata"
+          crossOrigin={needsCors ? 'anonymous' : undefined}
         />
+        <canvas ref={canvasRef} className="video-thumb-picker__preview" hidden />
+        {!previewReady && !loadFailed ? (
+          <div className="video-thumb-picker__loading">Loading video…</div>
+        ) : null}
+        {loadFailed ? (
+          <div className="video-thumb-picker__loading">
+            Could not load this video for cover pick.
+          </div>
+        ) : null}
       </div>
       <Slider
         className="mt-4"
@@ -255,7 +301,7 @@ export const VideoThumbnailSelectModal = ({
         max={Math.max(duration, 0.1)}
         step={0.05}
         value={time}
-        disabled={duration <= 0 || busy}
+        disabled={duration <= 0 || busy || loadFailed}
         tooltip={{ formatter: (value) => `${(value ?? 0).toFixed(1)}s` }}
         onChange={handleSliderChange}
       />

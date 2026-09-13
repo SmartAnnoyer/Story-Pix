@@ -7,6 +7,7 @@ import { useAlbumActionMutation, useAlbumsQuery } from '@/hooks/useAlbumQueries'
 import { useStudioPackSummaryQuery } from '@/hooks/usePackQueries';
 import { AlbumStatus } from '@/types/album.types';
 import { albumStatusFilterLabel } from '@/features/albums/utils/studio-labels';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { ROUTES } from '@/routes/paths';
 import { getErrorMessage } from '@/api/client';
 import '../DashboardPage.css';
@@ -28,7 +29,7 @@ export const AlbumsListPage = () => {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<AlbumFilter>('all');
-  const { data: packs } = useStudioPackSummaryQuery();
+  const { data: packs, isLoading: packsLoading } = useStudioPackSummaryQuery();
 
   const queryParams = useMemo(
     () => ({
@@ -42,12 +43,14 @@ export const AlbumsListPage = () => {
 
   const { data, isLoading } = useAlbumsQuery(queryParams);
   const actionMutation = useAlbumActionMutation();
+  const packsReady = !packsLoading && packs != null;
   const mappingsLeft = packs?.remainingMappingSlots ?? packs?.remainingAlbumCredits ?? 0;
   const mappingsTotal = packs?.grantedMappingSlots ?? packs?.totalAssignedCredits ?? 0;
   const albumTotal = data?.pagination.total ?? 0;
   const showSearch = albumTotal > 5 || Boolean(search) || Boolean(searchInput.trim());
   const showArchive = filter !== AlbumStatus.ARCHIVED;
-  const canCreate = mappingsLeft > 0;
+  const canCreate = packsReady && mappingsLeft > 0;
+  const outOfPhotos = packsReady && mappingsLeft <= 0;
 
   const applySearch = () => {
     setSearch(searchInput.trim());
@@ -72,11 +75,19 @@ export const AlbumsListPage = () => {
     }
   };
 
+  if (packsLoading && !packs) {
+    return <LoadingSpinner />;
+  }
+
   return (
     <div className="studio-home albums-page">
       <header className="albums-page__hero">
-        <span className="albums-page__mappings">
-          <strong>{mappingsLeft}</strong> left of {mappingsTotal}
+        <span
+          className={`albums-page__credits${outOfPhotos ? ' albums-page__credits--warn' : ''}`}
+          aria-live="polite"
+        >
+          <strong>{mappingsLeft}</strong>
+          <span>left of {mappingsTotal}</span>
         </span>
         <button
           type="button"
@@ -89,7 +100,7 @@ export const AlbumsListPage = () => {
         </button>
       </header>
 
-      {mappingsLeft <= 0 ? (
+      {outOfPhotos ? (
         <Alert
           className="!mb-4 albums-page__alert"
           type="warning"

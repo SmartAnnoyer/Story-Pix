@@ -146,27 +146,29 @@
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;
-  min-height: 1.45rem;
-  padding: 0.12rem 0.5rem;
-  border-radius: 6px;
+  min-height: 1.5rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
   font-size: 0.72rem;
-  font-weight: 700;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+  line-height: 1.3;
 }
 
 .album-card__status--published {
-  color: #6b2cdb;
+  color: var(--sp-primary, #6b2cdb);
   background: #f3eefc;
   border: 1px solid rgba(107, 44, 219, 0.22);
 }
 
 .album-card__status--draft {
-  color: #3b4fe8;
+  color: var(--sp-primary-blue, #3b4fe8);
   background: #eef0ff;
   border: 1px solid rgba(59, 79, 232, 0.2);
 }
 
 .album-card__status--archived {
-  color: #5c5c66;
+  color: var(--sp-text-muted, #5c5c66);
   background: #f3f3f5;
   border: 1px solid rgba(92, 92, 102, 0.18);
 }

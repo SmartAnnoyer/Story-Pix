@@ -27,16 +27,36 @@
   flex-shrink: 0;
 }
 
-.albums-page__mappings {
-  font-size: 0.84rem;
-  font-weight: 560;
-  color: #6a6772;
+.albums-page__credits {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
   min-width: 0;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid rgba(107, 44, 219, 0.22);
+  background: #f3eefc;
+  color: var(--sp-text-muted, #5c5c66);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
 }
 
-.albums-page__mappings strong {
-  color: #5b2cdb;
-  font-weight: 700;
+.albums-page__credits strong {
+  color: var(--sp-primary, #6b2cdb);
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.albums-page__credits--warn {
+  border-color: rgba(233, 58, 138, 0.28);
+  background: #fff0f6;
+  color: #8a3a5c;
+}
+
+.albums-page__credits--warn strong {
+  color: var(--sp-accent-pink, #e93a8a);
 }
 
 .albums-page__toolbar {
