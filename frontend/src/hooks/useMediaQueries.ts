@@ -74,6 +74,9 @@ export const useUpdateMediaMutation = () => {
   return useMutation({
     mutationFn: ({ id, originalFileName }: { id: string; originalFileName: string }) =>
       mediaService.updateMedia(id, { originalFileName }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: mediaKeys.all }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: mediaKeys.all });
+      void qc.invalidateQueries({ queryKey: ['ar-targets'] });
+    },
   });
 };

@@ -3,13 +3,14 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { message } from 'antd';
 import { MappingForm } from '@/features/ar/components/MappingForm';
 import { AlbumDeliveryGuide } from '@/features/albums/components/AlbumDeliveryGuide';
-import { albumMediaPath, albumSharePath } from '@/features/albums/utils/album-delivery';
+import { albumMediaPath } from '@/features/albums/utils/album-delivery';
 import { useAlbumQuery } from '@/hooks/useAlbumQueries';
 import { useAlbumMediaQuery } from '@/hooks/useMediaQueries';
 import { useCreateArTargetMutation, usePublishArTargetMutation } from '@/hooks/useArTargetQueries';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { MediaStatus, MediaType } from '@/types/media.types';
 import { getErrorMessage } from '@/api/client';
+import { ROUTES } from '@/routes/paths';
 import '@/pages/DashboardPage.css';
 import './AlbumStudioPages.css';
 
@@ -71,15 +72,6 @@ export const CreateMappingPage = () => {
       <header className="studio-home__hero">
         <p className="studio-home__eyebrow">Link print → video</p>
         <h1>{album.albumName}</h1>
-        <div className="studio-home__actions">
-          <button
-            type="button"
-            className="studio-home__btn studio-home__btn--ghost"
-            onClick={() => navigate(albumSharePath(id))}
-          >
-            Share
-          </button>
-        </div>
       </header>
 
       <AlbumDeliveryGuide albumId={id} current="map" />
@@ -109,7 +101,7 @@ export const CreateMappingPage = () => {
           loading={createMutation.isPending || publishMutation.isPending}
           submitLabel="Save and continue"
           onSubmitBatch={handleSubmitBatch}
-          onCancel={() => navigate(albumSharePath(id))}
+          onCancel={() => navigate(ROUTES.ALBUM_AR_MAPPINGS.replace(':id', id))}
         />
       )}
     </div>

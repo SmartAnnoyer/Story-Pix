@@ -12,6 +12,15 @@ const statusLabels: Record<ArTargetStatus, string> = {
   [ArTargetStatus.ARCHIVED]: 'Hidden',
 };
 
+const displayName = (record: ArTarget) => {
+  const photo = (record.photo?.originalFileName ?? '').replace(/\.[^.]+$/, '').trim();
+  const video = (record.video?.originalFileName ?? '').replace(/\.[^.]+$/, '').trim();
+  if (photo || video) {
+    return `${photo || 'Photo'} → ${video || 'Video'}`;
+  }
+  return record.targetName;
+};
+
 interface MappingTableProps {
   items: ArTarget[];
   loading?: boolean;
@@ -79,7 +88,7 @@ export const MappingTable = ({
               </span>
             </div>
 
-            <h2 className="mapping-card__name">{record.targetName}</h2>
+            <h2 className="mapping-card__name">{displayName(record)}</h2>
             <p className="mapping-card__files">
               {record.photo?.originalFileName ?? 'Photo'} →{' '}
               {record.video?.originalFileName ?? 'Video'}

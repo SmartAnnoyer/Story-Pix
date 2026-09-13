@@ -874,8 +874,7 @@ export const ARViewer = ({
           if (listenersAttachedRef.current) return;
           listenersAttachedRef.current = true;
 
-          uniquePhotos.forEach((photoTarget) => {
-            const mindIndex = photoTarget.targetIndex;
+          uniquePhotos.forEach((photoTarget, mindIndex) => {
             const entity = targetEntities[mindIndex];
             if (!entity) return;
 

@@ -214,6 +214,7 @@ export const TargetFrameVideo = ({
   const playbackKeyRef = useRef(playbackKey);
   const resumeAppliedRef = useRef(false);
   const seekingRef = useRef(false);
+  const loadGenerationRef = useRef(0);
   const [needsTap, setNeedsTap] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -222,7 +223,9 @@ export const TargetFrameVideo = ({
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [scrubbing, setScrubbing] = useState(false);
   const lastTapAtRef = useRef(0);
+  const lastTapPosRef = useRef<{ x: number; y: number } | null>(null);
   const prevPrimaryUrlRef = useRef<string | null>(null);
   const modeRef = useRef(mode);
   modeRef.current = mode;
@@ -875,9 +878,10 @@ export const TargetFrameVideo = ({
   );
 
   const loadAndPlay = useCallback(
-    async (sources: string[]) => {
+    async (sources: string[], isStale?: () => boolean) => {
       const video = videoRef.current;
       if (!video || !sources.length) throw new Error('No video source');
+      if (isStale?.()) return;
 
       video.removeAttribute('crossorigin');
       video.crossOrigin = null;
@@ -944,8 +948,10 @@ export const TargetFrameVideo = ({
           hideNativeVideoControls(video);
           await waitForVideoReady(video, timeoutMs);
         }
+        if (isStale?.()) return;
         applyResumeSeek(video);
         const played = await tryPlay(soundOnRef.current);
+        if (isStale?.()) return;
         if (played || (!video.paused && video.videoWidth > 0)) {
           tryNotifyPlaybackReady();
           window.setTimeout(() => {
@@ -971,6 +977,7 @@ export const TargetFrameVideo = ({
       };
 
       for (const source of uniqueSources) {
+        if (isStale?.()) return;
         try {
           void primeVideoDecoder(source);
           boostVideoBlobPriority(source);
@@ -983,10 +990,12 @@ export const TargetFrameVideo = ({
           });
 
           if (isPlaybackElementPrimed(source)) {
+            if (isStale?.()) return;
             setPlaybackUrl(source);
             hideNativeVideoControls(video);
             applyResumeSeek(video);
             const played = await tryPlay(soundOnRef.current);
+            if (isStale?.()) return;
             if (played || (!video.paused && video.videoWidth > 0)) {
               tryNotifyPlaybackReady();
               viewerLog('info', 'video play ok', {
@@ -1053,13 +1062,7 @@ export const TargetFrameVideo = ({
           );
           return;
         } catch (error) {
-          if (video.videoWidth > 0 && !video.paused) {
-            viewerLog('warn', 'video error ignored — clip already playing', {
-              message: error instanceof Error ? error.message : String(error),
-            });
-            tryNotifyPlaybackReady();
-            return;
-          }
+          if (isStale?.()) return;
           lastError = error;
           viewerLog('warn', 'video source failed', {
             message: error instanceof Error ? error.message : String(error),
@@ -1152,6 +1155,8 @@ export const TargetFrameVideo = ({
     );
 
     let cancelled = false;
+    const generation = ++loadGenerationRef.current;
+    const isStale = () => cancelled || generation !== loadGenerationRef.current;
     setLoading(true);
     setNeedsTap(false);
     hasNotifiedPlayRef.current = false;
@@ -1165,16 +1170,16 @@ export const TargetFrameVideo = ({
       sources: sources.map((src) => src.slice(0, 120)),
     });
 
-    void loadAndPlay(sources)
+    void loadAndPlay(sources, isStale)
       .catch(async (error) => {
-        if (cancelled) return;
+        if (isStale()) return;
         viewerLog('warn', 'TargetFrameVideo loadAndPlay first attempt failed — retrying', {
           message: error instanceof Error ? error.message : String(error),
         });
         try {
-          await loadAndPlay(sources);
+          await loadAndPlay(sources, isStale);
         } catch (retryError) {
-          if (cancelled) return;
+          if (isStale()) return;
           viewerLog('error', 'TargetFrameVideo loadAndPlay failed', {
             message: retryError instanceof Error ? retryError.message : String(retryError),
           });
@@ -1184,7 +1189,7 @@ export const TargetFrameVideo = ({
         }
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!isStale()) setLoading(false);
       });
 
     return () => {
@@ -1278,9 +1283,12 @@ export const TargetFrameVideo = ({
       const max =
         Number.isFinite(video.duration) && video.duration > 0
           ? video.duration
-          : Math.max(value, duration);
+          : Number.isFinite(duration) && duration > 0
+            ? duration
+            : Math.max(value, 0.1);
       const next = Math.min(Math.max(0, value), max);
       seekingRef.current = true;
+      setScrubbing(true);
       setCurrentTime(next);
       video.currentTime = next;
     },
@@ -1289,8 +1297,9 @@ export const TargetFrameVideo = ({
 
   const handleSeekCommit = useCallback(() => {
     seekingRef.current = false;
+    setScrubbing(false);
     const video = videoRef.current;
-    if (video) setCurrentTime(video.currentTime);
+    if (video && Number.isFinite(video.currentTime)) setCurrentTime(video.currentTime);
   }, []);
 
   const handleMuteClick = useCallback(
@@ -1315,15 +1324,21 @@ export const TargetFrameVideo = ({
   );
 
   const handleStageDoubleTap = useCallback(
-    (event: { stopPropagation: () => void }) => {
+    (event: { stopPropagation: () => void; clientX?: number; clientY?: number }) => {
       event.stopPropagation();
       const now = Date.now();
-      if (now - lastTapAtRef.current < 450) {
+      const x = event.clientX ?? 0;
+      const y = event.clientY ?? 0;
+      const prev = lastTapPosRef.current;
+      const nearPrev = prev != null && Math.hypot(x - prev.x, y - prev.y) < 48;
+      if (now - lastTapAtRef.current < 480 && nearPrev) {
         lastTapAtRef.current = 0;
+        lastTapPosRef.current = null;
         handleToggleFullscreen();
         return;
       }
       lastTapAtRef.current = now;
+      lastTapPosRef.current = { x, y };
     },
     [handleToggleFullscreen],
   );
@@ -1447,24 +1462,31 @@ export const TargetFrameVideo = ({
     </div>
   ) : null;
 
-  // Double-tap to enter fullscreen — only while playing in the print frame.
-  // Fullscreen seeks must not be covered by this catcher.
-  const doubleTapCatcher =
+  // Double-tap on the print frame itself (not a viewport-wide catcher).
+  const frameTapLayer =
     active && !needsTap && !showFullscreen && (isPlaying || reveal) ? (
-      <div
-        role="presentation"
-        aria-hidden
-        className="ar-video-dbltap-catcher"
-        onPointerUp={handleStageDoubleTap}
+      <button
+        type="button"
+        className="ar-video-tap-layer"
+        aria-label="Double tap for full screen"
+        onPointerUp={(event) => {
+          handleStageDoubleTap({
+            stopPropagation: () => event.stopPropagation(),
+            clientX: event.clientX,
+            clientY: event.clientY,
+          });
+        }}
       />
     ) : null;
 
   const frameFullscreenHint =
     active && !needsTap && !showFullscreen && (isPlaying || reveal) ? (
-      <p className="ar-video-fs-hint" aria-hidden>
+      <p className="ar-video-fs-hint ar-video-fs-hint--dock" aria-hidden>
         Double tap for full screen
       </p>
     ) : null;
+
+  const seekMax = Number.isFinite(duration) && duration > 0 ? duration : Math.max(currentTime, 0.1);
 
   const fullscreenTransport =
     showFullscreen && active && !needsTap ? (
@@ -1496,18 +1518,26 @@ export const TargetFrameVideo = ({
           className="ar-video-fs-controls__seek"
           type="range"
           min={0}
-          max={Math.max(duration || 0, currentTime, 0.1)}
+          max={seekMax}
           step={0.05}
-          value={Math.min(currentTime, Math.max(duration || 0, currentTime))}
+          value={Math.min(currentTime, seekMax)}
           aria-label="Seek"
           style={
             {
-              '--seek-pct': `${duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0}%`,
+              '--seek-pct': `${seekMax > 0 ? Math.min(100, (currentTime / seekMax) * 100) : 0}%`,
             } as CSSProperties
           }
           onPointerDown={(event) => {
             event.stopPropagation();
             seekingRef.current = true;
+            setScrubbing(true);
+            const end = () => {
+              handleSeekCommit();
+              window.removeEventListener('pointerup', end);
+              window.removeEventListener('pointercancel', end);
+            };
+            window.addEventListener('pointerup', end);
+            window.addEventListener('pointercancel', end);
           }}
           onChange={(event) => handleSeekInput(Number(event.target.value))}
           onPointerUp={(event) => {
@@ -1525,14 +1555,20 @@ export const TargetFrameVideo = ({
       </div>
     ) : null;
 
-  // Double-tap on video (not controls) to exit fullscreen.
+  // Double-tap on video (not controls) to exit fullscreen — disabled while scrubbing.
   const fullscreenDblTapExit =
-    showFullscreen && active && !needsTap ? (
+    showFullscreen && active && !needsTap && !scrubbing ? (
       <div
         role="presentation"
         aria-hidden
         className="ar-video-fs-dbltap"
-        onPointerUp={handleStageDoubleTap}
+        onPointerUp={(event) => {
+          handleStageDoubleTap({
+            stopPropagation: () => event.stopPropagation(),
+            clientX: event.clientX,
+            clientY: event.clientY,
+          });
+        }}
       />
     ) : null;
 
@@ -1583,7 +1619,6 @@ export const TargetFrameVideo = ({
           }
         >
           {showFullscreen ? null : <div className="ar-video-frame-edge" aria-hidden />}
-          {frameFullscreenHint}
           <div className="ar-video-media" ref={mediaRef}>
             {needsTap ? (
               <button
@@ -1597,11 +1632,12 @@ export const TargetFrameVideo = ({
                 Tap to play
               </button>
             ) : null}
+            {frameTapLayer}
           </div>
         </div>
       </div>
 
-      {doubleTapCatcher}
+      {frameFullscreenHint}
       {fullscreenDblTapExit}
       {fullscreenTransport}
       {playbackChrome}

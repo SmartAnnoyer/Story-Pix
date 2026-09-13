@@ -324,7 +324,7 @@
   position: fixed;
   left: 50%;
   bottom: max(18px, calc(env(safe-area-inset-bottom, 0px) + 10px));
-  z-index: 100140;
+  z-index: 100160;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
@@ -438,13 +438,13 @@
   touch-action: manipulation;
 }
 
-/* Leave room for the seek bar at the bottom */
+/* Leave room for the seek bar at the bottom (~controls height + safe area) */
 .ar-video-fs-dbltap {
   position: fixed;
   top: 0;
   right: 0;
   left: 0;
-  bottom: max(96px, calc(env(safe-area-inset-bottom, 0px) + 88px));
+  bottom: max(132px, calc(env(safe-area-inset-bottom, 0px) + 118px));
   z-index: 10090;
   pointer-events: auto;
   background: transparent;
@@ -476,6 +476,17 @@
   color: #fff;
   pointer-events: none;
   animation: ar-fs-hint-in 0.45s ease-out both;
+}
+
+/* Fixed dock — not inside the perspective stage, so it stays readable */
+.ar-video-fs-hint--dock {
+  position: fixed;
+  top: auto;
+  left: 50%;
+  bottom: max(5.75rem, calc(env(safe-area-inset-bottom, 0px) + 4.75rem));
+  z-index: 100100;
+  transform: translateX(-50%);
+  pointer-events: none;
 }
 
 @keyframes ar-fs-hint-in {

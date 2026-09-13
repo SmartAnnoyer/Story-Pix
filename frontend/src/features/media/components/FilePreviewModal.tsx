@@ -13,6 +13,9 @@ import {
 import { VideoThumbnailSelectModal } from './VideoThumbnailSelectModal';
 import { getStudioMediaPreviewPath } from '@/features/media/utils/media-preview-url';
 import { withCacheBust } from '@/features/media/utils/cache-bust';
+import { useQueryClient } from '@tanstack/react-query';
+import { mediaKeys } from '@/hooks/useMediaQueries';
+import { arTargetKeys } from '@/hooks/useArTargetQueries';
 
 interface FilePreviewModalProps {
   item: MediaItem | null;
@@ -31,6 +34,7 @@ export const FilePreviewModal = ({
   linkedLinkCount = 0,
   onUpdated,
 }: FilePreviewModalProps) => {
+  const queryClient = useQueryClient();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [thumbPickerFile, setThumbPickerFile] = useState<File | null>(null);
   const [previewSrc, setPreviewSrc] = useState<string | null>(null);
@@ -111,6 +115,8 @@ export const FilePreviewModal = ({
     setSavingName(true);
     try {
       const updated = await mediaService.updateMedia(item.id, { originalFileName: nextName });
+      void queryClient.invalidateQueries({ queryKey: mediaKeys.all });
+      void queryClient.invalidateQueries({ queryKey: arTargetKeys.all });
       onUpdated?.(updated);
       message.success('Name saved');
     } catch (error) {

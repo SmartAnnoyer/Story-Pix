@@ -50,6 +50,10 @@ export const SignupPage = () => {
     () => packs.filter((pack) => pack.tier !== AlbumPackTier.PERSONAL),
     [packs],
   );
+  const catalogPacks = useMemo(
+    () => [...personalPacks, ...studioPacks],
+    [personalPacks, studioPacks],
+  );
 
   const items: CartItem[] = useMemo(
     () =>
@@ -150,11 +154,12 @@ export const SignupPage = () => {
           <Alert type="error" showIcon message={error} className="signup-page__alert" />
         ) : null}
 
-        <section className="signup-page__packs" aria-label="How many photos">
-          <h2>How many photos?</h2>
-          <p className="signup-page__hint">Tap + on a size. Mix sizes if you want (5 + 3 = 8).</p>
+        <section className="signup-page__packs" aria-label="Choose packs">
+          <h2>Choose a pack</h2>
+          <p className="signup-page__hint">Tap + on a size. Mix packs if you want.</p>
           <div className="signup-page__grid">
-            {personalPacks.map((pack) => {
+            {catalogPacks.map((pack) => {
+              const photos = pack.maxMappings * pack.albumsIncluded;
               const selected = (qty[pack.id] ?? 0) > 0;
               return (
                 <article
@@ -163,11 +168,11 @@ export const SignupPage = () => {
                 >
                   <div>
                     <strong>
-                      {pack.maxMappings} photo{pack.maxMappings === 1 ? '' : 's'}
+                      {photos} photo{photos === 1 ? '' : 's'}
                     </strong>
                     <span>₹{pack.unitPriceInr}</span>
                   </div>
-                  <p>1,000 guest plays each</p>
+                  <p>{pack.name}</p>
                   <div className="signup-pack__qty">
                     <button type="button" onClick={() => bump(pack.id, -1)} aria-label="Less">
                       −
@@ -182,39 +187,6 @@ export const SignupPage = () => {
             })}
           </div>
         </section>
-
-        {studioPacks.length ? (
-          <section className="signup-page__packs" aria-label="Shop packs">
-            <h2>For photo shops</h2>
-            <div className="signup-page__grid">
-              {studioPacks.map((pack) => {
-                const slots = pack.maxMappings * pack.albumsIncluded;
-                const selected = (qty[pack.id] ?? 0) > 0;
-                return (
-                  <article
-                    key={pack.id}
-                    className={`signup-pack${selected ? ' signup-pack--on' : ''}`}
-                  >
-                    <div>
-                      <strong>{pack.name}</strong>
-                      <span>₹{pack.unitPriceInr}</span>
-                    </div>
-                    <p>{slots} photos</p>
-                    <div className="signup-pack__qty">
-                      <button type="button" onClick={() => bump(pack.id, -1)} aria-label="Less">
-                        −
-                      </button>
-                      <span>{qty[pack.id] ?? 0}</span>
-                      <button type="button" onClick={() => bump(pack.id, 1)} aria-label="More">
-                        +
-                      </button>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          </section>
-        ) : null}
 
         <Form
           id="signup-form"
