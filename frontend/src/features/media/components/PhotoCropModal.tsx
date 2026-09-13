@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
-import Cropper, { type Area } from 'react-easy-crop';
-import { Button, Modal, Slider } from 'antd';
-import { getCroppedImageFile } from '../utils/crop-image';
+import { useEffect, useRef, useState } from 'react';
+import ReactCrop, { centerCrop, makeAspectCrop, type Crop, type PixelCrop } from 'react-image-crop';
+import { Button, Modal } from 'antd';
+import { getFreeCroppedImageFile } from '../utils/crop-image';
+import 'react-image-crop/dist/ReactCrop.css';
+import './PhotoCropModal.css';
 
 interface PhotoCropModalProps {
   open: boolean;
@@ -13,6 +15,14 @@ interface PhotoCropModalProps {
   onConfirm: (file: File) => void;
 }
 
+function initialFreeCrop(mediaWidth: number, mediaHeight: number): Crop {
+  return centerCrop(
+    makeAspectCrop({ unit: '%', width: 90 }, mediaWidth / mediaHeight, mediaWidth, mediaHeight),
+    mediaWidth,
+    mediaHeight,
+  );
+}
+
 export const PhotoCropModal = ({
   open,
   imageSrc,
@@ -21,28 +31,24 @@ export const PhotoCropModal = ({
   onCancel,
   onConfirm,
 }: PhotoCropModalProps) => {
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [croppedArea, setCroppedArea] = useState<Area | null>(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const [crop, setCrop] = useState<Crop>();
+  const [completedCrop, setCompletedCrop] = useState<PixelCrop | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!open) return;
-    setCrop({ x: 0, y: 0 });
-    setZoom(1);
-    setCroppedArea(null);
+    setCrop(undefined);
+    setCompletedCrop(null);
     setSaving(false);
   }, [open, imageSrc]);
 
-  const onCropComplete = useCallback((_: Area, croppedPixels: Area) => {
-    setCroppedArea(croppedPixels);
-  }, []);
-
   const handleUseCrop = async () => {
-    if (!imageSrc || !croppedArea) return;
+    const image = imgRef.current;
+    if (!image || !completedCrop?.width || !completedCrop?.height) return;
     setSaving(true);
     try {
-      const file = await getCroppedImageFile(imageSrc, croppedArea, fileName);
+      const file = await getFreeCroppedImageFile(image, completedCrop, fileName);
       onConfirm(file);
     } finally {
       setSaving(false);
@@ -86,33 +92,38 @@ export const PhotoCropModal = ({
           key="crop"
           type="primary"
           loading={saving}
-          disabled={!croppedArea}
+          disabled={!completedCrop?.width || !completedCrop?.height}
           onClick={() => void handleUseCrop()}
         >
           Use selection
         </Button>,
       ]}
     >
-      <p className="mb-3 text-sm text-neutral-500">
-        Optional — keep the full photo, or drag and zoom to trim edges. No fixed frame size.
+      <p className="photo-crop-modal__hint">
+        Drag the corners freely to crop — no fixed ratio. Or keep the full photo.
       </p>
-      <div className="relative h-[min(55vh,420px)] overflow-hidden rounded-lg bg-black">
+      <div className="photo-crop-modal__stage">
         {imageSrc ? (
-          <Cropper
-            image={imageSrc}
+          <ReactCrop
             crop={crop}
-            zoom={zoom}
-            onCropChange={setCrop}
-            onZoomChange={setZoom}
-            onCropComplete={onCropComplete}
-            objectFit="contain"
-            showGrid
-          />
+            onChange={(next) => setCrop(next)}
+            onComplete={(next) => setCompletedCrop(next)}
+            keepSelection
+            ruleOfThirds
+          >
+            <img
+              ref={imgRef}
+              src={imageSrc}
+              alt="Crop preview"
+              className="photo-crop-modal__image"
+              onLoad={(event) => {
+                const { naturalWidth, naturalHeight } = event.currentTarget;
+                const next = initialFreeCrop(naturalWidth, naturalHeight);
+                setCrop(next);
+              }}
+            />
+          </ReactCrop>
         ) : null}
-      </div>
-      <div className="mt-4 px-1">
-        <p className="mb-1 text-xs text-neutral-500">Zoom</p>
-        <Slider min={1} max={3} step={0.05} value={zoom} onChange={setZoom} />
       </div>
     </Modal>
   );

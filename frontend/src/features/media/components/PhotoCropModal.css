@@ -1,0 +1,39 @@
+.photo-crop-modal__hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: #6a6772;
+}
+
+.photo-crop-modal__stage {
+  display: flex;
+  justify-content: center;
+  max-height: min(55vh, 420px);
+  overflow: auto;
+  border-radius: 10px;
+  background: #111;
+}
+
+.photo-crop-modal__image {
+  display: block;
+  max-width: 100%;
+  max-height: min(55vh, 420px);
+  object-fit: contain;
+}
+
+.photo-crop-modal__stage .ReactCrop {
+  max-width: 100%;
+}
+
+.photo-crop-modal__stage .ReactCrop__crop-selection {
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+}
+
+.photo-crop-modal__stage .ReactCrop__drag-handle {
+  width: 14px;
+  height: 14px;
+  background: #fff;
+  border: 2px solid #5b2cdb;
+  border-radius: 3px;
+}

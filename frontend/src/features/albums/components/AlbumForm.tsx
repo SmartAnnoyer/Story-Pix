@@ -6,12 +6,12 @@ import type { CreateAlbumPayload, UpdateAlbumPayload } from '@/types/album.types
 
 const createSchema = z.object({
   albumName: z.string().min(2, 'Please enter an album name'),
-  customerName: z.string().min(2, 'Please enter the client name'),
+  customerName: z.string().min(2, 'Please enter your name'),
 });
 
 const editSchema = z.object({
   albumName: z.string().min(2, 'Please enter an album name'),
-  customerName: z.string().min(2, 'Please enter the client name'),
+  customerName: z.string().min(2, 'Please enter your name'),
 });
 
 type CreateFormValues = z.infer<typeof createSchema>;
@@ -87,15 +87,15 @@ export const AlbumForm = (props: AlbumFormProps) => {
       </Form.Item>
 
       <Form.Item
-        label="Client name"
-        extra="Who this album is for"
+        label="Your name"
+        extra="Shown with this album"
         validateStatus={'customerName' in errors && errors.customerName ? 'error' : ''}
         help={'customerName' in errors ? errors.customerName?.message : undefined}
       >
         <Controller
           name="customerName"
           control={control}
-          render={({ field }) => <Input {...field} size="large" placeholder="Client name" />}
+          render={({ field }) => <Input {...field} size="large" placeholder="Your name" />}
         />
       </Form.Item>
 

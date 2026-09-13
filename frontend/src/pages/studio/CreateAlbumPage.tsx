@@ -3,6 +3,7 @@ import { message } from 'antd';
 import { AlbumForm } from '@/features/albums/components/AlbumForm';
 import { useCreateAlbumMutation } from '@/hooks/useAlbumQueries';
 import { useStudioPackSummaryQuery } from '@/hooks/usePackQueries';
+import { useAuthStore } from '@/store/auth.store';
 import { getErrorMessage } from '@/api/client';
 import { ROUTES } from '@/routes/paths';
 import type { CreateAlbumPayload } from '@/types/album.types';
@@ -13,6 +14,7 @@ import './CreateAlbumPage.css';
 
 export const CreateAlbumPage = () => {
   const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
   const createMutation = useCreateAlbumMutation();
   const { data: packs, isLoading } = useStudioPackSummaryQuery();
 
@@ -33,6 +35,8 @@ export const CreateAlbumPage = () => {
 
   if (isLoading) return <LoadingSpinner />;
 
+  const defaultName = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim();
+
   return (
     <div className="studio-home create-album">
       <header className="create-album__hero">
@@ -42,6 +46,7 @@ export const CreateAlbumPage = () => {
       <AlbumForm
         mode="create"
         remainingMappingSlots={packs?.remainingMappingSlots ?? packs?.remainingAlbumCredits}
+        initialValues={defaultName ? { customerName: defaultName } : undefined}
         onSubmit={handleSubmit}
         isSubmitting={createMutation.isPending}
       />

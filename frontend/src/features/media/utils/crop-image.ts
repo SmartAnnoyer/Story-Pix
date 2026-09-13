@@ -1,4 +1,5 @@
 import type { Area } from 'react-easy-crop';
+import type { PixelCrop } from 'react-image-crop';
 
 /** Shared portrait frame for AR photo capture / crop / scan guide. */
 export const AR_PHOTO_ASPECT = 3 / 4;
@@ -20,6 +21,49 @@ export const getCroppedImageFile = async (
   canvas.height = height;
 
   ctx.drawImage(image, crop.x, crop.y, crop.width, crop.height, 0, 0, width, height);
+
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (result) => (result ? resolve(result) : reject(new Error('Could not encode cropped image'))),
+      mimeType,
+      0.92,
+    );
+  });
+
+  const base = fileName.replace(/\.[^.]+$/, '') || 'photo';
+  const ext = mimeType === 'image/png' ? 'png' : 'jpg';
+  return new File([blob], `${base}-cropped.${ext}`, { type: mimeType });
+};
+
+/** Free-form crop from react-image-crop pixel selection. */
+export const getFreeCroppedImageFile = async (
+  image: HTMLImageElement,
+  crop: PixelCrop,
+  fileName: string,
+  mimeType = 'image/jpeg',
+): Promise<File> => {
+  const scaleX = image.naturalWidth / image.width;
+  const scaleY = image.naturalHeight / image.height;
+  const width = Math.max(1, Math.round(crop.width * scaleX));
+  const height = Math.max(1, Math.round(crop.height * scaleY));
+
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Could not crop image');
+
+  canvas.width = width;
+  canvas.height = height;
+  ctx.drawImage(
+    image,
+    crop.x * scaleX,
+    crop.y * scaleY,
+    crop.width * scaleX,
+    crop.height * scaleY,
+    0,
+    0,
+    width,
+    height,
+  );
 
   const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(

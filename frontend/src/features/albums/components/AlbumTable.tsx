@@ -67,7 +67,7 @@ export const AlbumTable = ({
 
             <div className="album-card__meta">
               <div>
-                <span>Client</span>
+                <span>Name</span>
                 <strong>{album.customerName || '—'}</strong>
               </div>
               <div>

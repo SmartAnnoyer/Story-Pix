@@ -42,6 +42,7 @@ export const useDeleteMediaMutation = () => {
       void qc.invalidateQueries({ queryKey: mediaKeys.all });
       void qc.invalidateQueries({ queryKey: ['ar-targets'] });
       void qc.invalidateQueries({ queryKey: ['albums'] });
+      void qc.invalidateQueries({ queryKey: ['packs'] });
     },
   });
 };

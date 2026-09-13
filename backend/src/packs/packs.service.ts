@@ -201,9 +201,13 @@ export class PacksService implements OnModuleInit {
   }
 
   async countUsedMappingSlots(studioId: string) {
+    // Match both ObjectId and legacy string studioId values.
+    const studioFilter = Types.ObjectId.isValid(studioId)
+      ? { $in: [studioId, new Types.ObjectId(studioId)] }
+      : studioId;
     return this.arTargetModel
       .countDocuments({
-        studioId: new Types.ObjectId(studioId),
+        studioId: studioFilter,
         status: { $ne: ArTargetStatus.ARCHIVED },
         deletedAt: null,
       })

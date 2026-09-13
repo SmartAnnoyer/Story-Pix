@@ -112,7 +112,7 @@ export const AlbumDetailsPage = () => {
       <header className="studio-home__hero">
         <p className="studio-home__eyebrow">Step 3 · QR</p>
         <h1>{album.albumName}</h1>
-        <p className="album-details__client">For {album.customerName}</p>
+        <p className="album-details__client">{album.customerName}</p>
         <div className="album-details__badge">
           <AlbumStatusBadge status={album.status} />
         </div>

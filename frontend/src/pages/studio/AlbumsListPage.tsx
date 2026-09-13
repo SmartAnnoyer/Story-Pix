@@ -74,25 +74,19 @@ export const AlbumsListPage = () => {
 
   return (
     <div className="studio-home albums-page">
-      <header className="studio-home__hero albums-page__hero">
-        <h1>Albums</h1>
-        <div className="albums-page__create-row">
-          <button
-            type="button"
-            className="studio-home__btn studio-home__btn--primary albums-page__create-btn"
-            disabled={!canCreate}
-            onClick={() => navigate(ROUTES.ALBUM_CREATE)}
-          >
-            <PlusOutlined aria-hidden />
-            Create album
-          </button>
-          <span className="albums-page__mappings">
-            Mappings left{' '}
-            <strong>
-              {mappingsLeft}/{mappingsTotal}
-            </strong>
-          </span>
-        </div>
+      <header className="albums-page__hero">
+        <span className="albums-page__mappings">
+          <strong>{mappingsLeft}</strong> left of {mappingsTotal}
+        </span>
+        <button
+          type="button"
+          className="studio-home__btn studio-home__btn--primary albums-page__create-btn"
+          disabled={!canCreate}
+          onClick={() => navigate(ROUTES.ALBUM_CREATE)}
+        >
+          <PlusOutlined aria-hidden />
+          Create album
+        </button>
       </header>
 
       {mappingsLeft <= 0 ? (

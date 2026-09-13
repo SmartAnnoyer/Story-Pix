@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { arTargetService } from '@/services/ar-target.service';
 import { albumKeys } from '@/hooks/useAlbumQueries';
+import { packKeys } from '@/hooks/usePackQueries';
 import type {
   ArTargetQueryParams,
   CreateArTargetPayload,
@@ -13,6 +14,11 @@ export const arTargetKeys = {
   album: (albumId: string, params?: ArTargetQueryParams) =>
     [...arTargetKeys.all, 'album', albumId, params] as const,
   detail: (id: string) => [...arTargetKeys.all, 'detail', id] as const,
+};
+
+const invalidateMappingQuota = (qc: ReturnType<typeof useQueryClient>) => {
+  void qc.invalidateQueries({ queryKey: arTargetKeys.all });
+  void qc.invalidateQueries({ queryKey: packKeys.all });
 };
 
 export const useAlbumArTargetsQuery = (albumId: string, params?: ArTargetQueryParams) =>
@@ -33,7 +39,7 @@ export const useCreateArTargetMutation = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: CreateArTargetPayload) => arTargetService.createArTarget(payload),
-    onSuccess: () => qc.invalidateQueries({ queryKey: arTargetKeys.all }),
+    onSuccess: () => invalidateMappingQuota(qc),
   });
 };
 
@@ -50,7 +56,7 @@ export const useDeleteArTargetMutation = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => arTargetService.deleteArTarget(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: arTargetKeys.all }),
+    onSuccess: () => invalidateMappingQuota(qc),
   });
 };
 
@@ -59,7 +65,7 @@ export const usePublishArTargetMutation = () => {
   return useMutation({
     mutationFn: (id: string) => arTargetService.publishArTarget(id),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: arTargetKeys.all });
+      invalidateMappingQuota(qc);
       void qc.invalidateQueries({ queryKey: albumKeys.all });
     },
   });
@@ -69,6 +75,6 @@ export const useArchiveArTargetMutation = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => arTargetService.archiveArTarget(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: arTargetKeys.all }),
+    onSuccess: () => invalidateMappingQuota(qc),
   });
 };
