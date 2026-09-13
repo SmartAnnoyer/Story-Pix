@@ -4,11 +4,13 @@
   height: auto;
   flex-shrink: 0;
   object-fit: contain;
-  object-position: left center;
-  overflow: visible;
+  object-position: left top;
+  /* Source PNGs include a thin caption/line at the bottom edge — clip it everywhere. */
+  clip-path: inset(0 0 7% 0);
 }
 
 .brand-logo--mark,
 .brand-logo--icon {
-  object-position: center;
+  object-position: center top;
+  clip-path: inset(0 0 5% 0);
 }

@@ -71,6 +71,7 @@
   height: auto !important;
   max-height: 96px;
   object-fit: contain;
+  object-position: center top;
   filter: drop-shadow(0 4px 16px rgba(0, 0, 0, 0.35));
 }
 
