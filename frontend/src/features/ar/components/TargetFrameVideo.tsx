@@ -232,6 +232,12 @@ export const TargetFrameVideo = ({
   const lastTapAtRef = useRef(0);
   const lastTapPosRef = useRef<{ x: number; y: number } | null>(null);
   const frameHitRef = useRef<HTMLButtonElement>(null);
+  const [frameHitBox, setFrameHitBox] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const frameHitBoxRef = useRef<{
     left: number;
     top: number;
@@ -577,18 +583,26 @@ export const TargetFrameVideo = ({
     const syncFrameHitLayer = (
       box: { left: number; top: number; width: number; height: number } | null,
     ) => {
-      frameHitBoxRef.current = box;
-      const el = frameHitRef.current;
-      if (!el) return;
-      if (!box || box.width < 8 || box.height < 8) {
-        el.style.display = 'none';
+      const next =
+        box && box.width >= 24 && box.height >= 24
+          ? {
+              left: Math.round(box.left),
+              top: Math.round(box.top),
+              width: Math.round(box.width),
+              height: Math.round(box.height),
+            }
+          : null;
+      const prev = frameHitBoxRef.current;
+      frameHitBoxRef.current = next;
+      if (
+        prev?.left === next?.left &&
+        prev?.top === next?.top &&
+        prev?.width === next?.width &&
+        prev?.height === next?.height
+      ) {
         return;
       }
-      el.style.display = 'block';
-      el.style.left = `${Math.round(box.left)}px`;
-      el.style.top = `${Math.round(box.top)}px`;
-      el.style.width = `${Math.round(box.width)}px`;
-      el.style.height = `${Math.round(box.height)}px`;
+      setFrameHitBox(next);
     };
 
     const applyBox = (box: { left: number; top: number; width: number; height: number }) => {
@@ -1376,8 +1390,9 @@ export const TargetFrameVideo = ({
       const x = event.clientX ?? 0;
       const y = event.clientY ?? 0;
       const prev = lastTapPosRef.current;
+      const dt = now - lastTapAtRef.current;
       const nearPrev = prev == null || Math.hypot(x - prev.x, y - prev.y) < DOUBLE_TAP_SLOP_PX;
-      if (now - lastTapAtRef.current < DOUBLE_TAP_MS && nearPrev) {
+      if (dt > 0 && dt < DOUBLE_TAP_MS && nearPrev) {
         lastTapAtRef.current = 0;
         lastTapPosRef.current = null;
         setFsHintVisible(false);
@@ -1393,13 +1408,13 @@ export const TargetFrameVideo = ({
   useEffect(() => {
     if (mode === 'fullscreen') {
       frameHitBoxRef.current = null;
-      const el = frameHitRef.current;
-      if (el) el.style.display = 'none';
+      setFrameHitBox(null);
     }
   }, [mode]);
 
   useEffect(() => {
-    const ready = active && isPlaying && !loading && !needsTap && mode !== 'fullscreen';
+    // Same readiness as expand chrome — do not gate on `loading` (it lags behind play).
+    const ready = active && (isPlaying || reveal) && !needsTap && mode !== 'fullscreen';
     if (!ready) {
       setFsHintVisible(false);
       return undefined;
@@ -1413,7 +1428,7 @@ export const TargetFrameVideo = ({
       window.clearTimeout(showTimer);
       window.clearTimeout(hideTimer);
     };
-  }, [active, isPlaying, loading, needsTap, mode, primaryUrl]);
+  }, [active, isPlaying, reveal, needsTap, mode, primaryUrl]);
 
   const handleDownload = useCallback(async () => {
     const source = playbackUrl || primaryUrl || fallbackUrl;
@@ -1534,34 +1549,50 @@ export const TargetFrameVideo = ({
     </div>
   ) : null;
 
-  // Fixed screen-space hit target (not inside CSS-transformed stage — that breaks taps).
-  const canFrameDoubleTap = active && !needsTap && !showFullscreen && isPlaying && !loading;
+  // Match expand-button readiness (isPlaying || reveal). Never wait on `loading`.
+  const canFrameDoubleTap = active && !needsTap && !showFullscreen && (isPlaying || reveal);
+  const hitBox =
+    frameHitBox ??
+    (canFrameDoubleTap
+      ? {
+          left: Math.round(window.innerWidth * 0.12),
+          top: Math.round(window.innerHeight * 0.18),
+          width: Math.round(window.innerWidth * 0.76),
+          height: Math.round(window.innerHeight * 0.52),
+        }
+      : null);
 
-  const frameTapLayer = (
-    <button
-      ref={frameHitRef}
-      type="button"
-      className="ar-video-frame-hit"
-      aria-label="Double tap for full screen"
-      style={{ display: canFrameDoubleTap ? undefined : 'none' }}
-      onPointerUp={(event) => {
-        if (!canFrameDoubleTap) return;
-        handleStageDoubleTap({
-          stopPropagation: () => event.stopPropagation(),
-          preventDefault: () => event.preventDefault(),
-          clientX: event.clientX,
-          clientY: event.clientY,
-        });
-      }}
-      onDoubleClick={(event) => {
-        if (!canFrameDoubleTap) return;
-        event.preventDefault();
-        event.stopPropagation();
-        setFsHintVisible(false);
-        handleToggleFullscreen();
-      }}
-    />
-  );
+  const frameTapLayer =
+    canFrameDoubleTap && hitBox ? (
+      <button
+        ref={frameHitRef}
+        type="button"
+        className="ar-video-frame-hit"
+        aria-label="Double tap for full screen"
+        style={{
+          left: hitBox.left,
+          top: hitBox.top,
+          width: hitBox.width,
+          height: hitBox.height,
+        }}
+        onPointerUp={(event) => {
+          // Ignore secondary mouse buttons; pointer events cover touch + mouse.
+          if (event.pointerType === 'mouse' && event.button !== 0) return;
+          handleStageDoubleTap({
+            stopPropagation: () => event.stopPropagation(),
+            preventDefault: () => event.preventDefault(),
+            clientX: event.clientX,
+            clientY: event.clientY,
+          });
+        }}
+        onDoubleClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setFsHintVisible(false);
+          handleToggleFullscreen();
+        }}
+      />
+    ) : null;
 
   const frameFullscreenHint =
     canFrameDoubleTap && fsHintVisible ? (

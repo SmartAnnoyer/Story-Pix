@@ -118,14 +118,30 @@ export const SignupPage = () => {
         description: 'Story-PIX pack purchase',
       });
 
-      const session = await checkoutService.verifySignup(payment);
+      let session: Awaited<ReturnType<typeof checkoutService.verifySignup>>;
+      try {
+        session = await checkoutService.verifySignup(payment);
+      } catch (verifyError) {
+        // Payment already succeeded — one retry covers transient/partial fulfill races.
+        try {
+          session = await checkoutService.verifySignup(payment);
+        } catch {
+          throw verifyError;
+        }
+      }
+
       if ('accessToken' in session && session.accessToken && session.user) {
         setAuth(session.user, session.accessToken);
         message.success('Account ready — welcome to Story-PIX');
         navigate(ROUTES.ALBUMS, { replace: true });
         return;
       }
-      message.success('Payment received — please sign in');
+
+      message.success(
+        typeof session === 'object' && session && 'message' in session && session.message
+          ? String(session.message)
+          : 'Payment successful — sign in with your email and password',
+      );
       navigate(ROUTES.LOGIN, { replace: true });
     } catch (err) {
       setError(getErrorMessage(err, 'Signup payment failed'));

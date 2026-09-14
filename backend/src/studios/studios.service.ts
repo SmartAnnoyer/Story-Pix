@@ -10,7 +10,13 @@ import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
 import { FilterQuery, Model } from 'mongoose';
 import { PaginatedResult, PaginationQueryDto } from '../common/dto/pagination.dto';
-import { Role, StudioStatus, SubscriptionStatus, DomainEventType } from '../common/enums';
+import {
+  Role,
+  StudioStatus,
+  SubscriptionStatus,
+  DomainEventType,
+  UserStatus,
+} from '../common/enums';
 import { LoggerService } from '../shared/services/logger.service';
 import { EventBusService } from '../notifications/services/event-bus.service';
 import { IStorageService, STORAGE_SERVICE } from '../storage/interfaces/storage.interface';
@@ -224,32 +230,94 @@ export class StudiosService {
     };
   }
 
-  /** Self-serve signup after successful pack payment — password chosen by customer. */
+  /** Self-serve signup after successful pack payment — idempotent for payment retries. */
   async createFromPaidSignup(input: {
     email: string;
     password: string;
+    passwordHash?: string | null;
     studioName?: string;
     ownerName?: string;
   }) {
     const email = input.email.toLowerCase().trim();
-    const existingStudio = await this.studioModel.findOne({ email, deletedAt: null }).exec();
-    if (existingStudio) {
-      throw new ConflictException('A studio with this email already exists');
-    }
-
-    const existingAdmin = await this.usersService.findByEmail(email);
-    if (existingAdmin) {
-      throw new ConflictException('Email is already registered');
-    }
-
     const localPart = email.split('@')[0] || 'Studio';
     const studioName = (input.studioName?.trim() || localPart).slice(0, 80);
     const ownerName = (input.ownerName?.trim() || studioName).slice(0, 80);
-    const studioCode = await this.generateUniqueStudioCode();
-    const passwordHash = await this.usersService.hashPassword(input.password);
+    const firstName = ownerName.split(/\s+/)[0] || 'Creator';
+    const lastName = ownerName.split(/\s+/).slice(1).join(' ') || 'Account';
+    const passwordHash =
+      input.passwordHash?.trim() || (await this.usersService.hashPassword(input.password));
 
-    const studio = await this.studioModel.create({
-      studioCode,
+    let studio = await this.studioModel.findOne({ email, deletedAt: null }).exec();
+    let admin = await this.usersService.findByEmailWithSecrets(email);
+
+    // Paid retry / partial failure: sync password so the customer can sign in with the
+    // password they entered at checkout (not a stale hash from an earlier attempt).
+    if (admin) {
+      const matches = await this.usersService.comparePassword(input.password, admin.passwordHash);
+      if (!matches) {
+        await this.usersService.updatePassword(admin._id.toString(), passwordHash);
+      }
+      if (admin.status !== UserStatus.ACTIVE) {
+        admin.status = UserStatus.ACTIVE;
+        await admin.save();
+      }
+      if (!studio && admin.studioId) {
+        studio = await this.studioModel.findById(admin.studioId).exec();
+      }
+      if (!studio) {
+        studio = await this.studioModel.create({
+          studioCode: await this.generateUniqueStudioCode(),
+          studioName,
+          ownerName,
+          email,
+          phone: '',
+          address: '',
+          website: '',
+          status: StudioStatus.ACTIVE,
+        });
+        admin.studioId = studio._id;
+        await admin.save();
+        await this.ensureTrialSubscription(studio._id.toString(), email);
+      } else if (studio.status !== StudioStatus.ACTIVE) {
+        studio.status = StudioStatus.ACTIVE;
+        await studio.save();
+      }
+
+      return {
+        studio: this.serializeStudio(studio),
+        userId: admin._id.toString(),
+        email,
+        alreadyExisted: true,
+      };
+    }
+
+    if (studio) {
+      admin = await this.usersService.createStudioAdmin({
+        studioId: studio._id.toString(),
+        email,
+        firstName,
+        lastName,
+        passwordHash,
+        temporaryPasswordPlain: '',
+      });
+      admin.temporaryPasswordPlain = undefined;
+      await admin.save();
+      if (studio.status !== StudioStatus.ACTIVE) {
+        studio.status = StudioStatus.ACTIVE;
+        await studio.save();
+      }
+      await this.ensureTrialSubscription(studio._id.toString(), email);
+
+      return {
+        studio: this.serializeStudio(studio),
+        userId: admin._id.toString(),
+        email,
+        alreadyExisted: true,
+      };
+    }
+
+    studio = await this.studioModel.create({
+      studioCode: await this.generateUniqueStudioCode(),
       studioName,
       ownerName,
       email,
@@ -259,12 +327,9 @@ export class StudiosService {
       status: StudioStatus.ACTIVE,
     });
 
-    await this.subscriptionService.createTrialSubscription(studio._id.toString(), email);
+    await this.ensureTrialSubscription(studio._id.toString(), email);
 
-    const firstName = ownerName.split(/\s+/)[0] || 'Creator';
-    const lastName = ownerName.split(/\s+/).slice(1).join(' ') || 'Account';
-
-    const admin = await this.usersService.createStudioAdmin({
+    admin = await this.usersService.createStudioAdmin({
       studioId: studio._id.toString(),
       email,
       firstName,
@@ -272,8 +337,6 @@ export class StudiosService {
       passwordHash,
       temporaryPasswordPlain: '',
     });
-
-    // Clear temp password so they are not forced through first-login change.
     admin.temporaryPasswordPlain = undefined;
     await admin.save();
 
@@ -285,7 +348,7 @@ export class StudiosService {
       recipientEmail: email,
       metadata: {
         studioName,
-        studioCode,
+        studioCode: refreshedStudio?.studioCode ?? studio.studioCode,
         firstName,
       },
     });
@@ -294,7 +357,20 @@ export class StudiosService {
       studio: this.serializeStudio(refreshedStudio!),
       userId: admin._id.toString(),
       email,
+      alreadyExisted: false,
     };
+  }
+
+  private async ensureTrialSubscription(studioId: string, email: string) {
+    try {
+      await this.subscriptionService.createTrialSubscription(studioId, email);
+    } catch (error) {
+      this.logger.warn(
+        `Trial subscription skipped for studio ${studioId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 
   async update(id: string, dto: UpdateStudioDto) {

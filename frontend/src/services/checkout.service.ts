@@ -148,9 +148,15 @@ export const checkoutService = {
 
   async verifySignup(
     payload: CheckoutVerifyPayload,
-  ): Promise<LoginResponse & { alreadyProcessed?: boolean }> {
+  ): Promise<
+    | (LoginResponse & { alreadyProcessed?: boolean })
+    | { alreadyProcessed?: boolean; message?: string; email?: string }
+  > {
     const { data } = await apiClient.post<
-      ApiResponse<LoginResponse & { alreadyProcessed?: boolean }>
+      ApiResponse<
+        | (LoginResponse & { alreadyProcessed?: boolean })
+        | { alreadyProcessed?: boolean; message?: string; email?: string }
+      >
     >('/public/checkout/signup/verify', payload);
     return data.data;
   },

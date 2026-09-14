@@ -336,8 +336,22 @@ export class PacksService implements OnModuleInit {
     items: Array<{ packId: string; quantity: number }>,
     performedBy?: string | null,
     notes?: string | null,
+    idempotencyKey?: string | null,
   ) {
     if (!items.length) throw new BadRequestException('Cart is empty');
+
+    if (idempotencyKey) {
+      const alreadyGranted = await this.ledgerModel
+        .findOne({
+          studioId: new Types.ObjectId(studioId),
+          notes: idempotencyKey,
+          action: PackLedgerAction.PURCHASE,
+        })
+        .exec();
+      if (alreadyGranted) {
+        return [];
+      }
+    }
 
     const resolved: Array<{
       pack: AlbumPackDocument;
@@ -368,6 +382,7 @@ export class PacksService implements OnModuleInit {
       );
       const codes = personal.map((row) => `${row.pack.code}×${row.quantity}`).join('+');
       const primary = personal[0].pack;
+      const grantNotes = idempotencyKey ?? notes ?? `Merged personal packs: ${codes}`;
 
       const credit = await this.creditModel.create({
         studioId: new Types.ObjectId(studioId),
@@ -382,7 +397,7 @@ export class PacksService implements OnModuleInit {
         unitPriceInr: totalPriceInr,
         totalPriceInr,
         assignedBy: performedBy ? new Types.ObjectId(performedBy) : null,
-        notes: notes ?? `Merged personal packs: ${codes}`,
+        notes: grantNotes,
         isActive: true,
       });
 
@@ -398,7 +413,7 @@ export class PacksService implements OnModuleInit {
         unitPriceInr: totalPriceInr,
         totalPriceInr,
         performedBy: performedBy ? new Types.ObjectId(performedBy) : null,
-        notes: credit.notes ?? null,
+        notes: grantNotes,
       });
 
       results.push(this.serializeCredit(credit));
@@ -411,7 +426,7 @@ export class PacksService implements OnModuleInit {
             studioId,
             packId: row.pack._id.toString(),
             quantity: row.quantity,
-            notes: notes ?? undefined,
+            notes: idempotencyKey ?? notes ?? undefined,
           },
           performedBy,
         ),

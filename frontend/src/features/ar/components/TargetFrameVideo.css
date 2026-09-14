@@ -231,13 +231,14 @@
   -webkit-appearance: none;
 }
 
-/* Screen-space AABB over the tracked print — avoids broken taps on CSS matrix3d stages. */
+/* Screen-space hit target over the tracked print (portaled to body). */
 .ar-video-frame-hit {
   position: fixed;
-  z-index: 10095;
+  z-index: 100140;
   margin: 0;
   padding: 0;
-  border: none;
+  border: 0;
+  border-radius: 0;
   background: transparent;
   cursor: pointer;
   pointer-events: auto;
@@ -245,6 +246,7 @@
   -webkit-tap-highlight-color: transparent;
   appearance: none;
   -webkit-appearance: none;
+  /* Keep above the mapped video / stage, below mute+expand chrome (100150). */
 }
 
 /* Bottom dock: mute / expand / close — above the AR shell. */
@@ -499,7 +501,7 @@
   top: auto;
   left: 50%;
   bottom: max(5.75rem, calc(env(safe-area-inset-bottom, 0px) + 4.75rem));
-  z-index: 100100;
+  z-index: 100145;
   transform: translateX(-50%);
   pointer-events: none;
   animation: ar-fs-hint-dock-in 0.45s ease-out both;

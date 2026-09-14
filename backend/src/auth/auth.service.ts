@@ -33,7 +33,8 @@ export class AuthService {
   }
 
   async login(dto: LoginDto, res: Response) {
-    const user = await this.usersService.findByEmailWithSecrets(dto.email);
+    const email = dto.email.toLowerCase().trim();
+    const user = await this.usersService.findByEmailWithSecrets(email);
 
     if (!user) {
       throw new UnauthorizedException('Invalid email or password');
