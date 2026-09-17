@@ -43,7 +43,9 @@ import { LoggerService } from '../shared/services/logger.service';
             return new ConsoleEmailProvider(logger);
           }
           logger.log(`Using Gmail SMTP as ${gmailUser}`);
-          return new GmailEmailProvider(configService, logger);
+          const gmail = new GmailEmailProvider(configService, logger);
+          void gmail.verifyConnection();
+          return gmail;
         }
 
         logger.warn('Using console email provider — no inbox delivery');

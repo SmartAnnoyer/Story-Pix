@@ -52,7 +52,7 @@ export class AuthController {
   @Public()
   @Throttle({ default: { limit: 3, ttl: 60000 } })
   @Post('forgot-password')
-  forgotPassword(@Body() dto: ForgotPasswordDto) {
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.authService.forgotPassword(dto);
   }
 

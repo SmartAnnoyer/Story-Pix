@@ -103,7 +103,9 @@ export class JobQueueService implements OnModuleInit, OnModuleDestroy {
         );
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
+        this.logger.error(`Inline job failed ${queueName}/${jobName}: ${message}`);
         await this.jobLogService.markFailed(jobLog._id.toString(), message, true);
+        throw error;
       }
 
       return null;

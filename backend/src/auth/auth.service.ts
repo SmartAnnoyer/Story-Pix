@@ -132,9 +132,13 @@ export class AuthService {
   }
 
   async forgotPassword(dto: ForgotPasswordDto) {
-    const user = await this.usersService.findByEmail(dto.email);
+    const email = dto.email.trim().toLowerCase();
+    const user = await this.usersService.findByEmail(email);
 
     if (!user || user.status !== UserStatus.ACTIVE) {
+      this.logger.warn(
+        `Forgot password skipped — no active user for email=${email} found=${Boolean(user)} status=${user?.status ?? 'n/a'}`,
+      );
       return { message: 'If the email exists, a reset link has been sent' };
     }
 
@@ -164,6 +168,7 @@ export class AuthService {
           resetUrl,
         },
       });
+      this.logger.log(`Forgot password email pipeline finished for ${user.email}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`Forgot password email dispatch failed: ${message}`);

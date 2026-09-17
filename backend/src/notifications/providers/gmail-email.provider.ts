@@ -29,15 +29,17 @@ export class GmailEmailProvider extends IEmailProvider {
 
     if (!user || !pass) {
       throw new InternalServerErrorException(
-        'Gmail SMTP is not configured (set GMAIL_USER and GMAIL_APP_PASSWORD in backend/.env)',
+        'Gmail SMTP is not configured (set GMAIL_USER and GMAIL_APP_PASSWORD)',
       );
     }
 
     this.gmailUser = user;
+    // 587/STARTTLS is more reliable from some cloud hosts than 465.
     this.transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
+      port: 587,
+      secure: false,
+      requireTLS: true,
       auth: { user, pass },
     });
 
@@ -46,6 +48,17 @@ export class GmailEmailProvider extends IEmailProvider {
       (this.configService.get<string>('email.fromAddress', '') || '').trim() || user;
     this.fromAddress = `${fromName} <${fromEmail}>`;
     this.logger.log(`Gmail transporter ready from=${this.fromAddress}`);
+  }
+
+  /** Call after construction — Nest lifecycle hooks do not run on factory `new`. */
+  async verifyConnection(): Promise<void> {
+    try {
+      await this.transporter.verify();
+      this.logger.log('[Gmail] SMTP verify OK — credentials accepted by Google');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`[Gmail] SMTP verify FAILED — ${message}`);
+    }
   }
 
   async sendEmail(input: SendEmailInput): Promise<SendEmailResult> {
@@ -61,7 +74,9 @@ export class GmailEmailProvider extends IEmailProvider {
       });
 
       const messageId = info.messageId ?? `gmail_${Date.now()}`;
-      this.logger.log(`[Gmail] sent OK messageId=${messageId} response=${info.response ?? 'n/a'}`);
+      this.logger.log(
+        `[Gmail] sent OK messageId=${messageId} accepted=${JSON.stringify(info.accepted)} rejected=${JSON.stringify(info.rejected)} response=${info.response ?? 'n/a'}`,
+      );
       return { messageId, provider: 'gmail' };
     } catch (error) {
       const err = error as {
@@ -69,16 +84,17 @@ export class GmailEmailProvider extends IEmailProvider {
         code?: string;
         response?: string;
         responseCode?: number;
+        command?: string;
       };
       this.logger.error(
-        `[Gmail] FAILED to=${input.to} code=${err.code ?? 'n/a'} responseCode=${err.responseCode ?? 'n/a'} message=${err.message ?? String(error)}`,
+        `[Gmail] FAILED to=${input.to} code=${err.code ?? 'n/a'} responseCode=${err.responseCode ?? 'n/a'} command=${err.command ?? 'n/a'} message=${err.message ?? String(error)}`,
       );
       if (err.response) {
         this.logger.error(`[Gmail] SMTP response: ${err.response}`);
       }
       if (err.code === 'EAUTH') {
         this.logger.error(
-          `[Gmail] Auth failed for ${this.gmailUser}. Use a Google App Password (16 chars), not your normal Gmail password: https://myaccount.google.com/apppasswords`,
+          `[Gmail] Auth failed for ${this.gmailUser}. Regenerate App Password at https://myaccount.google.com/apppasswords`,
         );
       }
       throw error;

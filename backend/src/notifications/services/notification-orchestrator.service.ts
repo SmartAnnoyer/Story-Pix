@@ -60,12 +60,17 @@ export class NotificationOrchestratorService {
     }
 
     if (definition.sendEmail && recipient.email) {
+      this.logger.log(
+        `Enqueueing email type=${definition.type} to=${recipient.email} event=${event.eventType}`,
+      );
       await this.emailService.sendTemplatedEmail({
         notificationType: definition.type,
         to: recipient.email,
         variables,
         metadata: event.metadata,
       });
+    } else if (definition.sendEmail) {
+      this.logger.error(`Email skipped for ${event.eventType} — no recipient email resolved`);
     }
 
     if (event.studioId) {
