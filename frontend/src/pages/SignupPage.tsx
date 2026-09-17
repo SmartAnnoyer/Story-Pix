@@ -6,6 +6,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { getErrorMessage } from '@/api/client';
 import { ROUTES } from '@/routes/paths';
 import { signupSchema, type SignupFormValues } from '@/features/auth/schemas/auth.schemas';
+import { PackSavingsBanner } from '@/features/packs/components/PackSavingsBanner';
+import { findPackSavingsSuggestion } from '@/features/packs/utils/pack-savings';
 import {
   checkoutService,
   collectRazorpayPayment,
@@ -24,6 +26,7 @@ export const SignupPage = () => {
   const [loadingCatalog, setLoadingCatalog] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ignoreSavingsKey, setIgnoreSavingsKey] = useState<string | null>(null);
 
   const {
     control,
@@ -85,11 +88,26 @@ export const SignupPage = () => {
     return { amountInr, mappings };
   }, [items, packs]);
 
+  const savingsSuggestion = useMemo(
+    () => findPackSavingsSuggestion(catalogPacks, qty),
+    [catalogPacks, qty],
+  );
+  const savingsKey = savingsSuggestion
+    ? `${savingsSuggestion.photos}:${savingsSuggestion.suggestedAmountInr}:${savingsSuggestion.savingsInr}`
+    : null;
+  const showSavingsBanner = Boolean(savingsSuggestion && savingsKey !== ignoreSavingsKey);
+
   const bump = (packId: string, delta: number) => {
     setQty((current) => {
       const next = Math.max(0, (current[packId] ?? 0) + delta);
       return { ...current, [packId]: next };
     });
+  };
+
+  const applySavingsSuggestion = () => {
+    if (!savingsSuggestion) return;
+    setQty(savingsSuggestion.suggestedQty);
+    setIgnoreSavingsKey(null);
   };
 
   const onSubmit = async (values: SignupFormValues) => {
@@ -269,6 +287,13 @@ export const SignupPage = () => {
       </div>
 
       <div className="signup-page__dock">
+        {showSavingsBanner && savingsSuggestion ? (
+          <PackSavingsBanner
+            message={savingsSuggestion.summary}
+            onSwitch={applySavingsSuggestion}
+            onIgnore={() => setIgnoreSavingsKey(savingsKey)}
+          />
+        ) : null}
         <div className="signup-page__checkout">
           <div className="signup-page__checkout-meta">
             <p className="signup-page__checkout-amount">

@@ -203,13 +203,13 @@
   gap: 1.25rem;
   flex: 1;
   padding: 1rem 0 1.25rem;
-  /* Leave room for fixed dock so last packs fully scroll into view */
-  padding-bottom: calc(8.5rem + env(safe-area-inset-bottom));
+  /* Leave room for fixed dock (+ optional savings banner) so last packs scroll into view */
+  padding-bottom: calc(11.5rem + env(safe-area-inset-bottom));
 }
 
 .signup-page--in-shell .signup-page__scroll {
-  /* Tab bar (~3.6rem) + dock (~5rem) */
-  padding-bottom: calc(9.5rem + env(safe-area-inset-bottom));
+  /* Tab bar (~3.6rem) + dock (~5rem) + optional savings banner */
+  padding-bottom: calc(12.5rem + env(safe-area-inset-bottom));
 }
 
 .signup-page__dock {

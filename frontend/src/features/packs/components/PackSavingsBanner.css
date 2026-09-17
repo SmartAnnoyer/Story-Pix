@@ -1,0 +1,99 @@
+.pack-savings-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  margin-bottom: 0.55rem;
+  padding: 0.7rem 0.8rem 0.7rem 0.95rem;
+  border-radius: 16px;
+  border: 1px solid rgba(107, 44, 219, 0.18);
+  background:
+    linear-gradient(135deg, rgba(107, 44, 219, 0.08), rgba(233, 58, 138, 0.06)),
+    rgba(255, 255, 255, 0.96);
+  box-shadow: 0 8px 22px rgba(26, 26, 46, 0.07);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.pack-savings-banner__copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.pack-savings-banner__eyebrow {
+  display: inline-block;
+  margin-bottom: 0.15rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sp-primary, #6b2cdb);
+}
+
+.pack-savings-banner__text {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 650;
+  line-height: 1.35;
+  color: var(--sp-text-dark, #1a1a2e);
+}
+
+.pack-savings-banner__actions {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.pack-savings-banner__switch,
+.pack-savings-banner__ignore {
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 800;
+  line-height: 1;
+  touch-action: manipulation;
+}
+
+.pack-savings-banner__switch {
+  min-height: 2.15rem;
+  padding: 0 0.85rem;
+  border-radius: 999px;
+  background: var(--sp-gradient, linear-gradient(135deg, #6b2cdb, #e93a8a));
+  color: #fff;
+  font-size: 0.78rem;
+  box-shadow: 0 6px 14px rgba(107, 44, 219, 0.28);
+}
+
+.pack-savings-banner__switch:active {
+  transform: scale(0.97);
+}
+
+.pack-savings-banner__ignore {
+  min-height: 2.15rem;
+  padding: 0 0.65rem;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--sp-text-muted, #5c5c66);
+  font-size: 0.76rem;
+}
+
+.pack-savings-banner__ignore:hover,
+.pack-savings-banner__ignore:focus-visible {
+  color: var(--sp-text-dark, #1a1a2e);
+  outline: none;
+}
+
+@media (max-width: 420px) {
+  .pack-savings-banner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pack-savings-banner__actions {
+    justify-content: flex-end;
+  }
+}
