@@ -26,8 +26,17 @@ services:
         value: 'true'
       - key: AUTH_COOKIE_SAME_SITE
         value: none
+      # Email — set secrets in Render Dashboard (Environment). Do not commit App Passwords.
       - key: EMAIL_PROVIDER
-        value: console
+        value: gmail
+      - key: EMAIL_FROM
+        sync: false
+      - key: EMAIL_FROM_NAME
+        value: Story-pix
+      - key: GMAIL_USER
+        sync: false
+      - key: GMAIL_APP_PASSWORD
+        sync: false
       - key: BILLING_PROVIDER
         value: manual
       - key: JWT_ACCESS_SECRET

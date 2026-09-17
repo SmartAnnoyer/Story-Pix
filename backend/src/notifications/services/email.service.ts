@@ -69,12 +69,20 @@ export class EmailService {
 
   async processEmailJob(payload: SendEmailInput & { jobLogId?: string }) {
     const jobLogId = payload.jobLogId;
+    const providerName = this.configService.get<string>('email.provider', 'console');
+    this.logger.log(
+      `Email job start provider=${providerName} to=${payload.to} subject="${payload.subject}"`,
+    );
     try {
       if (jobLogId) {
         await this.jobLogService.markActive(jobLogId, 1);
       }
 
       const result = await this.emailProvider.sendEmail(payload);
+
+      this.logger.log(
+        `Email job OK provider=${result.provider} messageId=${result.messageId} to=${payload.to}`,
+      );
 
       if (jobLogId) {
         await this.jobLogService.markCompleted(
@@ -96,7 +104,7 @@ export class EmailService {
           maxAttempts,
         );
       }
-      this.logger.error(`Email send failed: ${message}`);
+      this.logger.error(`Email send failed (provider=${providerName}): ${message}`);
       throw error;
     }
   }

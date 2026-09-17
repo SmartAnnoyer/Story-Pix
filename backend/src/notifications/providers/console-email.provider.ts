@@ -14,9 +14,20 @@ export class ConsoleEmailProvider extends IEmailProvider {
   }
 
   async sendEmail(input: SendEmailInput): Promise<SendEmailResult> {
-    this.logger.log(
-      `[ConsoleEmail] to=${input.to} subject="${input.subject}" text=${input.text.slice(0, 120)}`,
+    const resetUrl = input.text.match(/https?:\/\/\S+/)?.[0] ?? null;
+
+    this.logger.warn('========== CONSOLE EMAIL (NOT sent to inbox) ==========');
+    this.logger.warn(`to: ${input.to}`);
+    this.logger.warn(`subject: ${input.subject}`);
+    if (resetUrl) {
+      this.logger.warn(`resetUrl: ${resetUrl}`);
+    }
+    this.logger.warn(`text: ${input.text}`);
+    this.logger.warn('=======================================================');
+    this.logger.warn(
+      'To send real mail on Render: set EMAIL_PROVIDER=gmail, GMAIL_USER, GMAIL_APP_PASSWORD on the API service, then redeploy.',
     );
+
     return { messageId: `console_${Date.now()}`, provider: 'console' };
   }
 }

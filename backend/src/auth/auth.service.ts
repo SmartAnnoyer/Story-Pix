@@ -148,20 +148,26 @@ export class AuthService {
     const corsOrigin = this.configService.get<string>('app.corsOrigin', 'http://localhost:5173');
     const frontendOrigin = corsOrigin.split(',')[0].trim().replace(/\/$/, '');
     const resetUrl = `${frontendOrigin}/reset-password?token=${resetToken}`;
+    const emailProvider = this.configService.get<string>('email.provider', 'console');
 
-    if (this.configService.get<string>('app.nodeEnv') !== 'production') {
-      this.logger.log(`Password reset link for ${user.email}: ${resetUrl}`);
+    this.logger.log(
+      `Forgot password for ${user.email} — emailProvider=${emailProvider} resetUrl=${resetUrl}`,
+    );
+
+    try {
+      await this.eventBus.publish({
+        eventType: DomainEventType.USER_PASSWORD_RESET,
+        userId: user._id.toString(),
+        recipientEmail: user.email,
+        metadata: {
+          firstName: user.firstName,
+          resetUrl,
+        },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Forgot password email dispatch failed: ${message}`);
     }
-
-    void this.eventBus.publish({
-      eventType: DomainEventType.USER_PASSWORD_RESET,
-      userId: user._id.toString(),
-      recipientEmail: user.email,
-      metadata: {
-        firstName: user.firstName,
-        resetUrl,
-      },
-    });
 
     return { message: 'If the email exists, a reset link has been sent' };
   }

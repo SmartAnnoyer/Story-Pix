@@ -12,13 +12,41 @@ import { LoggerService } from '../shared/services/logger.service';
     {
       provide: EMAIL_PROVIDER,
       useFactory: (configService: ConfigService, logger: LoggerService) => {
-        const provider = configService.get<string>('email.provider', 'console');
+        logger.setContext('EmailProviderModule');
+
+        const provider = (configService.get<string>('email.provider', 'console') || 'console')
+          .trim()
+          .toLowerCase();
+        const gmailUser = (configService.get<string>('email.gmail.user', '') || '').trim();
+        const gmailPass = (configService.get<string>('email.gmail.appPassword', '') || '')
+          .replace(/\s+/g, '')
+          .trim();
+        const fromAddress = configService.get<string>('email.fromAddress', '');
+
+        // Never print the password — only its length so you can confirm .env was loaded.
+        logger.log(
+          `Email config: provider=${provider} from=${fromAddress} gmailUser=${gmailUser || '(empty)'} gmailAppPasswordLen=${gmailPass.length}`,
+        );
+
         if (provider === 'resend') {
+          logger.log('Using Resend email provider');
           return new ResendEmailProvider(configService, logger);
         }
+
         if (provider === 'gmail') {
+          if (!gmailUser || gmailPass.length < 16) {
+            logger.error(
+              `EMAIL_PROVIDER=gmail but GMAIL_APP_PASSWORD is missing/too short (len=${gmailPass.length}). ` +
+                'On Render: Dashboard → story-pix-api → Environment → set GMAIL_APP_PASSWORD (16-char App Password), then Manual Deploy. ' +
+                'Falling back to console — check Render logs for resetUrl.',
+            );
+            return new ConsoleEmailProvider(logger);
+          }
+          logger.log(`Using Gmail SMTP as ${gmailUser}`);
           return new GmailEmailProvider(configService, logger);
         }
+
+        logger.warn('Using console email provider — no inbox delivery');
         return new ConsoleEmailProvider(logger);
       },
       inject: [ConfigService, LoggerService],

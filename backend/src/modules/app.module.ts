@@ -2,6 +2,7 @@ import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { join } from 'path';
 import configs from '../config';
 import { DatabaseModule } from '../database/database.module';
 import { SharedModule } from '../shared/shared.module';
@@ -27,7 +28,12 @@ import { RequestIdMiddleware } from '../middleware/request-id.middleware';
     ConfigModule.forRoot({
       isGlobal: true,
       load: configs,
-      envFilePath: ['.env'],
+      // Prefer backend/.env no matter whether nest is started from repo root or backend/
+      envFilePath: [
+        join(process.cwd(), '.env'),
+        join(process.cwd(), 'backend', '.env'),
+        join(__dirname, '..', '..', '.env'),
+      ],
     }),
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
