@@ -77,7 +77,10 @@ export class EmailService {
       const result = await this.emailProvider.sendEmail(payload);
 
       if (jobLogId) {
-        await this.jobLogService.markCompleted(jobLogId, result as unknown as Record<string, unknown>);
+        await this.jobLogService.markCompleted(
+          jobLogId,
+          result as unknown as Record<string, unknown>,
+        );
       }
 
       return result;

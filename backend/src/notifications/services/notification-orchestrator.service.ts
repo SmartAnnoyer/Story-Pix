@@ -2,11 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { User, UserDocument } from '../../users/schemas/user.schema';
-import {
-  DomainEventType,
-  NotificationChannel,
-  NotificationStatus,
-} from '../../common/enums';
+import { DomainEventType, NotificationChannel, NotificationStatus } from '../../common/enums';
 import { DomainEventPayload } from '../interfaces/domain-event.interface';
 import {
   BILLING_TO_DOMAIN_EVENT,
