@@ -145,7 +145,9 @@ export class AuthService {
 
     await this.usersService.setPasswordResetToken(user._id.toString(), tokenHash, expiresAt);
 
-    const resetUrl = `${this.configService.get<string>('app.corsOrigin', 'http://localhost:5173')}/reset-password?token=${resetToken}`;
+    const corsOrigin = this.configService.get<string>('app.corsOrigin', 'http://localhost:5173');
+    const frontendOrigin = corsOrigin.split(',')[0].trim().replace(/\/$/, '');
+    const resetUrl = `${frontendOrigin}/reset-password?token=${resetToken}`;
 
     if (this.configService.get<string>('app.nodeEnv') !== 'production') {
       this.logger.log(`Password reset link for ${user.email}: ${resetUrl}`);

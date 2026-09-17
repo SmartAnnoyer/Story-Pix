@@ -20,8 +20,9 @@ const DEFAULT_TEMPLATES = [
     notificationType: NotificationType.PASSWORD_RESET,
     subject: 'Reset your Story-pix password',
     htmlBody:
-      '<p>Hi {{firstName}},</p><p>Reset your password using this link:</p><p><a href="{{resetUrl}}">{{resetUrl}}</a></p>',
-    textBody: 'Reset your password: {{resetUrl}}',
+      '<p>Hi {{firstName}},</p><p>We received a request to reset your Story-pix password.</p><p><a href="{{resetUrl}}">Reset your password</a></p><p>Or copy this link into your browser:</p><p>{{resetUrl}}</p><p>If you did not request this, you can ignore this email.</p>',
+    textBody:
+      'Hi {{firstName}}, reset your Story-pix password using this link: {{resetUrl}}. If you did not request this, ignore this email.',
   },
   {
     key: 'trial_expiry',
@@ -56,7 +57,8 @@ const DEFAULT_TEMPLATES = [
     key: 'album_published',
     notificationType: NotificationType.ALBUM_PUBLISHED,
     subject: 'Album published: {{albumName}}',
-    htmlBody: '<p>Your album <strong>{{albumName}}</strong> is now published and ready for viewers.</p>',
+    htmlBody:
+      '<p>Your album <strong>{{albumName}}</strong> is now published and ready for viewers.</p>',
     textBody: 'Album {{albumName}} is now published.',
   },
 ];
