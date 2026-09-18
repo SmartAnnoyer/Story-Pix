@@ -10,6 +10,7 @@ import {
   type CartQuote,
 } from '@/services/checkout.service';
 import { packKeys, usePublicCatalogQuery, useStudioPackSummaryQuery } from '@/hooks/usePackQueries';
+import type { AlbumPack } from '@/types/pack.types';
 import { useQueryClient } from '@tanstack/react-query';
 import '../SignupPage.css';
 
