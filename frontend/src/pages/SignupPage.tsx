@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Button, Form, Input, Spin, message } from 'antd';
+import { Button, Form, Input, message } from 'antd';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { getErrorMessage } from '@/api/client';
@@ -8,6 +8,7 @@ import { ROUTES } from '@/routes/paths';
 import { signupSchema, type SignupFormValues } from '@/features/auth/schemas/auth.schemas';
 import { PackSavingsBanner } from '@/features/packs/components/PackSavingsBanner';
 import { findPackSavingsSuggestion } from '@/features/packs/utils/pack-savings';
+import { usePublicCatalogQuery } from '@/hooks/usePackQueries';
 import {
   checkoutService,
   collectRazorpayPayment,
@@ -22,9 +23,13 @@ import './SignupPage.css';
 export const SignupPage = () => {
   const navigate = useNavigate();
   const setAuth = useAuthStore((state) => state.setAuth);
-  const [packs, setPacks] = useState<AlbumPack[]>([]);
+  const {
+    data: packs = [],
+    isLoading: loadingCatalog,
+    isError: catalogFailed,
+    error: catalogErr,
+  } = usePublicCatalogQuery();
   const [qty, setQty] = useState<Record<string, number>>({});
-  const [loadingCatalog, setLoadingCatalog] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ignoreSavingsKey, setIgnoreSavingsKey] = useState<string | null>(null);
@@ -44,12 +49,9 @@ export const SignupPage = () => {
   });
 
   useEffect(() => {
-    void checkoutService
-      .catalog()
-      .then(setPacks)
-      .catch((err) => setError(getErrorMessage(err, 'Unable to load packs')))
-      .finally(() => setLoadingCatalog(false));
-  }, []);
+    if (!catalogFailed) return;
+    setError(getErrorMessage(catalogErr, 'Unable to load packs'));
+  }, [catalogFailed, catalogErr]);
 
   const personalPacks = useMemo(
     () => packs.filter((pack) => pack.tier === AlbumPackTier.PERSONAL),
@@ -238,14 +240,6 @@ export const SignupPage = () => {
     }
   };
 
-  if (loadingCatalog) {
-    return (
-      <div className="signup-page signup-page--center">
-        <Spin />
-      </div>
-    );
-  }
-
   const paymentCancelled = Boolean(error && /cancelled/i.test(error));
 
   return (
@@ -279,33 +273,48 @@ export const SignupPage = () => {
               Each living photo links one printed photo to a video. Tap + to choose a size.
             </p> */}
             <div className="signup-page__grid">
-              {catalogPacks.map((pack) => {
-                const photos = pack.maxMappings * pack.albumsIncluded;
-                const selected = (qty[pack.id] ?? 0) > 0;
-                return (
-                  <article
-                    key={pack.id}
-                    className={`signup-pack${selected ? ' signup-pack--on' : ''}`}
-                  >
-                    <div>
-                      <strong>
-                        {photos} living photo{photos === 1 ? '' : 's'}
-                      </strong>
-                      <span>₹{pack.unitPriceInr}</span>
-                    </div>
-                    <p>{pack.name}</p>
-                    <div className="signup-pack__qty">
-                      <button type="button" onClick={() => bump(pack.id, -1)} aria-label="Less">
-                        −
-                      </button>
-                      <span>{qty[pack.id] ?? 0}</span>
-                      <button type="button" onClick={() => bump(pack.id, 1)} aria-label="More">
-                        +
-                      </button>
-                    </div>
-                  </article>
-                );
-              })}
+              {loadingCatalog && !catalogPacks.length
+                ? Array.from({ length: 4 }, (_, i) => (
+                    <article
+                      key={`skel-${i}`}
+                      className="signup-pack signup-pack--skeleton"
+                      aria-hidden
+                    >
+                      <div>
+                        <strong />
+                        <span />
+                      </div>
+                      <p />
+                      <div className="signup-pack__qty" />
+                    </article>
+                  ))
+                : catalogPacks.map((pack) => {
+                    const photos = pack.maxMappings * pack.albumsIncluded;
+                    const selected = (qty[pack.id] ?? 0) > 0;
+                    return (
+                      <article
+                        key={pack.id}
+                        className={`signup-pack${selected ? ' signup-pack--on' : ''}`}
+                      >
+                        <div>
+                          <strong>
+                            {photos} living photo{photos === 1 ? '' : 's'}
+                          </strong>
+                          <span>₹{pack.unitPriceInr}</span>
+                        </div>
+                        <p>{pack.name}</p>
+                        <div className="signup-pack__qty">
+                          <button type="button" onClick={() => bump(pack.id, -1)} aria-label="Less">
+                            −
+                          </button>
+                          <span>{qty[pack.id] ?? 0}</span>
+                          <button type="button" onClick={() => bump(pack.id, 1)} aria-label="More">
+                            +
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
             </div>
           </section>
 

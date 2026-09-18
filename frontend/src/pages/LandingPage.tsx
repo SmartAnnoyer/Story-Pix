@@ -1,5 +1,8 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { BrandLogo } from '@/components/BrandLogo';
+import { prefetchPublicCatalog } from '@/hooks/usePackQueries';
 import { useAuthStore } from '@/store/auth.store';
 import { UserRole } from '@/types/auth.types';
 import { ROUTES } from '@/routes/paths';
@@ -27,10 +30,20 @@ const STEPS = [
 ];
 
 export const LandingPage = () => {
+  const queryClient = useQueryClient();
   const { isAuthenticated, isInitialized, user } = useAuthStore();
 
   const studioHome = user?.role === UserRole.SUPER_ADMIN ? ROUTES.ADMIN_DASHBOARD : ROUTES.ALBUMS;
   const showDashboard = isInitialized && isAuthenticated;
+
+  useEffect(() => {
+    if (showDashboard) return;
+    void prefetchPublicCatalog(queryClient);
+  }, [queryClient, showDashboard]);
+
+  const warmCatalog = () => {
+    void prefetchPublicCatalog(queryClient);
+  };
 
   return (
     <div className="sp-land">
@@ -47,7 +60,13 @@ export const LandingPage = () => {
             <Link className="sp-land__btn sp-land__btn--ghost-nav" to={ROUTES.LOGIN}>
               Log in
             </Link>
-            <Link className="sp-land__btn sp-land__btn--nav" to={ROUTES.SIGNUP}>
+            <Link
+              className="sp-land__btn sp-land__btn--nav"
+              to={ROUTES.SIGNUP}
+              onMouseEnter={warmCatalog}
+              onFocus={warmCatalog}
+              onTouchStart={warmCatalog}
+            >
               Get started
             </Link>
           </div>
@@ -70,7 +89,13 @@ export const LandingPage = () => {
                   Go to my albums
                 </Link>
               ) : (
-                <Link className="sp-land__btn sp-land__btn--primary" to={ROUTES.SIGNUP}>
+                <Link
+                  className="sp-land__btn sp-land__btn--primary"
+                  to={ROUTES.SIGNUP}
+                  onMouseEnter={warmCatalog}
+                  onFocus={warmCatalog}
+                  onTouchStart={warmCatalog}
+                >
                   Get started
                 </Link>
               )}
@@ -113,7 +138,13 @@ export const LandingPage = () => {
             </ol>
             {!showDashboard ? (
               <div className="sp-land__cta sp-land__cta--packs">
-                <Link className="sp-land__btn sp-land__btn--primary" to={ROUTES.SIGNUP}>
+                <Link
+                  className="sp-land__btn sp-land__btn--primary"
+                  to={ROUTES.SIGNUP}
+                  onMouseEnter={warmCatalog}
+                  onFocus={warmCatalog}
+                  onTouchStart={warmCatalog}
+                >
                   Get started
                 </Link>
               </div>

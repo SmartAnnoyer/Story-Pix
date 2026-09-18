@@ -163,6 +163,54 @@
   font-weight: 800;
 }
 
+.signup-pack--skeleton {
+  pointer-events: none;
+  border-color: rgba(0, 0, 0, 0.06);
+  background: #f6f6f8;
+}
+
+.signup-pack--skeleton strong,
+.signup-pack--skeleton span,
+.signup-pack--skeleton p,
+.signup-pack--skeleton .signup-pack__qty {
+  display: block;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #ebebef 25%, #f4f4f6 50%, #ebebef 75%);
+  background-size: 200% 100%;
+  animation: signup-skel 1.1s ease-in-out infinite;
+}
+
+.signup-pack--skeleton strong {
+  width: 55%;
+  height: 1.05rem;
+}
+
+.signup-pack--skeleton span {
+  width: 2.5rem;
+  height: 0.95rem;
+}
+
+.signup-pack--skeleton p {
+  width: 70%;
+  height: 0.8rem;
+  flex: 0;
+}
+
+.signup-pack--skeleton .signup-pack__qty {
+  width: 7.5rem;
+  height: 2.75rem;
+  margin-top: auto;
+}
+
+@keyframes signup-skel {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
 .signup-page__coupon {
   margin-top: 0.25rem;
   padding: 0.95rem 1rem;

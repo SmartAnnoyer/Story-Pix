@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Input, Spin, message } from 'antd';
+import { Button, Input, message } from 'antd';
 import { getErrorMessage } from '@/api/client';
 import { PackSavingsBanner } from '@/features/packs/components/PackSavingsBanner';
 import { findPackSavingsSuggestion } from '@/features/packs/utils/pack-savings';
@@ -9,17 +9,20 @@ import {
   type CartItem,
   type CartQuote,
 } from '@/services/checkout.service';
-import { useStudioPackSummaryQuery, packKeys } from '@/hooks/usePackQueries';
-import type { AlbumPack } from '@/types/pack.types';
+import { packKeys, usePublicCatalogQuery, useStudioPackSummaryQuery } from '@/hooks/usePackQueries';
 import { useQueryClient } from '@tanstack/react-query';
 import '../SignupPage.css';
 
 export const StudioPacksPage = () => {
   const queryClient = useQueryClient();
   const { data: summary, isLoading: summaryLoading } = useStudioPackSummaryQuery();
-  const [packs, setPacks] = useState<AlbumPack[]>([]);
+  const {
+    data: packs = [],
+    isLoading: loadingCatalog,
+    isError: catalogFailed,
+    error: catalogErr,
+  } = usePublicCatalogQuery();
   const [qty, setQty] = useState<Record<string, number>>({});
-  const [loadingCatalog, setLoadingCatalog] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ignoreSavingsKey, setIgnoreSavingsKey] = useState<string | null>(null);
@@ -30,12 +33,9 @@ export const StudioPacksPage = () => {
   const [couponError, setCouponError] = useState<string | null>(null);
 
   useEffect(() => {
-    void checkoutService
-      .catalog()
-      .then(setPacks)
-      .catch((err) => setError(getErrorMessage(err, 'Unable to load packs')))
-      .finally(() => setLoadingCatalog(false));
-  }, []);
+    if (!catalogFailed) return;
+    setError(getErrorMessage(catalogErr, 'Unable to load packs'));
+  }, [catalogFailed, catalogErr]);
 
   const items: CartItem[] = useMemo(
     () =>
@@ -176,18 +176,11 @@ export const StudioPacksPage = () => {
     }
   };
 
-  if (loadingCatalog || summaryLoading) {
-    return (
-      <div className="signup-page signup-page--center">
-        <Spin />
-      </div>
-    );
-  }
-
   const left = summary?.remainingMappingSlots ?? summary?.remainingAlbumCredits ?? 0;
   const used = summary?.usedMappingSlots ?? summary?.usedCredits ?? 0;
   const total = summary?.grantedMappingSlots ?? summary?.totalAssignedCredits ?? 0;
   const paymentCancelled = Boolean(error && /cancelled/i.test(error));
+  const packsPending = loadingCatalog && !packs.length;
 
   return (
     <div className="signup-page signup-page--docked signup-page--in-shell">
@@ -195,7 +188,13 @@ export const StudioPacksPage = () => {
         <header className="signup-page__header">
           <h1>Add living photos</h1>
           <p>
-            <strong>{left} left</strong> · {used} used · {total} total
+            {summaryLoading ? (
+              'Loading balance…'
+            ) : (
+              <>
+                <strong>{left} left</strong> · {used} used · {total} total
+              </>
+            )}
           </p>
         </header>
 
@@ -216,30 +215,48 @@ export const StudioPacksPage = () => {
         ) : null}
 
         <div className="signup-page__grid">
-          {packs.map((pack) => {
-            const packPhotos = pack.maxMappings * pack.albumsIncluded;
-            const selected = (qty[pack.id] ?? 0) > 0;
-            return (
-              <article key={pack.id} className={`signup-pack${selected ? ' signup-pack--on' : ''}`}>
-                <div>
-                  <strong>
-                    {packPhotos} living photo{packPhotos === 1 ? '' : 's'}
-                  </strong>
-                  <span>₹{pack.unitPriceInr}</span>
-                </div>
-                <p>{pack.name}</p>
-                <div className="signup-pack__qty">
-                  <button type="button" onClick={() => bump(pack.id, -1)} aria-label="Less">
-                    −
-                  </button>
-                  <span>{qty[pack.id] ?? 0}</span>
-                  <button type="button" onClick={() => bump(pack.id, 1)} aria-label="More">
-                    +
-                  </button>
-                </div>
-              </article>
-            );
-          })}
+          {packsPending
+            ? Array.from({ length: 4 }, (_, i) => (
+                <article
+                  key={`skel-${i}`}
+                  className="signup-pack signup-pack--skeleton"
+                  aria-hidden
+                >
+                  <div>
+                    <strong />
+                    <span />
+                  </div>
+                  <p />
+                  <div className="signup-pack__qty" />
+                </article>
+              ))
+            : packs.map((pack) => {
+                const packPhotos = pack.maxMappings * pack.albumsIncluded;
+                const selected = (qty[pack.id] ?? 0) > 0;
+                return (
+                  <article
+                    key={pack.id}
+                    className={`signup-pack${selected ? ' signup-pack--on' : ''}`}
+                  >
+                    <div>
+                      <strong>
+                        {packPhotos} living photo{packPhotos === 1 ? '' : 's'}
+                      </strong>
+                      <span>₹{pack.unitPriceInr}</span>
+                    </div>
+                    <p>{pack.name}</p>
+                    <div className="signup-pack__qty">
+                      <button type="button" onClick={() => bump(pack.id, -1)} aria-label="Less">
+                        −
+                      </button>
+                      <span>{qty[pack.id] ?? 0}</span>
+                      <button type="button" onClick={() => bump(pack.id, 1)} aria-label="More">
+                        +
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
         </div>
 
         <div className="signup-page__coupon">

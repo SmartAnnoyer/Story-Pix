@@ -1,16 +1,34 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { checkoutService } from '@/services/checkout.service';
 import { packService } from '@/services/pack.service';
 import type { AssignPackPayload, TopUpAlbumScansPayload } from '@/types/pack.types';
 
 export const packKeys = {
   all: ['packs'] as const,
   adminList: () => [...packKeys.all, 'admin'] as const,
+  publicCatalog: () => [...packKeys.all, 'public-catalog'] as const,
   ledger: (studioId?: string) => [...packKeys.all, 'ledger', studioId ?? 'all'] as const,
   studioAdmin: (studioId: string) => [...packKeys.all, 'studio-admin', studioId] as const,
   studioSummary: () => [...packKeys.all, 'studio-summary'] as const,
   studioCredits: () => [...packKeys.all, 'studio-credits'] as const,
   studioHistory: () => [...packKeys.all, 'studio-history'] as const,
 };
+
+/** Public signup / recharge pack prices — cached so Get started feels instant. */
+export const usePublicCatalogQuery = () =>
+  useQuery({
+    queryKey: packKeys.publicCatalog(),
+    queryFn: () => checkoutService.catalog(),
+    staleTime: 1000 * 60 * 10,
+    gcTime: 1000 * 60 * 30,
+  });
+
+export const prefetchPublicCatalog = (queryClient: ReturnType<typeof useQueryClient>) =>
+  queryClient.prefetchQuery({
+    queryKey: packKeys.publicCatalog(),
+    queryFn: () => checkoutService.catalog(),
+    staleTime: 1000 * 60 * 10,
+  });
 
 export const useAdminPacksQuery = () =>
   useQuery({
