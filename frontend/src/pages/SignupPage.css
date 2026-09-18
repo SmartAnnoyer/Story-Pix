@@ -11,6 +11,50 @@
   justify-content: center;
 }
 
+.signup-page__notice {
+  padding: 0.95rem 1.05rem;
+  border-radius: 14px;
+  border: 1px solid transparent;
+}
+
+.signup-page__notice strong {
+  display: block;
+  margin-bottom: 0.2rem;
+  font-size: 0.92rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--sp-text-dark, #1a1a2e);
+}
+
+.signup-page__notice p {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: var(--sp-text-muted, #5c5c66);
+}
+
+.signup-page__notice--soft {
+  border-color: rgba(107, 44, 219, 0.18);
+  background:
+    linear-gradient(135deg, rgba(107, 44, 219, 0.08) 0%, rgba(255, 255, 255, 0.95) 55%),
+    #faf8ff;
+}
+
+.signup-page__notice--soft strong {
+  color: var(--sp-primary, #6b2cdb);
+}
+
+.signup-page__notice--error {
+  border-color: rgba(233, 58, 138, 0.22);
+  background:
+    linear-gradient(135deg, rgba(233, 58, 138, 0.1) 0%, rgba(255, 255, 255, 0.96) 52%),
+    #fff8fb;
+}
+
+.signup-page__notice--error strong {
+  color: #c2185b;
+}
+
 .signup-page__header h1 {
   margin: 0 0 0.45rem;
   font-size: clamp(1.45rem, 5vw, 1.7rem);

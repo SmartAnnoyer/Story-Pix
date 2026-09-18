@@ -84,25 +84,41 @@ export const LandingPage = () => {
           </div>
         </section>
 
-        <section className="sp-land__section" id="how-it-works">
-          <h2>How it works</h2>
-          <p className="sp-land__sub">Three simple steps. No tech skills needed.</p>
-          <ol className="sp-land__steps">
-            {STEPS.map((step) => (
-              <li key={step.n}>
-                <span className="sp-land__step-n">{step.n}</span>
-                <h3>{step.title}</h3>
-                <p>{step.body}</p>
-              </li>
-            ))}
-          </ol>
-          {!showDashboard ? (
-            <div className="sp-land__cta sp-land__cta--packs">
-              <Link className="sp-land__btn sp-land__btn--primary" to={ROUTES.SIGNUP}>
-                Get started
-              </Link>
-            </div>
-          ) : null}
+        <section className="sp-land__how" id="how-it-works">
+          <div className="sp-land__how-inner">
+            <p className="sp-land__how-eyebrow">Simple flow</p>
+            <h2>How it works</h2>
+            <p className="sp-land__sub">
+              Three steps from print to living photo. No app download for guests.
+            </p>
+            <ol className="sp-land__steps">
+              {STEPS.map((step, index) => (
+                <li
+                  key={step.n}
+                  className="sp-land__step"
+                  style={{ ['--step-i' as string]: String(index) }}
+                >
+                  <div className="sp-land__step-top">
+                    <span className="sp-land__step-n" aria-hidden>
+                      {step.n}
+                    </span>
+                    {index < STEPS.length - 1 ? (
+                      <span className="sp-land__step-rail" aria-hidden />
+                    ) : null}
+                  </div>
+                  <h3>{step.title}</h3>
+                  <p>{step.body}</p>
+                </li>
+              ))}
+            </ol>
+            {!showDashboard ? (
+              <div className="sp-land__cta sp-land__cta--packs">
+                <Link className="sp-land__btn sp-land__btn--primary" to={ROUTES.SIGNUP}>
+                  Get started
+                </Link>
+              </div>
+            ) : null}
+          </div>
         </section>
       </main>
 

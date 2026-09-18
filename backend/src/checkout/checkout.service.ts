@@ -274,19 +274,33 @@ export class CheckoutService {
   }
 
   async createRechargeOrder(studioId: string, userId: string, dto: CreateRechargeOrderDto) {
-    const quote = await this.packsService.quoteCart(dto.items);
+    const baseQuote = await this.packsService.quoteCart(dto.items);
+    if (baseQuote.amountInr <= 0) {
+      throw new BadRequestException('Invalid cart total');
+    }
+
+    const applied = await this.couponsService.applyToSubtotal(dto.couponCode, baseQuote.amountInr);
+    const amountInr = applied?.amountInr ?? baseQuote.amountInr;
+    const subtotalInr = applied?.subtotalInr ?? baseQuote.amountInr;
+    const discountInr = applied?.discountInr ?? 0;
+
+    if (amountInr <= 0) {
+      throw new BadRequestException('Invalid cart total after coupon');
+    }
+
     const currency = this.configService.get<string>('billing.currency', 'INR');
     const receipt = `recharge_${studioId}_${Date.now()}`;
 
     const orderResult = await this.billingProvider.createOrder({
       studioId,
-      amount: Math.round(quote.amountInr * 100),
+      amount: Math.round(amountInr * 100),
       currency,
       receipt,
       notes: {
         kind: CheckoutOrderKind.RECHARGE_PACK,
         studioId,
         userId,
+        coupon: applied?.code ?? '',
       },
     });
 
@@ -297,13 +311,26 @@ export class CheckoutService {
         packId: new Types.ObjectId(item.packId),
         quantity: item.quantity,
       })),
-      amountInr: quote.amountInr,
+      amountInr,
+      subtotalInr,
+      discountInr,
+      couponCode: applied?.code ?? null,
+      couponId: applied ? new Types.ObjectId(applied.couponId) : null,
       currency,
       razorpayOrderId: orderResult.orderId,
       studioId: new Types.ObjectId(studioId),
       userId: new Types.ObjectId(userId),
       expiresAt: new Date(Date.now() + ORDER_TTL_MS),
     });
+
+    const quote = {
+      ...baseQuote,
+      amountInr,
+      subtotalInr,
+      discountInr,
+      couponCode: applied?.code ?? null,
+      discountPercent: applied?.discountPercent ?? null,
+    };
 
     return {
       checkoutId: order._id.toString(),
@@ -351,6 +378,10 @@ export class CheckoutService {
       userId,
       'Self-serve pack recharge',
     );
+
+    if (order.couponId) {
+      await this.couponsService.incrementUsage(order.couponId.toString());
+    }
 
     order.status = CheckoutOrderStatus.FULFILLED;
     order.fulfilledAt = new Date();

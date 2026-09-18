@@ -280,10 +280,10 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
   if (mediaType === MediaType.PHOTO) {
     return (
       <div className="media-upload">
-        <p className="media-upload__hint">
+        {/* <p className="media-upload__hint">
           Take a photo or pick several from gallery. Large photos are compressed automatically. Keep
           the full image or trim edges, then mark where the video should play.
-        </p>
+        </p> */}
         {prepLabel ? <p className="media-upload__queue">{prepLabel}</p> : null}
         <div className="media-upload__actions">
           <button
@@ -395,11 +395,11 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
 
   return (
     <div className="media-upload">
-      <p className="media-upload__hint">
+      {/* <p className="media-upload__hint">
         Drop or choose one or more videos, then pick a cover frame for each. Keep clips under about
         25 MB when you can (max 80 MB, ~90s) so guest phones start playback reliably — compress to
         720p first if the file is larger.
-      </p>
+      </p> */}
       {prepLabel ? <p className="media-upload__queue">{prepLabel}</p> : null}
       <Dragger
         multiple

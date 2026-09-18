@@ -122,7 +122,11 @@ const PacksTab = () => {
             title: 'Status',
             dataIndex: 'isActive',
             render: (active: boolean) => (
-              <Tag color={active ? 'success' : 'default'}>{active ? 'Active' : 'Off'}</Tag>
+              <span
+                className={`catalog-page__badge${active ? ' catalog-page__badge--on' : ' catalog-page__badge--off'}`}
+              >
+                {active ? 'Active' : 'Off'}
+              </span>
             ),
           },
         ]}
@@ -207,7 +211,11 @@ const CouponsTab = () => {
             title: 'Status',
             dataIndex: 'isActive',
             render: (active: boolean) => (
-              <Tag color={active ? 'success' : 'default'}>{active ? 'Active' : 'Off'}</Tag>
+              <span
+                className={`catalog-page__badge${active ? ' catalog-page__badge--on' : ' catalog-page__badge--off'}`}
+              >
+                {active ? 'Active' : 'Off'}
+              </span>
             ),
           },
           {
@@ -220,6 +228,7 @@ const CouponsTab = () => {
             key: 'actions',
             render: (_: unknown, row: Coupon) => (
               <Switch
+                className="catalog-page__switch"
                 checked={row.isActive}
                 loading={toggleMutation.isPending}
                 onChange={(checked) => {

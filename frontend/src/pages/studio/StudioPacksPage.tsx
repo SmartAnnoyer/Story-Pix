@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Button, Spin, message } from 'antd';
+import { Button, Input, Spin, message } from 'antd';
 import { getErrorMessage } from '@/api/client';
 import { PackSavingsBanner } from '@/features/packs/components/PackSavingsBanner';
 import { findPackSavingsSuggestion } from '@/features/packs/utils/pack-savings';
@@ -7,6 +7,7 @@ import {
   checkoutService,
   collectRazorpayPayment,
   type CartItem,
+  type CartQuote,
 } from '@/services/checkout.service';
 import { useStudioPackSummaryQuery, packKeys } from '@/hooks/usePackQueries';
 import type { AlbumPack } from '@/types/pack.types';
@@ -22,6 +23,11 @@ export const StudioPacksPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ignoreSavingsKey, setIgnoreSavingsKey] = useState<string | null>(null);
+  const [couponInput, setCouponInput] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState('');
+  const [quote, setQuote] = useState<CartQuote | null>(null);
+  const [quoting, setQuoting] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
 
   useEffect(() => {
     void checkoutService
@@ -39,7 +45,7 @@ export const StudioPacksPage = () => {
     [qty],
   );
 
-  const preview = useMemo(() => {
+  const localPreview = useMemo(() => {
     const selected = items
       .map((item) => {
         const pack = packs.find((row) => row.id === item.packId);
@@ -56,6 +62,48 @@ export const StudioPacksPage = () => {
 
     return { amountInr, photos };
   }, [items, packs]);
+
+  useEffect(() => {
+    if (!items.length) {
+      setQuote(null);
+      setCouponError(null);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      setQuoting(true);
+      void checkoutService
+        .quote(items, appliedCoupon || undefined)
+        .then((next) => {
+          if (cancelled) return;
+          setQuote(next);
+          setCouponError(null);
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          setQuote(null);
+          if (appliedCoupon) {
+            setCouponError(getErrorMessage(err, 'Invalid coupon'));
+            setAppliedCoupon('');
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setQuoting(false);
+        });
+    }, 280);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [items, appliedCoupon]);
+
+  const amountInr = quote?.amountInr ?? localPreview.amountInr;
+  const subtotalInr = quote?.subtotalInr ?? localPreview.amountInr;
+  const discountInr = quote?.discountInr ?? 0;
+  const photos = quote?.totalMappings ?? localPreview.photos;
+  const hasDiscount = discountInr > 0 && Boolean(quote?.couponCode);
 
   const savingsSuggestion = useMemo(() => findPackSavingsSuggestion(packs, qty), [packs, qty]);
   const savingsKey = savingsSuggestion
@@ -76,6 +124,27 @@ export const StudioPacksPage = () => {
     setIgnoreSavingsKey(null);
   };
 
+  const applyCoupon = () => {
+    const code = couponInput.trim().toUpperCase();
+    if (!code) {
+      setAppliedCoupon('');
+      setCouponError(null);
+      return;
+    }
+    if (!items.length) {
+      setCouponError('Pick living photos before applying a coupon');
+      return;
+    }
+    setCouponError(null);
+    setAppliedCoupon(code);
+  };
+
+  const clearCoupon = () => {
+    setCouponInput('');
+    setAppliedCoupon('');
+    setCouponError(null);
+  };
+
   const handlePurchase = async () => {
     if (!items.length) {
       setError('Tap + to add living photos');
@@ -84,7 +153,7 @@ export const StudioPacksPage = () => {
     setSubmitting(true);
     setError(null);
     try {
-      const order = await checkoutService.createRechargeOrder(items);
+      const order = await checkoutService.createRechargeOrder(items, appliedCoupon || undefined);
       const payment = await collectRazorpayPayment({
         orderId: order.orderId,
         amount: order.amount,
@@ -98,6 +167,7 @@ export const StudioPacksPage = () => {
       await queryClient.invalidateQueries({ queryKey: packKeys.studioCredits() });
       await queryClient.invalidateQueries({ queryKey: packKeys.studioHistory() });
       setQty({});
+      clearCoupon();
       message.success('Photos added');
     } catch (err) {
       setError(getErrorMessage(err, 'Payment failed'));
@@ -117,6 +187,7 @@ export const StudioPacksPage = () => {
   const left = summary?.remainingMappingSlots ?? summary?.remainingAlbumCredits ?? 0;
   const used = summary?.usedMappingSlots ?? summary?.usedCredits ?? 0;
   const total = summary?.grantedMappingSlots ?? summary?.totalAssignedCredits ?? 0;
+  const paymentCancelled = Boolean(error && /cancelled/i.test(error));
 
   return (
     <div className="signup-page signup-page--docked signup-page--in-shell">
@@ -128,17 +199,31 @@ export const StudioPacksPage = () => {
           </p>
         </header>
 
-        {error ? <Alert type="error" showIcon message={error} /> : null}
+        {error ? (
+          <div
+            className={`signup-page__notice${
+              paymentCancelled ? ' signup-page__notice--soft' : ' signup-page__notice--error'
+            }`}
+            role="alert"
+          >
+            <strong>{paymentCancelled ? 'Payment cancelled' : 'Something went wrong'}</strong>
+            <p>
+              {paymentCancelled
+                ? 'No charge was made. Choose packs again when you’re ready.'
+                : error}
+            </p>
+          </div>
+        ) : null}
 
         <div className="signup-page__grid">
           {packs.map((pack) => {
-            const photos = pack.maxMappings * pack.albumsIncluded;
+            const packPhotos = pack.maxMappings * pack.albumsIncluded;
             const selected = (qty[pack.id] ?? 0) > 0;
             return (
               <article key={pack.id} className={`signup-pack${selected ? ' signup-pack--on' : ''}`}>
                 <div>
                   <strong>
-                    {photos} living photo{photos === 1 ? '' : 's'}
+                    {packPhotos} living photo{packPhotos === 1 ? '' : 's'}
                   </strong>
                   <span>₹{pack.unitPriceInr}</span>
                 </div>
@@ -156,6 +241,49 @@ export const StudioPacksPage = () => {
             );
           })}
         </div>
+
+        <div className="signup-page__coupon">
+          <label htmlFor="packs-coupon">Coupon code</label>
+          <p className="signup-page__coupon-hint">Optional — enter a code for a discount</p>
+          <div className="signup-page__coupon-row">
+            <Input
+              id="packs-coupon"
+              size="large"
+              value={couponInput}
+              onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+              onPressEnter={(e) => {
+                e.preventDefault();
+                applyCoupon();
+              }}
+              placeholder="WELCOME10"
+              maxLength={32}
+              status={couponError ? 'error' : undefined}
+              disabled={submitting}
+            />
+            {hasDiscount ? (
+              <Button type="default" size="large" onClick={clearCoupon} disabled={submitting}>
+                Clear
+              </Button>
+            ) : (
+              <Button
+                type="default"
+                size="large"
+                onClick={applyCoupon}
+                loading={quoting && Boolean(couponInput.trim())}
+                disabled={submitting || !couponInput.trim()}
+              >
+                Apply
+              </Button>
+            )}
+          </div>
+          {couponError ? <p className="signup-page__coupon-error">{couponError}</p> : null}
+          {hasDiscount && quote?.couponCode ? (
+            <p className="signup-page__coupon-ok">
+              {quote.couponCode} · {quote.discountPercent}% off (−₹
+              {discountInr.toLocaleString('en-IN')})
+            </p>
+          ) : null}
+        </div>
       </div>
 
       <div className="signup-page__dock">
@@ -169,13 +297,18 @@ export const StudioPacksPage = () => {
         <div className="signup-page__checkout">
           <div className="signup-page__checkout-meta">
             <p className="signup-page__checkout-amount">
-              <span>Total</span>₹{preview.amountInr.toLocaleString('en-IN')}
+              <span>Total</span>₹{amountInr.toLocaleString('en-IN')}
             </p>
+            {hasDiscount ? (
+              <p className="signup-page__checkout-was">
+                Was ₹{subtotalInr.toLocaleString('en-IN')}
+              </p>
+            ) : null}
             <p
-              className={`signup-page__checkout-hint${preview.photos > 0 ? ' signup-page__checkout-hint--ready' : ''}`}
+              className={`signup-page__checkout-hint${photos > 0 ? ' signup-page__checkout-hint--ready' : ''}`}
             >
-              {preview.photos > 0
-                ? `+${preview.photos} living photo${preview.photos === 1 ? '' : 's'}`
+              {photos > 0
+                ? `+${photos} living photo${photos === 1 ? '' : 's'}`
                 : 'Tap + to choose living photos'}
             </p>
           </div>

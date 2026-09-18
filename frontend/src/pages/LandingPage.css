@@ -247,52 +247,166 @@
   background: var(--paper);
 }
 
-.sp-land__steps {
-  display: grid;
-  gap: 0;
-  margin: 1.75rem 0 0;
-  padding: 0;
-  list-style: none;
-  border-top: 1px solid var(--line);
+.sp-land__how {
+  position: relative;
+  padding: clamp(3rem, 7vw, 5rem) clamp(1.15rem, 5vw, 8vw);
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 70% 55% at 0% 20%, rgba(59, 79, 232, 0.1), transparent 55%),
+    radial-gradient(ellipse 60% 45% at 100% 80%, rgba(233, 58, 138, 0.1), transparent 50%),
+    linear-gradient(180deg, #fff 0%, #f7f4fb 48%, #fff 100%);
 }
 
-.sp-land__steps li {
-  padding: 1.15rem 0;
-  border-bottom: 1px solid var(--line);
+.sp-land__how-inner {
+  position: relative;
+  max-width: 64rem;
+  margin: 0 auto;
+}
+
+.sp-land__how-eyebrow {
+  margin: 0 0 0.45rem;
+  font-size: 0.78rem;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: var(--sp-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.sp-land__how h2 {
+  margin: 0 0 0.55rem;
+  max-width: 18ch;
+  font-size: clamp(1.55rem, 4vw, 2.15rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.sp-land__how .sp-land__sub {
+  margin-bottom: 0;
+}
+
+.sp-land__steps {
+  display: grid;
+  gap: 1.15rem;
+  margin: 2rem 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: none;
+}
+
+.sp-land__step {
+  position: relative;
+  min-width: 0;
+  padding: 1.25rem 1.15rem 1.3rem;
+  border-radius: 18px;
+  border: 1px solid rgba(107, 44, 219, 0.12);
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.95) 0%, rgba(247, 244, 251, 0.88) 100%),
+    #fff;
+  box-shadow: 0 10px 28px rgba(26, 26, 46, 0.04);
+  animation: sp-land-step-in 0.55s ease both;
+  animation-delay: calc(var(--step-i, 0) * 0.08s);
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.sp-land__step:hover {
+  transform: translateY(-2px);
+  border-color: rgba(107, 44, 219, 0.28);
+  box-shadow: 0 16px 36px rgba(107, 44, 219, 0.1);
+}
+
+.sp-land__step-top {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.sp-land__step-n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  flex-shrink: 0;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #fff;
+  background: var(--sp-gradient, var(--accent));
+  box-shadow: 0 8px 18px rgba(107, 44, 219, 0.28);
+}
+
+.sp-land__step-rail {
+  display: none;
+  flex: 1;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(107, 44, 219, 0.45),
+    rgba(233, 58, 138, 0.2),
+    transparent
+  );
+}
+
+.sp-land__step h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1.12rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.sp-land__step p {
+  margin: 0;
+  font-size: 0.94rem;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+@keyframes sp-land-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (min-width: 800px) {
   .sp-land__steps {
-    grid-template-columns: repeat(3, 1fr);
-    border-top: none;
-    gap: 1.5rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.25rem;
+    margin-top: 2.35rem;
   }
 
-  .sp-land__steps li {
-    padding: 0;
-    border-bottom: none;
+  .sp-land__step {
+    padding: 1.45rem 1.25rem 1.5rem;
+  }
+
+  .sp-land__step-rail {
+    display: block;
   }
 }
 
-.sp-land__step-n {
-  display: block;
-  margin-bottom: 0.35rem;
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--accent);
-}
+@media (prefers-reduced-motion: reduce) {
+  .sp-land__step {
+    animation: none;
+  }
 
-.sp-land__steps h3 {
-  margin: 0 0 0.35rem;
-  font-size: 1.05rem;
-  font-weight: 700;
-}
-
-.sp-land__steps p {
-  margin: 0;
-  font-size: 0.92rem;
-  line-height: 1.5;
-  color: var(--muted);
+  .sp-land__step:hover {
+    transform: none;
+  }
 }
 
 .sp-land__bullets {

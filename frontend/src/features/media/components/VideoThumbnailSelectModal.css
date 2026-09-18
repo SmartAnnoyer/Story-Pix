@@ -1,0 +1,51 @@
+.video-thumb-picker {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  max-height: min(52vh, 420px);
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #1c1b22;
+}
+
+.video-thumb-picker__video {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.video-thumb-picker__preview {
+  display: none;
+  max-width: 100%;
+  max-height: min(52vh, 420px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  background: transparent;
+}
+
+.video-thumb-picker__preview--on {
+  display: block;
+}
+
+.video-thumb-picker__loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #d1d5db;
+  font-size: 0.9rem;
+  font-weight: 600;
+  background: rgba(28, 27, 34, 0.88);
+}
+
+.video-thumb-modal .ant-btn-primary {
+  background: #5b2cdb;
+  border-color: #5b2cdb;
+}

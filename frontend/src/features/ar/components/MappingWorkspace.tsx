@@ -69,7 +69,6 @@ export const MappingWorkspace = ({
   submitLabel,
   singleMapping = false,
   onSubmit,
-  onCancel,
 }: MappingWorkspaceProps) => {
   const readyPhotos = useMemo(
     () => photos.filter((item) => item.mediaType === MediaType.PHOTO),
@@ -194,13 +193,12 @@ export const MappingWorkspace = ({
   const activePhotoSrc = useStudioMediaPreviewSrc(activePhoto, 'original');
 
   const readyToConfirm = pendingMappings.length > 0;
-  const showStickyDock = Boolean(selectedPhotoId) || readyToConfirm;
   const resolvedSubmitLabel =
     submitLabel ??
-    (pendingMappings.length <= 1 ? 'Confirm link' : `Confirm ${pendingMappings.length} links`);
+    (pendingMappings.length <= 1 ? 'Confirm link' : `Confirm ${pendingMappings.length}`);
 
   return (
-    <div className={`mapping-workspace${showStickyDock ? ' mapping-workspace--docked' : ''}`}>
+    <div className={`mapping-workspace${readyToConfirm ? ' mapping-workspace--docked' : ''}`}>
       <div className="mapping-workspace__steps" aria-label="How to link">
         <span
           className={`mapping-workspace__step${selectedPhotoId || readyToConfirm ? ' mapping-workspace__step--done' : ' mapping-workspace__step--on'}`}
@@ -215,7 +213,7 @@ export const MappingWorkspace = ({
         <span
           className={`mapping-workspace__step${readyToConfirm ? ' mapping-workspace__step--on' : ''}`}
         >
-          3 · Confirm link
+          3 · Confirm
         </span>
       </div>
 
@@ -397,46 +395,16 @@ export const MappingWorkspace = ({
         ) : null}
       </aside>
 
-      {showStickyDock ? (
-        <div className="mapping-workspace__dock" role="region" aria-label="Confirm link">
-          <div className="mapping-workspace__dock-inner">
-            <div className="mapping-workspace__dock-meta">
-              {readyToConfirm ? (
-                <>
-                  <p className="mapping-workspace__dock-title">
-                    {pendingMappings.length === 1
-                      ? 'Ready to link'
-                      : `${pendingMappings.length} links ready`}
-                  </p>
-                  <p className="mapping-workspace__dock-hint">
-                    Guests will see the video when they scan this print.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="mapping-workspace__dock-title">Photo selected</p>
-                  <p className="mapping-workspace__dock-hint">Tap a video to finish this link.</p>
-                </>
-              )}
-            </div>
-            <div className="mapping-workspace__dock-actions">
-              {onCancel ? (
-                <Button onClick={onCancel} disabled={loading}>
-                  Cancel
-                </Button>
-              ) : null}
-              <Button
-                type="primary"
-                size="large"
-                loading={loading}
-                disabled={!readyToConfirm}
-                onClick={handleSubmit}
-                className="mapping-workspace__confirm"
-              >
-                {resolvedSubmitLabel}
-              </Button>
-            </div>
-          </div>
+      {readyToConfirm ? (
+        <div className="mapping-workspace__fab" role="region" aria-label="Confirm link">
+          <Button
+            type="primary"
+            loading={loading}
+            onClick={handleSubmit}
+            className="mapping-workspace__fab-btn"
+          >
+            {resolvedSubmitLabel}
+          </Button>
         </div>
       ) : null}
     </div>

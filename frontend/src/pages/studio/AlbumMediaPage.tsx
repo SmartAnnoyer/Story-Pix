@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { message } from 'antd';
 import { useAlbumQuery } from '@/hooks/useAlbumQueries';
 import { useAlbumMediaQuery, useDeleteMediaMutation } from '@/hooks/useMediaQueries';
@@ -8,7 +8,7 @@ import { UploadProgressList } from '@/features/media/components/UploadProgressLi
 import { PhotoGallery } from '@/features/media/components/PhotoGallery';
 import { VideoGallery } from '@/features/media/components/VideoGallery';
 import { AlbumStudioShell } from '@/features/albums/components/AlbumStudioShell';
-import { albumMapPath, getReadyMediaCounts } from '@/features/albums/utils/album-delivery';
+import { getReadyMediaCounts } from '@/features/albums/utils/album-delivery';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { AlbumStatus } from '@/types/album.types';
 import { MediaStatus, MediaType } from '@/types/media.types';
@@ -20,7 +20,6 @@ type MediaTab = 'photos' | 'videos';
 
 export const AlbumMediaPage = () => {
   const { id = '' } = useParams();
-  const navigate = useNavigate();
   const { data: album, isLoading: albumLoading } = useAlbumQuery(id);
   const {
     data: mediaData,
@@ -90,21 +89,7 @@ export const AlbumMediaPage = () => {
       ]}
     >
       <div className="album-media">
-        {canMap ? (
-          <div className="album-media__cta">
-            <div>
-              <strong>Ready to link</strong>
-              <p>Match each printed photo to the video guests should see when they scan.</p>
-            </div>
-            <button
-              type="button"
-              className="studio-home__btn studio-home__btn--primary"
-              onClick={() => navigate(albumMapPath(id, (mappings?.items.length ?? 0) > 0))}
-            >
-              Link photo → video
-            </button>
-          </div>
-        ) : (
+        {!canMap ? (
           <div className="album-media__cta album-media__cta--muted">
             <div>
               <strong>
@@ -121,7 +106,7 @@ export const AlbumMediaPage = () => {
               <p>The photo is what they print. The video is what plays on the phone.</p>
             </div>
           </div>
-        )}
+        ) : null}
 
         <div className="album-media__uploads">
           <UploadProgressList />

@@ -1,7 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Button, Input, Modal, Slider, Typography } from 'antd';
-import { blobToDataUrl, scaleToMaxEdge } from '@/features/media/utils/video-frame-capture';
+import {
+  blobToDataUrl,
+  pickDefaultVideoPosterTime,
+  scaleToMaxEdge,
+} from '@/features/media/utils/video-frame-capture';
 import { stripFileExtension } from '@/features/media/utils/cache-bust';
+import './VideoThumbnailSelectModal.css';
 
 interface VideoThumbnailSelectModalProps {
   open: boolean;
@@ -51,10 +56,20 @@ export const VideoThumbnailSelectModal = ({
 
   const busy = confirmingOverride ?? confirming;
   const needsCors = Boolean(videoUrl && /^https?:\/\//i.test(videoUrl));
+  const stageStyle =
+    width > 0 && height > 0
+      ? ({ aspectRatio: `${width} / ${height}` } as CSSProperties)
+      : undefined;
 
-  const paintPreview = useCallback((video: HTMLVideoElement, _canvas: HTMLCanvasElement) => {
-    if (video.videoWidth <= 0) return false;
-    // Visible <video> is the scrubber preview; canvas is only used on confirm.
+  const paintPreview = useCallback((video: HTMLVideoElement, canvas: HTMLCanvasElement) => {
+    if (video.videoWidth <= 0 || video.videoHeight <= 0) return false;
+    const scaled = scaleToMaxEdge(video.videoWidth, video.videoHeight, 960);
+    canvas.width = scaled.width;
+    canvas.height = scaled.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return false;
+    ctx.clearRect(0, 0, scaled.width, scaled.height);
+    ctx.drawImage(video, 0, 0, scaled.width, scaled.height);
     setPreviewReady(true);
     return true;
   }, []);
@@ -89,6 +104,11 @@ export const VideoThumbnailSelectModal = ({
             video.currentTime = target;
           });
         }
+
+        // Some browsers need a paint tick after seek before the frame is drawable.
+        await new Promise<void>((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+        });
 
         if (token !== seekTokenRef.current) return;
         if (!paintPreview(video, canvas)) {
@@ -157,10 +177,15 @@ export const VideoThumbnailSelectModal = ({
     if (!video) return;
 
     const boot = () => {
-      setWidth(video.videoWidth);
-      setHeight(video.videoHeight);
-      setDuration(Number.isFinite(video.duration) ? video.duration : 0);
-      void seekTo(0);
+      const nextWidth = video.videoWidth;
+      const nextHeight = video.videoHeight;
+      const nextDuration = Number.isFinite(video.duration) ? video.duration : 0;
+      setWidth(nextWidth);
+      setHeight(nextHeight);
+      setDuration(nextDuration);
+      const startAt = pickDefaultVideoPosterTime(nextDuration);
+      setTime(startAt);
+      void seekTo(startAt);
     };
 
     const onError = () => setLoadFailed(true);
@@ -194,18 +219,14 @@ export const VideoThumbnailSelectModal = ({
     setConfirming(true);
     try {
       await seekTo(time);
-      const scaled = scaleToMaxEdge(video.videoWidth, video.videoHeight, 720);
-      canvas.width = scaled.width;
-      canvas.height = scaled.height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error('Canvas unavailable');
-      ctx.drawImage(video, 0, 0, scaled.width, scaled.height);
+      if (!paintPreview(video, canvas)) throw new Error('Could not capture frame');
 
       let blob: Blob | null = await new Promise((resolve) => {
         canvas.toBlob((result) => resolve(result), 'image/jpeg', 0.82);
       });
 
       if (!blob) {
+        const scaled = scaleToMaxEdge(video.videoWidth, video.videoHeight, 720);
         const exportCanvas = document.createElement('canvas');
         exportCanvas.width = scaled.width;
         exportCanvas.height = scaled.height;
@@ -242,8 +263,9 @@ export const VideoThumbnailSelectModal = ({
       open={open}
       title="Choose video cover"
       onCancel={onCancel}
-      width={720}
+      width={Math.min(720, typeof window !== 'undefined' ? window.innerWidth - 24 : 720)}
       destroyOnClose
+      className="video-thumb-modal"
       footer={[
         <Button key="cancel" onClick={onCancel} disabled={busy}>
           Cancel
@@ -275,17 +297,20 @@ export const VideoThumbnailSelectModal = ({
         />
       </div>
 
-      <div className="video-thumb-picker">
+      <div className="video-thumb-picker" style={stageStyle}>
         <video
           ref={videoRef}
           src={videoUrl ?? undefined}
           className="video-thumb-picker__video"
           playsInline
           muted
-          preload="metadata"
+          preload="auto"
           crossOrigin={needsCors ? 'anonymous' : undefined}
         />
-        <canvas ref={canvasRef} className="video-thumb-picker__preview" hidden />
+        <canvas
+          ref={canvasRef}
+          className={`video-thumb-picker__preview${previewReady ? ' video-thumb-picker__preview--on' : ''}`}
+        />
         {!previewReady && !loadFailed ? (
           <div className="video-thumb-picker__loading">Loading video…</div>
         ) : null}

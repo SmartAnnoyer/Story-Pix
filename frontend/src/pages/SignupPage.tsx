@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Alert, Button, Form, Input, Spin, message } from 'antd';
+import { Button, Form, Input, Spin, message } from 'antd';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { getErrorMessage } from '@/api/client';
@@ -246,6 +246,8 @@ export const SignupPage = () => {
     );
   }
 
+  const paymentCancelled = Boolean(error && /cancelled/i.test(error));
+
   return (
     <div className="signup-page signup-page--docked">
       <div className="signup-page__scroll">
@@ -255,15 +257,27 @@ export const SignupPage = () => {
         </header>
 
         {error ? (
-          <Alert type="error" showIcon message={error} className="signup-page__alert" />
+          <div
+            className={`signup-page__notice${
+              paymentCancelled ? ' signup-page__notice--soft' : ' signup-page__notice--error'
+            }`}
+            role="alert"
+          >
+            <strong>{paymentCancelled ? 'Payment cancelled' : 'Something went wrong'}</strong>
+            <p>
+              {paymentCancelled
+                ? 'No charge was made. Pick your living photos again when you’re ready.'
+                : error}
+            </p>
+          </div>
         ) : null}
 
         <div className="signup-page__desktop">
           <section className="signup-page__packs" aria-label="Choose living photos">
             <h2>Living photos</h2>
-            <p className="signup-page__hint">
+            {/* <p className="signup-page__hint">
               Each living photo links one printed photo to a video. Tap + to choose a size.
-            </p>
+            </p> */}
             <div className="signup-page__grid">
               {catalogPacks.map((pack) => {
                 const photos = pack.maxMappings * pack.albumsIncluded;

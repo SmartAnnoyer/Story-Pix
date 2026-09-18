@@ -132,6 +132,35 @@
   color: var(--c-accent);
 }
 
+.catalog-page__badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+  line-height: 1.3;
+}
+
+.catalog-page__badge--on {
+  color: var(--c-accent);
+  background: #f3eefc;
+  border-color: rgba(91, 44, 219, 0.22);
+}
+
+.catalog-page__badge--off {
+  color: var(--c-muted);
+  background: #f3f3f5;
+  border-color: rgba(106, 103, 114, 0.18);
+}
+
+.catalog-page__switch.ant-switch-checked {
+  background: var(--c-accent) !important;
+}
+
 .catalog-page__coupon-form .ant-input,
 .catalog-page__coupon-form .ant-input-number {
   border-radius: 10px;

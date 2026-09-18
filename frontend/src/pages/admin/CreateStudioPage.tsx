@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Alert, Card, Typography, message } from 'antd';
+import { Card, Typography, message } from 'antd';
 import { StudioForm } from '@/features/studios/components/StudioForm';
 import { useCreateStudioMutation } from '@/hooks/useStudioQueries';
 import { getErrorMessage } from '@/api/client';
@@ -32,13 +32,6 @@ export const CreateStudioPage = () => {
       </Paragraph>
 
       <Card className="max-w-4xl">
-        <Alert
-          type="info"
-          showIcon
-          className="mb-6"
-          message="Owner name becomes the admin display name"
-          description="Set the admin email and password they will use to sign in. Assign album packs from Catalog after setup."
-        />
         <StudioForm
           mode="create"
           onSubmit={handleSubmit}

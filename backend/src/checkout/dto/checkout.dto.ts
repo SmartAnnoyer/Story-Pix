@@ -89,6 +89,10 @@ export class CreateRechargeOrderDto {
   @ValidateNested({ each: true })
   @Type(() => CartItemDto)
   items!: CartItemDto[];
+
+  @IsOptional()
+  @IsString()
+  couponCode?: string;
 }
 
 export class VerifyCheckoutPaymentDto {

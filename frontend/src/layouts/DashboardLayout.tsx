@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Layout } from 'antd';
 import {
   AppstoreOutlined,
@@ -101,7 +101,7 @@ export const DashboardLayout = () => {
             { key: 'albums', label: 'Albums', path: ROUTES.ALBUMS, icon: <AppstoreOutlined /> },
             {
               key: 'packs',
-              label: 'Add living photos',
+              label: 'Buy Packs',
               path: ROUTES.STUDIO_PACKS,
               icon: <ShoppingOutlined />,
             },
@@ -126,6 +126,16 @@ export const DashboardLayout = () => {
   const back = getBackTarget(location.pathname, isSuperAdmin);
   const homePath = isSuperAdmin ? ROUTES.ADMIN_DASHBOARD : ROUTES.ALBUMS;
   const greetingName = user?.firstName?.trim() || user?.email?.split('@')[0] || 'there';
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    const content = document.querySelector('.app-shell__content');
+    if (content instanceof HTMLElement) {
+      content.scrollTop = 0;
+    }
+  }, [location.pathname]);
 
   const handleLogout = async () => {
     try {

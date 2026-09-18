@@ -167,10 +167,13 @@ export const checkoutService = {
     return data.data;
   },
 
-  async createRechargeOrder(items: CartItem[]): Promise<CheckoutOrderResult> {
+  async createRechargeOrder(items: CartItem[], couponCode?: string): Promise<CheckoutOrderResult> {
     const { data } = await apiClient.post<ApiResponse<CheckoutOrderResult>>(
       '/studio/packs/purchase/order',
-      { items },
+      {
+        items,
+        ...(couponCode?.trim() ? { couponCode: couponCode.trim() } : {}),
+      },
     );
     return data.data;
   },

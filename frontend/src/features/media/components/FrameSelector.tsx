@@ -15,8 +15,8 @@ interface FrameSelectorProps {
 }
 
 const getContainRect = (containerW: number, containerH: number, imageW: number, imageH: number) => {
-  if (!imageW || !imageH) {
-    return { left: 0, top: 0, width: containerW, height: containerH };
+  if (!containerW || !containerH || !imageW || !imageH) {
+    return { left: 0, top: 0, width: 0, height: 0 };
   }
   const scale = Math.min(containerW / imageW, containerH / imageH);
   const width = imageW * scale;
@@ -156,14 +156,30 @@ export const FrameSelector = ({ imageSrc, value, onChange }: FrameSelectorProps)
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
     >
-      <img
-        ref={imageRef}
-        className="frame-selector__image"
-        src={imageSrc}
-        alt="Tracking photo"
-        onLoad={measure}
-        draggable={false}
-      />
+      {displayed.width > 0 ? (
+        <img
+          ref={imageRef}
+          className="frame-selector__image"
+          src={imageSrc}
+          alt="Tracking photo"
+          draggable={false}
+          style={{
+            left: displayed.left,
+            top: displayed.top,
+            width: displayed.width,
+            height: displayed.height,
+          }}
+        />
+      ) : (
+        <img
+          ref={imageRef}
+          className="frame-selector__image frame-selector__image--measure"
+          src={imageSrc}
+          alt=""
+          draggable={false}
+          onLoad={measure}
+        />
+      )}
       {displayed.width > 0 ? (
         <div
           className="frame-selector__mask"
