@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { AlbumPackTier, ArTargetStatus, PackLedgerAction } from '../common/enums';
+import { AlbumPackTier, AlbumStatus, ArTargetStatus, PackLedgerAction } from '../common/enums';
 import { SCANS_PER_MAPPING } from '../common/constants/pack.constants';
 import { AlbumPack, AlbumPackDocument } from './schemas/album-pack.schema';
 import { StudioPackCredit, StudioPackCreditDocument } from './schemas/studio-pack-credit.schema';
@@ -205,17 +205,54 @@ export class PacksService implements OnModuleInit {
     const studioFilter = Types.ObjectId.isValid(studioId)
       ? { $in: [studioId, new Types.ObjectId(studioId)] }
       : studioId;
-    return this.arTargetModel
-      .countDocuments({
-        studioId: studioFilter,
-        status: { $ne: ArTargetStatus.ARCHIVED },
-        deletedAt: null,
-      })
+
+    // Only count mappings on live albums — deleted/archived albums must not consume quota.
+    const rows = await this.arTargetModel
+      .aggregate<{ count: number }>([
+        {
+          $match: {
+            studioId: studioFilter,
+            status: { $ne: ArTargetStatus.ARCHIVED },
+            $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
+          },
+        },
+        {
+          $addFields: {
+            albumIdStr: { $toString: '$albumId' },
+          },
+        },
+        {
+          $lookup: {
+            from: 'albums',
+            let: { albumIdStr: '$albumIdStr' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: { $eq: [{ $toString: '$_id' }, '$$albumIdStr'] },
+                },
+              },
+              {
+                $match: {
+                  deletedAt: null,
+                  status: { $ne: AlbumStatus.ARCHIVED },
+                },
+              },
+              { $project: { _id: 1 } },
+            ],
+            as: 'album',
+          },
+        },
+        { $match: { 'album.0': { $exists: true } } },
+        { $count: 'count' },
+      ])
       .exec();
+
+    return rows[0]?.count ?? 0;
   }
 
   async getMappingQuota(studioId: string): Promise<MappingQuota> {
     await this.normalizeLegacyAlbumCredits(studioId);
+    await this.releaseOrphanMappingTargets(studioId);
     const credits = await this.creditModel
       .find({ studioId: new Types.ObjectId(studioId), isActive: true })
       .exec();
@@ -689,5 +726,68 @@ export class PacksService implements OnModuleInit {
       credit.remainingCredits = credit.totalCredits;
       await credit.save();
     }
+  }
+
+  /** Archive mappings whose album was deleted/archived without cascading (legacy leak). */
+  private async releaseOrphanMappingTargets(studioId: string) {
+    const studioFilter = Types.ObjectId.isValid(studioId)
+      ? { $in: [studioId, new Types.ObjectId(studioId)] }
+      : studioId;
+
+    const orphans = await this.arTargetModel
+      .aggregate<{ _id: Types.ObjectId }>([
+        {
+          $match: {
+            studioId: studioFilter,
+            status: { $ne: ArTargetStatus.ARCHIVED },
+            $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
+          },
+        },
+        {
+          $addFields: {
+            albumIdStr: { $toString: '$albumId' },
+          },
+        },
+        {
+          $lookup: {
+            from: 'albums',
+            let: { albumIdStr: '$albumIdStr' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: { $eq: [{ $toString: '$_id' }, '$$albumIdStr'] },
+                },
+              },
+              {
+                $match: {
+                  deletedAt: null,
+                  status: { $ne: AlbumStatus.ARCHIVED },
+                },
+              },
+              { $project: { _id: 1 } },
+            ],
+            as: 'album',
+          },
+        },
+        { $match: { album: { $size: 0 } } },
+        { $project: { _id: 1 } },
+      ])
+      .exec();
+
+    if (!orphans.length) return;
+
+    const now = new Date();
+    await this.arTargetModel
+      .updateMany(
+        { _id: { $in: orphans.map((row) => row._id) } },
+        {
+          $set: {
+            status: ArTargetStatus.ARCHIVED,
+            deletedAt: now,
+            targetIndex: null,
+          },
+        },
+      )
+      .exec();
   }
 }

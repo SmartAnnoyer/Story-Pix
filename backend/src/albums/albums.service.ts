@@ -257,6 +257,9 @@ export class AlbumsService {
     }
     await album.save();
 
+    // Free mapping slots — targets on deleted albums must not keep consuming quota.
+    await this.archiveTargetsForAlbum(studioId, album._id);
+
     await this.usageService.decrementAlbumCount(studioId);
     return { id: album._id.toString(), deleted: true };
   }
@@ -324,6 +327,9 @@ export class AlbumsService {
     album.status = AlbumStatus.ARCHIVED;
     album.isPublished = false;
     await album.save();
+
+    await this.archiveTargetsForAlbum(studioId, album._id);
+
     void this.mindArCompilerService.scheduleAlbumMindRebuild(album._id.toString());
     void this.trackEvent(studioId, album._id.toString(), AnalyticsEventType.ALBUM_ARCHIVED);
     void this.eventBus.publish({
@@ -395,6 +401,39 @@ export class AlbumsService {
     const field = query.sortBy ?? AlbumSortField.CREATED_AT;
     const order: MongoSortOrder = query.sortOrder === SortOrder.ASC ? 1 : -1;
     return { [field]: order };
+  }
+
+  /** Soft-delete all mappings on an album so pack quota is released. */
+  private async archiveTargetsForAlbum(studioId: string, albumId: Types.ObjectId) {
+    const studioFilter = Types.ObjectId.isValid(studioId)
+      ? { $in: [studioId, new Types.ObjectId(studioId)] }
+      : studioId;
+    const albumIdStr = albumId.toString();
+    const albumFilter = Types.ObjectId.isValid(albumIdStr)
+      ? { $in: [albumIdStr, new Types.ObjectId(albumIdStr)] }
+      : albumIdStr;
+
+    const targets = await this.arTargetModel
+      .find({
+        studioId: studioFilter,
+        albumId: albumFilter,
+        status: { $ne: ArTargetStatus.ARCHIVED },
+        $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
+      })
+      .exec();
+
+    let hadActive = false;
+    for (const target of targets) {
+      if (target.status === ArTargetStatus.ACTIVE) hadActive = true;
+      target.deletedAt = new Date();
+      target.status = ArTargetStatus.ARCHIVED;
+      target.targetIndex = null;
+      await target.save();
+    }
+
+    if (hadActive) {
+      void this.mindArCompilerService.scheduleAlbumMindRebuild(albumIdStr);
+    }
   }
 
   private async findDocument(studioId: string, id: string): Promise<AlbumDocument> {
