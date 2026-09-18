@@ -285,10 +285,15 @@
   padding: 0 1.15rem calc(1.5rem + env(safe-area-inset-bottom));
 }
 
+.auth-app--wide .auth-app__card {
+  max-width: 960px;
+}
+
 @media (min-width: 768px) {
   .auth-app {
     align-items: center;
     justify-content: center;
+    padding: 1.5rem 1.25rem;
   }
 
   .auth-app__card {
@@ -298,6 +303,22 @@
     border: 1px solid var(--sp-line, #e6e4ea);
     background: #fff;
     box-shadow: 0 16px 40px rgba(26, 26, 46, 0.06);
+  }
+
+  .auth-app--wide {
+    justify-content: flex-start;
+    padding-top: 1.25rem;
+  }
+
+  .auth-app--wide .auth-app__hero {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .auth-app--wide .auth-app__card {
+    width: min(960px, 100%);
+    max-width: 960px;
+    padding: 1.75rem 2rem 2rem;
   }
 }
 

@@ -15,6 +15,7 @@ import {
   IBillingProvider,
 } from '../billing/interfaces/billing-provider.interface';
 import { PacksService } from '../packs/packs.service';
+import { CouponsService } from '../coupons/coupons.service';
 import { StudiosService } from '../studios/studios.service';
 import { UsersService } from '../users/users.service';
 import { AuthService } from '../auth/auth.service';
@@ -36,6 +37,7 @@ export class CheckoutService {
     private readonly orderModel: Model<CheckoutOrderDocument>,
     @Inject(BILLING_PROVIDER) private readonly billingProvider: IBillingProvider,
     private readonly packsService: PacksService,
+    private readonly couponsService: CouponsService,
     private readonly studiosService: StudiosService,
     private readonly usersService: UsersService,
     private readonly authService: AuthService,
@@ -49,8 +51,26 @@ export class CheckoutService {
     return this.packsService.findAll(false);
   }
 
-  quote(dto: QuoteCartDto) {
-    return this.packsService.quoteCart(dto.items);
+  async quote(dto: QuoteCartDto) {
+    const quote = await this.packsService.quoteCart(dto.items);
+    const applied = await this.couponsService.applyToSubtotal(dto.couponCode, quote.amountInr);
+    if (!applied) {
+      return {
+        ...quote,
+        subtotalInr: quote.amountInr,
+        discountInr: 0,
+        couponCode: null,
+        discountPercent: null,
+      };
+    }
+    return {
+      ...quote,
+      amountInr: applied.amountInr,
+      subtotalInr: applied.subtotalInr,
+      discountInr: applied.discountInr,
+      couponCode: applied.code,
+      discountPercent: applied.discountPercent,
+    };
   }
 
   async createSignupOrder(dto: CreateSignupOrderDto) {
@@ -64,9 +84,18 @@ export class CheckoutService {
       throw new ConflictException('Email is already registered');
     }
 
-    const quote = await this.packsService.quoteCart(dto.items);
-    if (quote.amountInr <= 0) {
+    const baseQuote = await this.packsService.quoteCart(dto.items);
+    if (baseQuote.amountInr <= 0) {
       throw new BadRequestException('Invalid cart total');
+    }
+
+    const applied = await this.couponsService.applyToSubtotal(dto.couponCode, baseQuote.amountInr);
+    const amountInr = applied?.amountInr ?? baseQuote.amountInr;
+    const subtotalInr = applied?.subtotalInr ?? baseQuote.amountInr;
+    const discountInr = applied?.discountInr ?? 0;
+
+    if (amountInr <= 0) {
+      throw new BadRequestException('Invalid cart total after coupon');
     }
 
     const passwordHash = await this.usersService.hashPassword(dto.password);
@@ -74,12 +103,13 @@ export class CheckoutService {
     const receipt = `signup_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
     const orderResult = await this.billingProvider.createOrder({
-      amount: Math.round(quote.amountInr * 100),
+      amount: Math.round(amountInr * 100),
       currency,
       receipt,
       notes: {
         kind: CheckoutOrderKind.SIGNUP_PACK,
         email,
+        coupon: applied?.code ?? '',
       },
     });
 
@@ -90,7 +120,11 @@ export class CheckoutService {
         packId: new Types.ObjectId(item.packId),
         quantity: item.quantity,
       })),
-      amountInr: quote.amountInr,
+      amountInr,
+      subtotalInr,
+      discountInr,
+      couponCode: applied?.code ?? null,
+      couponId: applied ? new Types.ObjectId(applied.couponId) : null,
       currency,
       razorpayOrderId: orderResult.orderId,
       email,
@@ -101,7 +135,19 @@ export class CheckoutService {
       expiresAt: new Date(Date.now() + ORDER_TTL_MS),
     });
 
-    this.logger.log(`Signup checkout order ${order._id} → ${orderResult.orderId}`);
+    this.logger.log(
+      `Signup checkout order ${order._id} → ${orderResult.orderId} amount=${amountInr}` +
+        (applied ? ` coupon=${applied.code}` : ''),
+    );
+
+    const quote = {
+      ...baseQuote,
+      amountInr,
+      subtotalInr,
+      discountInr,
+      couponCode: applied?.code ?? null,
+      discountPercent: applied?.discountPercent ?? null,
+    };
 
     return {
       checkoutId: order._id.toString(),
@@ -191,6 +237,10 @@ export class CheckoutService {
       'Signup pack purchase',
       fulfillKey,
     );
+
+    if (order.couponId) {
+      await this.couponsService.incrementUsage(order.couponId.toString());
+    }
 
     order.status = CheckoutOrderStatus.FULFILLED;
     order.fulfilledAt = new Date();

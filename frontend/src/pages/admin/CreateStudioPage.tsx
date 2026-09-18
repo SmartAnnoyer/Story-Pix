@@ -15,8 +15,7 @@ export const CreateStudioPage = () => {
   const handleSubmit = async (values: CreateStudioPayload) => {
     try {
       const result = await createMutation.mutateAsync(values);
-      message.success('Studio created successfully');
-      message.info(`Temporary admin password: ${result.admin.temporaryPassword}`, 10);
+      message.success(`Studio created. Admin can sign in as ${result.admin.email}`);
       navigate(ROUTES.STUDIO_DETAILS.replace(':id', result.studio.id));
     } catch {
       // error handled below
@@ -29,7 +28,7 @@ export const CreateStudioPage = () => {
         Create Studio
       </Title>
       <Paragraph type="secondary" className="!mb-6">
-        A Studio Admin account will be created automatically. Assign album packs after setup.
+        Creates the studio and a login for the studio admin.
       </Paragraph>
 
       <Card className="max-w-4xl">
@@ -37,8 +36,8 @@ export const CreateStudioPage = () => {
           type="info"
           showIcon
           className="mb-6"
-          message="Auto setup creates the studio and admin login."
-          description="Welcome emails need a verified Resend domain. Until then, open the studio details page anytime to copy the admin login email and temporary password (while unchanged)."
+          message="Owner name becomes the admin display name"
+          description="Set the admin email and password they will use to sign in. Assign album packs from Catalog after setup."
         />
         <StudioForm
           mode="create"

@@ -88,8 +88,8 @@ export interface CreateStudioPayload {
   address?: string;
   website?: string;
   adminEmail: string;
-  adminFirstName: string;
-  adminLastName: string;
+  password: string;
+  confirmPassword: string;
 }
 
 export interface UpdateStudioPayload {
@@ -107,7 +107,7 @@ export interface CreateStudioResult {
   studio: Studio;
   admin: {
     email: string;
-    temporaryPassword: string;
+    temporaryPassword: string | null;
   };
 }
 

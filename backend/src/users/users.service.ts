@@ -15,7 +15,7 @@ export interface CreateStudioAdminInput {
   firstName: string;
   lastName: string;
   passwordHash: string;
-  temporaryPasswordPlain: string;
+  temporaryPasswordPlain?: string | null;
 }
 
 @Injectable()
@@ -57,7 +57,9 @@ export class UsersService implements OnModuleInit {
       lastName: input.lastName,
       email: input.email.toLowerCase(),
       passwordHash: input.passwordHash,
-      temporaryPasswordPlain: input.temporaryPasswordPlain,
+      ...(input.temporaryPasswordPlain
+        ? { temporaryPasswordPlain: input.temporaryPasswordPlain }
+        : {}),
       role: Role.STUDIO_ADMIN,
       status: UserStatus.ACTIVE,
       studioId: input.studioId,
@@ -168,7 +170,11 @@ export class UsersService implements OnModuleInit {
       .exec();
   }
 
-  async resetStudioAdminPassword(studioId: string, passwordHash: string, temporaryPasswordPlain: string) {
+  async resetStudioAdminPassword(
+    studioId: string,
+    passwordHash: string,
+    temporaryPasswordPlain: string,
+  ) {
     const admin = await this.findStudioAdminForStudio(studioId);
 
     if (!admin) {

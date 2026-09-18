@@ -8,8 +8,10 @@ import { PlansModule } from '../plans/plans.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
 import { PacksModule } from '../packs/packs.module';
+import { CouponsModule } from '../coupons/coupons.module';
 import { AlbumsModule } from '../albums/albums.module';
 import { AdminPacksController } from './admin-packs.controller';
+import { AdminCouponsController } from './admin-coupons.controller';
 
 @Module({
   imports: [
@@ -18,6 +20,7 @@ import { AdminPacksController } from './admin-packs.controller';
     SubscriptionsModule,
     AnalyticsModule,
     PacksModule,
+    CouponsModule,
     AlbumsModule,
   ],
   controllers: [
@@ -26,6 +29,7 @@ import { AdminPacksController } from './admin-packs.controller';
     AdminPlansController,
     AdminSubscriptionsController,
     AdminPacksController,
+    AdminCouponsController,
   ],
 })
 export class AdminModule {}

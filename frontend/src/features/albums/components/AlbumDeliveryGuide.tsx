@@ -52,7 +52,7 @@ export const AlbumDeliveryGuide = ({ albumId, current }: AlbumDeliveryGuideProps
     {
       key: 'map',
       n: '2',
-      label: 'Link them',
+      label: 'Match photo → video',
       short: 'Link',
       done: mapDone,
       path: albumMapPath(albumId, total > 0),

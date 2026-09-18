@@ -47,6 +47,10 @@ export class QuoteCartDto {
   @ValidateNested({ each: true })
   @Type(() => CartItemDto)
   items!: CartItemDto[];
+
+  @IsOptional()
+  @IsString()
+  couponCode?: string;
 }
 
 export class CreateSignupOrderDto {
@@ -73,6 +77,10 @@ export class CreateSignupOrderDto {
   @ValidateNested({ each: true })
   @Type(() => CartItemDto)
   items!: CartItemDto[];
+
+  @IsOptional()
+  @IsString()
+  couponCode?: string;
 }
 
 export class CreateRechargeOrderDto {

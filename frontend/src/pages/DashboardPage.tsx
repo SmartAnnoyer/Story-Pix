@@ -62,8 +62,8 @@ export const DashboardPage = () => {
         to={ROUTES.STUDIO_PACKS}
         className={`studio-home__buy-cta${outOfPhotos ? ' studio-home__buy-cta--pulse' : ''}`}
       >
-        <span className="studio-home__buy-cta-title">Buy / recharge packs →</span>
-        <span className="studio-home__buy-cta-sub">Add more photos anytime</span>
+        <span className="studio-home__buy-cta-title">Add living photos →</span>
+        <span className="studio-home__buy-cta-sub">Get more photo–video links anytime</span>
       </Link>
 
       <div className="studio-home__albums">

@@ -144,19 +144,21 @@ describe('StudiosService', () => {
     studioModel.findOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
 
     studioModel.create.mockResolvedValue(mockStudioDoc);
-    studioModel.findById = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(mockStudioDoc) });
+    studioModel.findById = jest
+      .fn()
+      .mockReturnValue({ exec: jest.fn().mockResolvedValue(mockStudioDoc) });
 
     const result = await service.create({
       studioName: 'New Studio',
       ownerName: 'Owner',
       email: 'studio@new.com',
       adminEmail: 'admin@new.com',
-      adminFirstName: 'Admin',
-      adminLastName: 'User',
+      password: 'Admin@123456',
+      confirmPassword: 'Admin@123456',
     });
 
     expect(result.studio.studioName).toBe('Sunrise Studio');
-    expect(result.admin.temporaryPassword).toBeDefined();
+    expect(result.admin.email).toBe('admin@new.com');
     expect(usersService.createStudioAdmin).toHaveBeenCalled();
   });
 
@@ -169,8 +171,8 @@ describe('StudiosService', () => {
         ownerName: 'Owner',
         email: 'studio@new.com',
         adminEmail: 'admin@new.com',
-        adminFirstName: 'Admin',
-        adminLastName: 'User',
+        password: 'Admin@123456',
+        confirmPassword: 'Admin@123456',
       }),
     ).rejects.toThrow(ConflictException);
   });

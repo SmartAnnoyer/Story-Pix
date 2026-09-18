@@ -7,6 +7,10 @@ export type CartItem = { packId: string; quantity: number };
 
 export type CartQuote = {
   amountInr: number;
+  subtotalInr?: number;
+  discountInr?: number;
+  couponCode?: string | null;
+  discountPercent?: number | null;
   totalMappings: number;
   totalMappingSlots?: number;
   /** @deprecated Albums are unlimited. */
@@ -124,9 +128,10 @@ export const checkoutService = {
     return data.data;
   },
 
-  async quote(items: CartItem[]): Promise<CartQuote> {
+  async quote(items: CartItem[], couponCode?: string): Promise<CartQuote> {
     const { data } = await apiClient.post<ApiResponse<CartQuote>>('/public/checkout/quote', {
       items,
+      ...(couponCode?.trim() ? { couponCode: couponCode.trim() } : {}),
     });
     return data.data;
   },
@@ -138,6 +143,7 @@ export const checkoutService = {
     studioName?: string;
     ownerName?: string;
     items: CartItem[];
+    couponCode?: string;
   }): Promise<CheckoutOrderResult> {
     const { data } = await apiClient.post<ApiResponse<CheckoutOrderResult>>(
       '/public/checkout/signup/order',

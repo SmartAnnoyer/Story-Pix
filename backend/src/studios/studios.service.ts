@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Inject,
@@ -173,13 +174,19 @@ export class StudiosService {
       throw new ConflictException('Admin email is already registered');
     }
 
+    if (dto.password !== dto.confirmPassword) {
+      throw new BadRequestException('Passwords do not match');
+    }
+
     const studioCode = await this.generateUniqueStudioCode();
-    const tempPassword = this.generateTemporaryPassword();
+    const ownerName = dto.ownerName.trim();
+    const firstName = ownerName.split(/\s+/)[0] || 'Studio';
+    const lastName = ownerName.split(/\s+/).slice(1).join(' ') || 'Admin';
 
     const studio = await this.studioModel.create({
       studioCode,
       studioName: dto.studioName,
-      ownerName: dto.ownerName,
+      ownerName,
       email: dto.email.toLowerCase(),
       phone: dto.phone,
       address: dto.address,
@@ -191,15 +198,15 @@ export class StudiosService {
 
     const refreshedStudio = await this.studioModel.findById(studio._id).exec();
 
-    const passwordHash = await this.usersService.hashPassword(tempPassword);
+    const passwordHash = await this.usersService.hashPassword(dto.password);
 
     await this.usersService.createStudioAdmin({
       studioId: studio._id.toString(),
       email: dto.adminEmail,
-      firstName: dto.adminFirstName,
-      lastName: dto.adminLastName,
+      firstName,
+      lastName,
       passwordHash,
-      temporaryPasswordPlain: tempPassword,
+      temporaryPasswordPlain: undefined,
     });
 
     void this.eventBus.publish({
@@ -209,8 +216,7 @@ export class StudiosService {
       metadata: {
         studioName: studio.studioName,
         studioCode: studio.studioCode,
-        firstName: dto.adminFirstName,
-        temporaryPassword: tempPassword,
+        firstName,
       },
     });
 
@@ -218,14 +224,14 @@ export class StudiosService {
       eventType: DomainEventType.SUBSCRIPTION_TRIAL_STARTED,
       studioId: studio._id.toString(),
       recipientEmail: dto.adminEmail,
-      metadata: { studioName: studio.studioName, firstName: dto.adminFirstName },
+      metadata: { studioName: studio.studioName, firstName },
     });
 
     return {
       studio: this.serializeStudio(refreshedStudio!),
       admin: {
         email: dto.adminEmail,
-        temporaryPassword: tempPassword,
+        temporaryPassword: null,
       },
     };
   }

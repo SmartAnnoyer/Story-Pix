@@ -1,14 +1,23 @@
+import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Table, Tag } from 'antd';
-import { useAdminPacksQuery, usePackLedgerQuery } from '@/hooks/usePackQueries';
+import { Button, Form, Input, InputNumber, Modal, Switch, Table, Tag, message } from 'antd';
+import { getErrorMessage } from '@/api/client';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+import {
+  useAdminCouponsQuery,
+  useCreateCouponMutation,
+  useToggleCouponMutation,
+} from '@/hooks/useCouponQueries';
+import { useAdminPacksQuery, usePackLedgerQuery } from '@/hooks/usePackQueries';
+import type { Coupon } from '@/types/coupon.types';
 import type { AlbumPack, PackLedgerAction } from '@/types/pack.types';
 import './AdminCatalogPage.css';
 
-type CatalogTab = 'packs' | 'history';
+type CatalogTab = 'packs' | 'coupons' | 'history';
 
 const TABS: { key: CatalogTab; label: string }[] = [
   { key: 'packs', label: 'Packs' },
+  { key: 'coupons', label: 'Coupons' },
   { key: 'history', label: 'History' },
 ];
 
@@ -27,7 +36,8 @@ const actionColor: Record<PackLedgerAction, string> = {
 };
 
 function parseTab(value: string | null): CatalogTab {
-  return value === 'history' ? 'history' : 'packs';
+  if (value === 'history' || value === 'coupons') return value;
+  return 'packs';
 }
 
 export const AdminCatalogPage = () => {
@@ -43,9 +53,9 @@ export const AdminCatalogPage = () => {
       <header className="catalog-page__hero">
         <div className="catalog-page__hero-glow" aria-hidden />
         <p className="catalog-page__eyebrow">Catalog</p>
-        <h1>Album packs</h1>
+        <h1>Packs & coupons</h1>
         <p className="catalog-page__lede">
-          Pack catalog and credit history. Enable packs on a studio after offline payment.
+          Manage living-photo packs and signup coupon codes for discounts.
         </p>
       </header>
 
@@ -63,7 +73,9 @@ export const AdminCatalogPage = () => {
       </nav>
 
       <section className="catalog-page__panel">
-        {tab === 'packs' ? <PacksTab /> : <HistoryTab />}
+        {tab === 'packs' ? <PacksTab /> : null}
+        {tab === 'coupons' ? <CouponsTab /> : null}
+        {tab === 'history' ? <HistoryTab /> : null}
       </section>
     </div>
   );
@@ -123,6 +135,153 @@ const PacksTab = () => {
           ),
         }}
       />
+    </>
+  );
+};
+
+const CouponsTab = () => {
+  const { data: coupons, isLoading } = useAdminCouponsQuery();
+  const createMutation = useCreateCouponMutation();
+  const toggleMutation = useToggleCouponMutation();
+  const [open, setOpen] = useState(false);
+  const [form] = Form.useForm();
+
+  if (isLoading) return <LoadingSpinner />;
+
+  const onCreate = async (values: {
+    code: string;
+    discountPercent: number;
+    maxUses?: number | null;
+    note?: string;
+  }) => {
+    try {
+      await createMutation.mutateAsync({
+        code: values.code,
+        discountPercent: values.discountPercent,
+        maxUses: values.maxUses || null,
+        note: values.note || null,
+        isActive: true,
+      });
+      message.success('Coupon created');
+      setOpen(false);
+      form.resetFields();
+    } catch (err) {
+      message.error(getErrorMessage(err, 'Unable to create coupon'));
+    }
+  };
+
+  return (
+    <>
+      <div className="catalog-page__coupon-toolbar">
+        <p className="catalog-page__hint">
+          Optional codes for signup. Guests enter a code at checkout to get a % off.
+        </p>
+        <Button type="primary" className="sp-btn-gradient" onClick={() => setOpen(true)}>
+          New coupon
+        </Button>
+      </div>
+
+      <Table
+        rowKey="id"
+        scroll={{ x: 880 }}
+        dataSource={coupons ?? []}
+        pagination={false}
+        locale={{ emptyText: 'No coupons yet' }}
+        columns={[
+          {
+            title: 'Code',
+            dataIndex: 'code',
+            render: (code: string) => <span className="catalog-page__coupon-code">{code}</span>,
+          },
+          {
+            title: 'Discount',
+            dataIndex: 'discountPercent',
+            render: (v: number) => `${v}% off`,
+          },
+          {
+            title: 'Used',
+            render: (_: unknown, row: Coupon) =>
+              row.maxUses != null ? `${row.usedCount} / ${row.maxUses}` : `${row.usedCount}`,
+          },
+          {
+            title: 'Status',
+            dataIndex: 'isActive',
+            render: (active: boolean) => (
+              <Tag color={active ? 'success' : 'default'}>{active ? 'Active' : 'Off'}</Tag>
+            ),
+          },
+          {
+            title: 'Note',
+            dataIndex: 'note',
+            render: (v: string | null) => v || '—',
+          },
+          {
+            title: '',
+            key: 'actions',
+            render: (_: unknown, row: Coupon) => (
+              <Switch
+                checked={row.isActive}
+                loading={toggleMutation.isPending}
+                onChange={(checked) => {
+                  void toggleMutation
+                    .mutateAsync({ id: row.id, active: checked })
+                    .then(() => message.success(checked ? 'Coupon on' : 'Coupon off'))
+                    .catch((err) => message.error(getErrorMessage(err, 'Update failed')));
+                }}
+              />
+            ),
+          },
+        ]}
+      />
+
+      <Modal
+        title="New coupon"
+        open={open}
+        onCancel={() => setOpen(false)}
+        footer={null}
+        destroyOnClose
+      >
+        <Form
+          form={form}
+          layout="vertical"
+          className="catalog-page__coupon-form"
+          onFinish={(values) => void onCreate(values)}
+          requiredMark={false}
+        >
+          <Form.Item
+            name="code"
+            label="Code"
+            rules={[
+              { required: true, message: 'Enter a code' },
+              { min: 3, message: 'At least 3 characters' },
+            ]}
+          >
+            <Input placeholder="WELCOME10" maxLength={32} style={{ textTransform: 'uppercase' }} />
+          </Form.Item>
+          <Form.Item
+            name="discountPercent"
+            label="Discount %"
+            rules={[{ required: true, message: 'Enter discount %' }]}
+          >
+            <InputNumber min={1} max={100} className="!w-full" placeholder="10" />
+          </Form.Item>
+          <Form.Item name="maxUses" label="Max uses (optional)">
+            <InputNumber min={1} className="!w-full" placeholder="Unlimited" />
+          </Form.Item>
+          <Form.Item name="note" label="Note (optional)">
+            <Input placeholder="Launch offer" maxLength={200} />
+          </Form.Item>
+          <Button
+            type="primary"
+            htmlType="submit"
+            block
+            loading={createMutation.isPending}
+            className="sp-btn-gradient"
+          >
+            Create coupon
+          </Button>
+        </Form>
+      </Modal>
     </>
   );
 };

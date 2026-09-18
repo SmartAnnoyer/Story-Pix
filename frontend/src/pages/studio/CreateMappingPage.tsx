@@ -99,7 +99,7 @@ export const CreateMappingPage = () => {
           photos={readyMedia}
           videos={readyMedia}
           loading={createMutation.isPending || publishMutation.isPending}
-          submitLabel="Save and continue"
+          submitLabel="Confirm link → Get QR"
           onSubmitBatch={handleSubmitBatch}
           onCancel={() => navigate(ROUTES.ALBUM_AR_MAPPINGS.replace(':id', id))}
         />

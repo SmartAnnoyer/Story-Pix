@@ -98,7 +98,7 @@ export const AlbumsListPage = () => {
               className="sp-btn-gradient"
               onClick={() => navigate(ROUTES.STUDIO_PACKS)}
             >
-              Buy packs
+              Add living photos
             </button>
           }
         />

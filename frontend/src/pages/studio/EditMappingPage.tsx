@@ -108,7 +108,7 @@ export const EditMappingPage = () => {
           overlayFrame: mapping.overlayFrame ?? undefined,
         }}
         loading={updateMutation.isPending}
-        submitLabel="Save"
+        submitLabel="Save link"
         onSubmit={handleSubmit}
         onCancel={() => navigate(ROUTES.ALBUM_AR_MAPPINGS.replace(':id', id))}
       />

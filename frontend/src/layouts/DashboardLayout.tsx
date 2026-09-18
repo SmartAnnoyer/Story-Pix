@@ -66,7 +66,7 @@ function getBackTarget(
     if (!rest || rest === '/') {
       return { label: 'Albums', path: ROUTES.ALBUMS };
     }
-    return { label: 'Album', path: ROUTES.ALBUM_DETAILS.replace(':id', albumId) };
+    return { label: 'Album', path: ROUTES.ALBUM_MEDIA.replace(':id', albumId) };
   }
 
   if (pathname.startsWith('/settings')) {
@@ -101,7 +101,7 @@ export const DashboardLayout = () => {
             { key: 'albums', label: 'Albums', path: ROUTES.ALBUMS, icon: <AppstoreOutlined /> },
             {
               key: 'packs',
-              label: 'Buy packs',
+              label: 'Add living photos',
               path: ROUTES.STUDIO_PACKS,
               icon: <ShoppingOutlined />,
             },

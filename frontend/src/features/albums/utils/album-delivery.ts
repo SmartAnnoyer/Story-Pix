@@ -51,3 +51,6 @@ export const albumSharePath = (albumId: string) => ROUTES.ALBUM_DETAILS.replace(
 
 export const albumMapPath = (albumId: string, hasMappings: boolean) =>
   (hasMappings ? ROUTES.ALBUM_AR_MAPPINGS : ROUTES.ALBUM_AR_MAPPING_CREATE).replace(':id', albumId);
+
+/** Opening an album always starts on Add (step 1), not QR. */
+export const albumOpenPath = (albumId: string) => albumMediaPath(albumId);

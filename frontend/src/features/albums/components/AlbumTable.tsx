@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import type { Album } from '@/types/album.types';
 import { AlbumStatus } from '@/types/album.types';
 import { albumStatusLabel } from '@/features/albums/utils/studio-labels';
+import { albumOpenPath } from '@/features/albums/utils/album-delivery';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { ROUTES } from '@/routes/paths';
 import './AlbumCards.css';
@@ -57,7 +58,7 @@ export const AlbumTable = ({
               <button
                 type="button"
                 className="album-card__open"
-                onClick={() => navigate(ROUTES.ALBUM_DETAILS.replace(':id', album.id))}
+                onClick={() => navigate(albumOpenPath(album.id))}
               >
                 <h2 className="album-card__name">{album.albumName}</h2>
                 <p className="album-card__client">{album.customerName}</p>
@@ -68,7 +69,7 @@ export const AlbumTable = ({
             <button
               type="button"
               className="album-card__meta"
-              onClick={() => navigate(ROUTES.ALBUM_DETAILS.replace(':id', album.id))}
+              onClick={() => navigate(albumOpenPath(album.id))}
               aria-label={`Open ${album.albumName}`}
             >
               <div>
@@ -87,7 +88,7 @@ export const AlbumTable = ({
               <button
                 type="button"
                 className="album-card__btn album-card__btn--ghost"
-                onClick={() => navigate(ROUTES.ALBUM_DETAILS.replace(':id', album.id))}
+                onClick={() => navigate(albumOpenPath(album.id))}
               >
                 <FolderOpenOutlined aria-hidden />
                 Open

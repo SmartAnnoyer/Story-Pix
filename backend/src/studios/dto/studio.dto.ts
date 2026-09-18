@@ -6,8 +6,25 @@ import {
   IsString,
   IsUrl,
   MaxLength,
+  Validate,
+  ValidationArguments,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
 } from 'class-validator';
 import { StudioStatus } from '../../common/enums';
+import { IsStrongPassword } from '../../common/validators/password.validator';
+
+@ValidatorConstraint({ name: 'MatchStudioPasswords', async: false })
+class MatchStudioPasswordsConstraint implements ValidatorConstraintInterface {
+  validate(confirmPassword: string, args: ValidationArguments) {
+    const obj = args.object as CreateStudioDto;
+    return confirmPassword === obj.password;
+  }
+
+  defaultMessage() {
+    return 'Passwords do not match';
+  }
+}
 
 export class CreateStudioDto {
   @IsString()
@@ -41,14 +58,13 @@ export class CreateStudioDto {
   adminEmail!: string;
 
   @IsString()
-  @IsNotEmpty()
-  @MaxLength(60)
-  adminFirstName!: string;
+  @IsStrongPassword()
+  password!: string;
 
   @IsString()
   @IsNotEmpty()
-  @MaxLength(60)
-  adminLastName!: string;
+  @Validate(MatchStudioPasswordsConstraint)
+  confirmPassword!: string;
 }
 
 export class UpdateStudioDto {

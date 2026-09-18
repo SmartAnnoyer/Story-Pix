@@ -78,7 +78,7 @@ export const StudioPacksPage = () => {
 
   const handlePurchase = async () => {
     if (!items.length) {
-      setError('Tap + to add photos');
+      setError('Tap + to add living photos');
       return;
     }
     setSubmitting(true);
@@ -122,7 +122,7 @@ export const StudioPacksPage = () => {
     <div className="signup-page signup-page--docked signup-page--in-shell">
       <div className="signup-page__scroll">
         <header className="signup-page__header">
-          <h1>Buy / recharge packs</h1>
+          <h1>Add living photos</h1>
           <p>
             <strong>{left} left</strong> · {used} used · {total} total
           </p>
@@ -137,7 +137,9 @@ export const StudioPacksPage = () => {
             return (
               <article key={pack.id} className={`signup-pack${selected ? ' signup-pack--on' : ''}`}>
                 <div>
-                  <strong>{photos} photos</strong>
+                  <strong>
+                    {photos} living photo{photos === 1 ? '' : 's'}
+                  </strong>
                   <span>₹{pack.unitPriceInr}</span>
                 </div>
                 <p>{pack.name}</p>
@@ -173,8 +175,8 @@ export const StudioPacksPage = () => {
               className={`signup-page__checkout-hint${preview.photos > 0 ? ' signup-page__checkout-hint--ready' : ''}`}
             >
               {preview.photos > 0
-                ? `+${preview.photos} photo${preview.photos === 1 ? '' : 's'}`
-                : 'Tap + to choose a pack'}
+                ? `+${preview.photos} living photo${preview.photos === 1 ? '' : 's'}`
+                : 'Tap + to choose living photos'}
             </p>
           </div>
           <Button

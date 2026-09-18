@@ -1,4 +1,4 @@
-import { LinkOutlined } from '@ant-design/icons';
+import { LinkOutlined, PictureOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { message } from 'antd';
 import {
@@ -13,6 +13,7 @@ import { AlbumStudioShell } from '@/features/albums/components/AlbumStudioShell'
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { ROUTES } from '@/routes/paths';
 import { getErrorMessage } from '@/api/client';
+import './AlbumStudioPages.css';
 
 export const ArMappingsPage = () => {
   const { id = '' } = useParams();
@@ -29,6 +30,14 @@ export const ArMappingsPage = () => {
   const studioRemaining = packs?.remainingMappingSlots ?? packs?.remainingAlbumCredits ?? 0;
   const atMappingCap = studioRemaining <= 0;
   const isEmpty = !isLoading && mappingCount === 0;
+
+  const goLink = () => {
+    if (atMappingCap) {
+      navigate(ROUTES.STUDIO_PACKS);
+      return;
+    }
+    navigate(ROUTES.ALBUM_AR_MAPPING_CREATE.replace(':id', id));
+  };
 
   const handleArchive = async (mappingId: string) => {
     try {
@@ -51,12 +60,8 @@ export const ArMappingsPage = () => {
     }
   };
 
-  const shortLabel = atMappingCap ? 'Buy' : 'Link';
-  const fullLabel = atMappingCap
-    ? 'Buy more photos'
-    : isEmpty
-      ? 'Link photo'
-      : 'Link another photo';
+  const shortLabel = atMappingCap ? 'Buy' : isEmpty ? 'Start' : 'Add';
+  const fullLabel = atMappingCap ? 'Buy more photos' : isEmpty ? 'Start linking' : 'Link another';
 
   return (
     <AlbumStudioShell
@@ -68,8 +73,7 @@ export const ArMappingsPage = () => {
         <button
           type="button"
           className="studio-home__btn studio-home__btn--primary album-studio__hero-action"
-          disabled={atMappingCap}
-          onClick={() => navigate(ROUTES.ALBUM_AR_MAPPING_CREATE.replace(':id', id))}
+          onClick={goLink}
         >
           <LinkOutlined aria-hidden />
           <span className="album-studio__hero-action-label--full">{fullLabel}</span>
@@ -82,12 +86,53 @@ export const ArMappingsPage = () => {
       ]}
     >
       {isEmpty ? (
-        <div className="album-studio__notice">
-          <strong>Link your first photo</strong>
-          <p>
-            Choose the printed photo and the video that should play when guests point their phone at
-            it.
-          </p>
+        <div className="album-link-coach">
+          <div className="album-link-coach__intro">
+            <strong>Match each print to its video</strong>
+            <p>
+              When a guest points their phone at the printed photo, this video plays. Tap Start
+              linking, then follow the three steps.
+            </p>
+          </div>
+
+          <ol className="album-link-coach__steps">
+            <li>
+              <span className="album-link-coach__icon" aria-hidden>
+                <PictureOutlined />
+              </span>
+              <div>
+                <strong>Tap a photo</strong>
+                <p>The image you will print for the client.</p>
+              </div>
+            </li>
+            <li>
+              <span className="album-link-coach__icon" aria-hidden>
+                <VideoCameraOutlined />
+              </span>
+              <div>
+                <strong>Tap a video</strong>
+                <p>What plays on their phone when they scan.</p>
+              </div>
+            </li>
+            <li>
+              <span className="album-link-coach__icon" aria-hidden>
+                <LinkOutlined />
+              </span>
+              <div>
+                <strong>Confirm link</strong>
+                <p>Sticky button at the bottom — you can’t miss it.</p>
+              </div>
+            </li>
+          </ol>
+
+          <button
+            type="button"
+            className="studio-home__btn studio-home__btn--primary album-link-coach__cta"
+            disabled={atMappingCap}
+            onClick={goLink}
+          >
+            {atMappingCap ? 'Buy more living photos' : 'Start linking'}
+          </button>
         </div>
       ) : (
         <MappingTable

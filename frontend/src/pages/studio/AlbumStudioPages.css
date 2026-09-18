@@ -139,3 +139,91 @@
     font-size: 0.78rem;
   }
 }
+
+.album-link-coach {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+  padding: 1.15rem 1.1rem 1.25rem;
+  border-radius: 14px;
+  border: 1px solid rgba(91, 44, 219, 0.16);
+  background:
+    linear-gradient(160deg, rgba(91, 44, 219, 0.08) 0%, rgba(255, 255, 255, 0.95) 42%, #fff 100%),
+    #fff;
+}
+
+.album-link-coach__intro strong {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #1c1b22;
+}
+
+.album-link-coach__intro p {
+  margin: 0;
+  max-width: 36rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #6a6772;
+}
+
+.album-link-coach__steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.album-link-coach__steps li {
+  display: grid;
+  grid-template-columns: 2.4rem minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+  padding: 0.75rem 0.8rem;
+  border-radius: 12px;
+  border: 1px solid #e6e4ea;
+  background: #fff;
+}
+
+.album-link-coach__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 10px;
+  background: rgba(91, 44, 219, 0.1);
+  color: #5b2cdb;
+  font-size: 1.05rem;
+}
+
+.album-link-coach__steps strong {
+  display: block;
+  font-size: 0.92rem;
+  font-weight: 750;
+  color: #1c1b22;
+}
+
+.album-link-coach__steps p {
+  margin: 0.15rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: #6a6772;
+}
+
+.album-link-coach__cta {
+  align-self: stretch;
+  justify-content: center;
+  min-height: 2.85rem;
+  font-weight: 800;
+}
+
+@media (min-width: 640px) {
+  .album-link-coach__cta {
+    align-self: flex-start;
+    min-width: 12rem;
+  }
+}

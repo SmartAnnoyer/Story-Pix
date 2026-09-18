@@ -1,7 +1,5 @@
-import { Link } from 'react-router-dom';
 import { useAdminDashboardQuery } from '@/hooks/useStudioQueries';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { ROUTES } from '@/routes/paths';
 import './AdminDashboardPage.css';
 
 export const AdminDashboardPage = () => {
@@ -25,14 +23,6 @@ export const AdminDashboardPage = () => {
         <p className="admin-home__lede">
           Studio status, storage, and scan volume across the platform.
         </p>
-        <div className="admin-home__actions">
-          <Link className="admin-home__btn admin-home__btn--primary" to={ROUTES.STUDIOS}>
-            Manage studios
-          </Link>
-          <Link className="admin-home__btn admin-home__btn--ghost" to={ROUTES.CATALOG}>
-            Album packs
-          </Link>
-        </div>
       </header>
 
       <section className="admin-home__strip" aria-label="Studio status">
@@ -59,7 +49,7 @@ export const AdminDashboardPage = () => {
         </article>
       </section>
 
-      <section className="admin-home__grid admin-home__grid--two">
+      <section className="admin-home__grid" aria-label="Usage">
         <article className="admin-home__panel admin-home__panel--wide">
           <h2>Usage now</h2>
           <div className="admin-home__usage">
@@ -73,22 +63,6 @@ export const AdminDashboardPage = () => {
               <span>Guest plays (all studios, this month)</span>
               <strong>{data.totalMonthlyScans.toLocaleString('en-IN')}</strong>
             </div>
-          </div>
-        </article>
-
-        <article className="admin-home__panel admin-home__panel--cta">
-          <h2>Album packs</h2>
-          <p>Enable Mini, Standard, or Bundle packs on a studio after offline payment.</p>
-          <div className="admin-home__actions">
-            <Link
-              className="admin-home__btn admin-home__btn--light"
-              to={`${ROUTES.CATALOG}?tab=history`}
-            >
-              Pack history
-            </Link>
-            <Link className="admin-home__btn admin-home__btn--ghost-light" to={ROUTES.CATALOG}>
-              Catalog
-            </Link>
           </div>
         </article>
       </section>

@@ -34,6 +34,19 @@ export class CheckoutOrder {
   @Prop({ type: Number, required: true, min: 0 })
   amountInr!: number;
 
+  /** Cart total before coupon. */
+  @Prop({ type: Number, default: null, min: 0 })
+  subtotalInr?: number | null;
+
+  @Prop({ type: Number, default: 0, min: 0 })
+  discountInr?: number;
+
+  @Prop({ type: String, default: null, uppercase: true, trim: true })
+  couponCode?: string | null;
+
+  @Prop({ type: Types.ObjectId, ref: 'Coupon', default: null })
+  couponId?: Types.ObjectId | null;
+
   @Prop({ type: String, default: 'INR' })
   currency!: string;
 

@@ -1,6 +1,7 @@
 import { Button, Col, Row, Typography } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { useRecentAlbumsQuery } from '@/hooks/useAlbumQueries';
+import { albumOpenPath } from '@/features/albums/utils/album-delivery';
 import { AlbumCard } from './AlbumCard';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { ROUTES } from '@/routes/paths';
@@ -33,10 +34,7 @@ export const RecentAlbumsWidget = ({ hideHeader = false }: RecentAlbumsWidgetPro
         <Row gutter={[16, 16]}>
           {albums.map((album) => (
             <Col key={album.id} xs={24} sm={12} lg={6}>
-              <AlbumCard
-                album={album}
-                onClick={() => navigate(ROUTES.ALBUM_DETAILS.replace(':id', album.id))}
-              />
+              <AlbumCard album={album} onClick={() => navigate(albumOpenPath(album.id))} />
             </Col>
           ))}
         </Row>

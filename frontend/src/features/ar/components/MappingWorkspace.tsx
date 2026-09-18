@@ -66,7 +66,7 @@ export const MappingWorkspace = ({
   videos,
   initialMappings = [],
   loading,
-  submitLabel = 'Save links',
+  submitLabel,
   singleMapping = false,
   onSubmit,
   onCancel,
@@ -137,7 +137,7 @@ export const MappingWorkspace = ({
       });
       setActiveMappingKey(key);
       setSelectedPhotoId(null);
-      message.success('Added to mapped list');
+      message.success('Photo linked to video');
     },
     [mappedPairKeys, photoById, singleMapping, videoById],
   );
@@ -193,8 +193,32 @@ export const MappingWorkspace = ({
   const activePhoto = activeMapping ? photoById.get(activeMapping.photoMediaId) : undefined;
   const activePhotoSrc = useStudioMediaPreviewSrc(activePhoto, 'original');
 
+  const readyToConfirm = pendingMappings.length > 0;
+  const showStickyDock = Boolean(selectedPhotoId) || readyToConfirm;
+  const resolvedSubmitLabel =
+    submitLabel ??
+    (pendingMappings.length <= 1 ? 'Confirm link' : `Confirm ${pendingMappings.length} links`);
+
   return (
-    <div className="mapping-workspace">
+    <div className={`mapping-workspace${showStickyDock ? ' mapping-workspace--docked' : ''}`}>
+      <div className="mapping-workspace__steps" aria-label="How to link">
+        <span
+          className={`mapping-workspace__step${selectedPhotoId || readyToConfirm ? ' mapping-workspace__step--done' : ' mapping-workspace__step--on'}`}
+        >
+          1 · Tap a photo
+        </span>
+        <span
+          className={`mapping-workspace__step${readyToConfirm ? ' mapping-workspace__step--done' : selectedPhotoId ? ' mapping-workspace__step--on' : ''}`}
+        >
+          2 · Tap a video
+        </span>
+        <span
+          className={`mapping-workspace__step${readyToConfirm ? ' mapping-workspace__step--on' : ''}`}
+        >
+          3 · Confirm link
+        </span>
+      </div>
+
       <div className="mapping-workspace__pickers">
         <section className="mapping-workspace__section">
           <div className="mapping-workspace__section-head">
@@ -206,8 +230,9 @@ export const MappingWorkspace = ({
             </Text>
           </div>
           <p className="mapping-workspace__hint">
-            Select a photo, then select a video below.
-            {selectedPhotoId ? ' Now choose a video.' : ''}
+            {selectedPhotoId
+              ? 'Photo selected — now tap a video below.'
+              : 'Tap the printed photo first.'}
           </p>
           {readyPhotos.length ? (
             <div className="mapping-workspace__grid">
@@ -236,7 +261,11 @@ export const MappingWorkspace = ({
               {readyVideos.length} ready
             </Text>
           </div>
-          <p className="mapping-workspace__hint">Select a video after choosing a photo above.</p>
+          <p className="mapping-workspace__hint">
+            {selectedPhotoId
+              ? 'Tap the video that should play on that print.'
+              : 'Choose a photo above before tapping a video.'}
+          </p>
           {readyVideos.length ? (
             <div className="mapping-workspace__grid">
               {readyVideos.map((video) => (
@@ -353,7 +382,7 @@ export const MappingWorkspace = ({
           })
         ) : (
           <div className="mapping-workspace__empty">
-            Linked pairs appear here after you connect a photo and video.
+            Linked pairs show up here after you tap a photo, then a video.
           </div>
         )}
 
@@ -368,12 +397,48 @@ export const MappingWorkspace = ({
         ) : null}
       </aside>
 
-      <div className="mapping-workspace__footer lg:col-span-2">
-        <Button type="primary" loading={loading} onClick={handleSubmit}>
-          {submitLabel}
-        </Button>
-        {onCancel ? <Button onClick={onCancel}>Cancel</Button> : null}
-      </div>
+      {showStickyDock ? (
+        <div className="mapping-workspace__dock" role="region" aria-label="Confirm link">
+          <div className="mapping-workspace__dock-inner">
+            <div className="mapping-workspace__dock-meta">
+              {readyToConfirm ? (
+                <>
+                  <p className="mapping-workspace__dock-title">
+                    {pendingMappings.length === 1
+                      ? 'Ready to link'
+                      : `${pendingMappings.length} links ready`}
+                  </p>
+                  <p className="mapping-workspace__dock-hint">
+                    Guests will see the video when they scan this print.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="mapping-workspace__dock-title">Photo selected</p>
+                  <p className="mapping-workspace__dock-hint">Tap a video to finish this link.</p>
+                </>
+              )}
+            </div>
+            <div className="mapping-workspace__dock-actions">
+              {onCancel ? (
+                <Button onClick={onCancel} disabled={loading}>
+                  Cancel
+                </Button>
+              ) : null}
+              <Button
+                type="primary"
+                size="large"
+                loading={loading}
+                disabled={!readyToConfirm}
+                onClick={handleSubmit}
+                className="mapping-workspace__confirm"
+              >
+                {resolvedSubmitLabel}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };
