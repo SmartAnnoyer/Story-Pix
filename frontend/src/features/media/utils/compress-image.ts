@@ -2,7 +2,11 @@ import {
   MAX_PHOTO_UPLOAD_MB,
   PHOTO_COMPRESS_MAX_EDGE,
   PHOTO_COMPRESS_QUALITY,
+  PHOTO_PREP_MAX_EDGE,
+  PHOTO_PREP_QUALITY,
+  PHOTO_PREP_TRIGGER_MB,
 } from './media-limits';
+import { formatMb } from './video-limits';
 
 const loadImage = (src: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
@@ -32,6 +36,56 @@ const canvasToJpegFile = (
       quality,
     );
   });
+
+const photoTooLargeError = (file: File) =>
+  new Error(
+    `This photo (${formatMb(file.size)}) is too large for this browser to open. Export it as a JPEG under about 50 MB (or 8000 px on the long side) and try again.`,
+  );
+
+/**
+ * Shrinks very large originals (e.g. print-resolution scans) to a crop-friendly size.
+ * Small photos are returned untouched.
+ */
+export const prepareLargePhoto = async (file: File): Promise<File> => {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = await loadImage(objectUrl);
+    const longEdge = Math.max(image.naturalWidth, image.naturalHeight);
+    if (!longEdge) throw photoTooLargeError(file);
+    if (longEdge <= PHOTO_PREP_MAX_EDGE && file.size <= PHOTO_PREP_TRIGGER_MB * 1024 * 1024) {
+      return file;
+    }
+
+    const scale = Math.min(1, PHOTO_PREP_MAX_EDGE / longEdge);
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw photoTooLargeError(file);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, width, height);
+
+    const bitmap =
+      typeof createImageBitmap === 'function'
+        ? await createImageBitmap(file, {
+            resizeWidth: width,
+            resizeHeight: height,
+            resizeQuality: 'high',
+          }).catch(() => null)
+        : null;
+    ctx.drawImage(bitmap ?? image, 0, 0, width, height);
+    bitmap?.close();
+
+    return await canvasToJpegFile(canvas, file.name, PHOTO_PREP_QUALITY);
+  } catch {
+    throw photoTooLargeError(file);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+};
 
 /**
  * Resize + JPEG-encode photos before upload for faster MindAR tracking and smaller storage.

@@ -8,7 +8,8 @@ import type { ConfirmUploadPayload, OverlayFrame } from '@/types/media.types';
 import { getErrorMessage } from '@/api/client';
 import { readImageDimensions } from '@/features/media/utils/video-frame-capture';
 import { applyDisplayName, stripFileExtension } from '@/features/media/utils/cache-bust';
-import { compressImageFile } from '@/features/media/utils/compress-image';
+import { compressImageFile, prepareLargePhoto } from '@/features/media/utils/compress-image';
+import { PHOTO_PREP_TRIGGER_MB } from '@/features/media/utils/media-limits';
 import { compressVideoFile } from '@/features/media/utils/compress-video';
 import {
   assertVideoUploadSize,
@@ -96,7 +97,7 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
             lastProgress = progress;
             updateTask(taskId, { progress });
           });
-          assertVideoUploadSize(uploadFile);
+          assertVideoUploadSize(uploadFile, file);
           updateTask(taskId, { file: uploadFile, progress: 20 });
           if (uploadFile !== file) {
             message.success(
@@ -181,13 +182,31 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
       return;
     }
     prepBusyRef.current = true;
-    refreshPhotoPrepLabel();
-    // Multi-file batches skip crop and go straight to frame placement.
-    if (photoBatchTotalRef.current > 1) {
-      openFrameSelect(next);
+    if (next.size > PHOTO_PREP_TRIGGER_MB * 1024 * 1024) {
+      setPrepLabel(`Optimizing large photo (${formatMb(next.size)})…`);
     } else {
-      openGalleryCrop(next);
+      refreshPhotoPrepLabel();
     }
+    void (async () => {
+      let photo: File;
+      try {
+        photo = await prepareLargePhoto(next);
+      } catch (error) {
+        message.error(getErrorMessage(error, 'Photo not accepted'));
+        prepBusyRef.current = false;
+        photoBatchDoneRef.current += 1;
+        refreshPhotoPrepLabel();
+        window.setTimeout(() => pumpPhotoQueue(), 0);
+        return;
+      }
+      refreshPhotoPrepLabel();
+      // Multi-file batches skip crop and go straight to frame placement.
+      if (photoBatchTotalRef.current > 1) {
+        openFrameSelect(photo);
+      } else {
+        openGalleryCrop(photo);
+      }
+    })();
   };
 
   const enqueuePhotos = (files: File[]) => {

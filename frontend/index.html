@@ -490,12 +490,11 @@
     </div>
     <div id="root"></div>
     <script type="module">
+      // Keep two separate statements: the minifier folds an if/else into one preload
+      // call, and Vite then only injects main.tsx's CSS — the viewer loses its stylesheet.
       const isViewer = /^\/viewer\/[^/]+/.test(location.pathname);
-      if (isViewer) {
-        import('/src/viewer-main.tsx');
-      } else {
-        import('/src/main.tsx');
-      }
+      if (isViewer) import('/src/viewer-main.tsx');
+      if (!isViewer) import('/src/main.tsx');
     </script>
   </body>
 </html>

@@ -21,12 +21,16 @@ export const assertVideoWithinLimits = async (file: File): Promise<void> => {
 };
 
 /** Final size check on the file that will actually be uploaded. */
-export const assertVideoUploadSize = (file: File): void => {
-  if (file.size > MAX_VIDEO_UPLOAD_MB * 1024 * 1024) {
+export const assertVideoUploadSize = (file: File, original?: File): void => {
+  if (file.size <= MAX_VIDEO_UPLOAD_MB * 1024 * 1024) return;
+  if (original && file === original) {
     throw new Error(
-      `Video is still ${formatMb(file.size)} after compression. Max ${MAX_VIDEO_UPLOAD_MB} MB — trim the clip and try again.`,
+      `This browser could not shrink the video (${formatMb(file.size)}). Use desktop Chrome or Edge, or export it at 720p/1080p under ${MAX_VIDEO_UPLOAD_MB} MB and try again.`,
     );
   }
+  throw new Error(
+    `Video is still ${formatMb(file.size)} after compression. Max ${MAX_VIDEO_UPLOAD_MB} MB — trim the clip and try again.`,
+  );
 };
 
 const readVideoDuration = (file: File): Promise<number> =>
