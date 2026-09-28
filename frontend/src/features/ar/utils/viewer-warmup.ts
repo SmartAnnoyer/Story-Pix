@@ -9,7 +9,8 @@ import {
 } from './mindar-loader';
 import { readCachedManifest, writeCachedManifest } from './viewer-manifest-cache';
 import { uniqueTrackingPhotos } from './manifest-photos';
-import { prefetchMindFileBlob } from './mind-file-cache';
+import { resolveMindUrlForScene } from './mind-file-cache';
+import { warmAlbumVideos } from './video-prefetch';
 import { isBrokenCdnUrl, withViewerMediaProxies } from './viewer-media-proxy';
 
 export type WarmupStage = 'manifest' | 'scripts' | 'targets' | 'ready' | 'error';
@@ -59,8 +60,29 @@ const prefetchImage = (url: string): void => {
   img.src = url;
 };
 
-const prefetchMindFile = (url: string): void => {
-  prefetchMindFileBlob(url);
+const warmedVideoAlbums = new Set<string>();
+
+/** Scan file first (detection needs it), then the first album clips. */
+const prefetchMindThenVideos = (manifest: ViewerManifest, mindUrl: string | null) => {
+  const videoUrls = [...manifest.targets]
+    .filter((target) => target.videoAvailable !== false)
+    .sort((a, b) => a.targetIndex - b.targetIndex)
+    .map((target) => target.videoUrl);
+
+  const warmKey = `${manifest.album.slug}:${manifest.mindFile?.hash ?? ''}`;
+  const warmVideos = () => {
+    if (warmedVideoAlbums.has(warmKey)) return;
+    warmedVideoAlbums.add(warmKey);
+    warmAlbumVideos(videoUrls);
+  };
+
+  if (!mindUrl) {
+    warmVideos();
+    return;
+  }
+  void resolveMindUrlForScene(mindUrl)
+    .catch(() => undefined)
+    .finally(warmVideos);
 };
 
 const clampProgress = (value: number) => Math.min(1, Math.max(0, value > 1 ? value / 100 : value));
@@ -87,7 +109,7 @@ const prefetchAlbumAssets = (manifest: ViewerManifest, mindUrl?: string | null) 
   const sortedTargets = [...manifest.targets].sort((a, b) => a.targetIndex - b.targetIndex);
   const uniquePhotos = uniqueTrackingPhotos(sortedTargets);
 
-  if (mindUrl && !isBrokenCdnUrl(mindUrl)) prefetchMindFile(mindUrl);
+  prefetchMindThenVideos(manifest, mindUrl && !isBrokenCdnUrl(mindUrl) ? mindUrl : null);
 
   if (manifest.album.coverImage && !isBrokenCdnUrl(manifest.album.coverImage)) {
     prefetchImage(manifest.album.coverImage);

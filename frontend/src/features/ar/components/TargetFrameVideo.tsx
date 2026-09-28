@@ -90,7 +90,9 @@ interface TargetFrameVideoProps {
 
 const LOAD_TIMEOUT_MS = 12_000;
 const PRIMED_LOAD_TIMEOUT_MS = 1_200;
-const BLOB_WAIT_MS = 20_000;
+/** Brief grace for a nearly-finished download; otherwise stream via HTTP range requests. */
+const BLOB_WAIT_MS = 600;
+const IOS_BLOB_WAIT_MS = 900;
 const LARGE_BLOB_WAIT_MS = 60_000;
 const IOS_LOAD_TIMEOUT_MS = 20_000;
 const PROGRESSIVE_LOAD_TIMEOUT_MS = 25_000;
@@ -1022,7 +1024,7 @@ export const TargetFrameVideo = ({
           }
 
           const cachedBlob = getPrimedVideoBlobUrl(source) ?? getPrefetchedBlobUrl(source) ?? null;
-          const blobWaitMs = iosHtmlCamera ? LARGE_BLOB_WAIT_MS : BLOB_WAIT_MS;
+          const blobWaitMs = iosHtmlCamera ? IOS_BLOB_WAIT_MS : BLOB_WAIT_MS;
           const blobUrl = cachedBlob ?? (await ensureVideoBlobForPlayback(source, blobWaitMs));
 
           if (shouldStreamVideoProgressively(source)) {

@@ -25,8 +25,24 @@ import { mapLegacyScanEventType } from '../analytics/utils/analytics.util';
 import { clampOverlayFrame } from '../common/dto/overlay-frame.dto';
 import { SCANS_PER_MAPPING } from '../common/constants/pack.constants';
 
+type MappingVideoAsset = {
+  r2ObjectKey: string;
+  fallbackUrl: string | null;
+  contentType: string;
+  sizeBytes: number;
+};
+
+/** A guest's player issues many range requests per clip; skip repeat DB + storage lookups. */
+const VIDEO_ASSET_CACHE_TTL_MS = 60_000;
+const VIDEO_ASSET_CACHE_MAX = 500;
+
 @Injectable()
 export class ViewerService {
+  private readonly videoAssetCache = new Map<
+    string,
+    { asset: MappingVideoAsset; expiresAt: number }
+  >();
+
   constructor(
     @InjectModel(Album.name) private readonly albumModel: Model<AlbumDocument>,
     @InjectModel(Studio.name) private readonly studioModel: Model<StudioDocument>,
@@ -212,6 +228,22 @@ export class ViewerService {
   }
 
   async resolveMappingVideoAsset(albumSlug: string, targetId: string) {
+    const cacheKey = `${albumSlug}:${targetId}`;
+    const cached = this.videoAssetCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.asset;
+    }
+
+    const asset = await this.lookupMappingVideoAsset(albumSlug, targetId);
+    if (this.videoAssetCache.size >= VIDEO_ASSET_CACHE_MAX) {
+      const oldestKey = this.videoAssetCache.keys().next().value;
+      if (oldestKey !== undefined) this.videoAssetCache.delete(oldestKey);
+    }
+    this.videoAssetCache.set(cacheKey, { asset, expiresAt: Date.now() + VIDEO_ASSET_CACHE_TTL_MS });
+    return asset;
+  }
+
+  private async lookupMappingVideoAsset(albumSlug: string, targetId: string) {
     const target = await this.findActiveTarget(albumSlug, targetId);
 
     const video = await this.mediaService
@@ -233,12 +265,7 @@ export class ViewerService {
     };
   }
 
-  async openMappingVideoStream(
-    albumSlug: string,
-    targetId: string,
-    range?: { start: number; end: number },
-  ) {
-    const asset = await this.resolveMappingVideoAsset(albumSlug, targetId);
+  async openMappingVideoStream(asset: MappingVideoAsset, range?: { start: number; end: number }) {
     const fromStorage = await this.storageService.getObjectStream(asset.r2ObjectKey, range);
     if (fromStorage) {
       return {

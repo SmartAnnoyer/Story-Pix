@@ -18,16 +18,16 @@ const DEFAULT_TEMPLATES = [
   {
     key: 'password_reset',
     notificationType: NotificationType.PASSWORD_RESET,
-    subject: 'Reset your Story-pix password',
+    subject: 'Reset your Story-Pix password',
     htmlBody:
-      '<p>Hi {{firstName}},</p><p>We received a request to reset your Story-pix password.</p><p><a href="{{resetUrl}}">Reset your password</a></p><p>Or copy this link into your browser:</p><p>{{resetUrl}}</p><p>If you did not request this, you can ignore this email.</p>',
+      '<p>Hi {{firstName}},</p><p>We received a request to reset your Story-Pix password.</p><p><a href="{{resetUrl}}">Reset your password</a></p><p>Or copy this link into your browser:</p><p>{{resetUrl}}</p><p>If you did not request this, you can ignore this email.</p>',
     textBody:
-      'Hi {{firstName}}, reset your Story-pix password using this link: {{resetUrl}}. If you did not request this, ignore this email.',
+      'Hi {{firstName}}, reset your Story-Pix password using this link: {{resetUrl}}. If you did not request this, ignore this email.',
   },
   {
     key: 'trial_expiry',
     notificationType: NotificationType.TRIAL_EXPIRING,
-    subject: 'Your Story-pix trial ends on {{endDate}}',
+    subject: 'Your Story-Pix trial ends on {{endDate}}',
     htmlBody:
       '<p>Hi {{firstName}},</p><p>Your trial for {{studioName}} ends on {{endDate}}. Upgrade to stay active.</p>',
     textBody: 'Your trial for {{studioName}} ends on {{endDate}}.',

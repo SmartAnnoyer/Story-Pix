@@ -9,15 +9,18 @@ const blobUrlBySource = new Map<string, string>();
 const pendingBySource = new Map<string, Promise<string | null>>();
 const decoderPrimeBySource = new Map<string, Promise<boolean>>();
 const playbackPrimeBySource = new Map<string, Promise<boolean>>();
-const ensureBlobBySource = new Map<string, Promise<string | null>>();
 const primedVideos = new Map<string, HTMLVideoElement>();
 const blobCacheOrder: string[] = [];
-/** Match studio upload cap so guest AR can buffer large clips. Keep only one heavy blob. */
-const MAX_BLOB_CACHE_BYTES = 80 * 1024 * 1024;
-const MAX_BLOB_CACHE_ENTRIES = 1;
+/** Larger clips stream over HTTP range requests instead of waiting on a full download. */
+const MAX_BLOB_CACHE_BYTES = 40 * 1024 * 1024;
+const MAX_BLOB_CACHE_ENTRIES = 3;
 const MAX_CONCURRENT_BLOB_FETCHES = 1;
+/** Clips downloaded before any photo is detected (album order). */
+const MAX_WARM_VIDEOS = 3;
 /** URLs too large / unsuitable for full-blob cache — play via progressive HTTP instead. */
 const progressiveOnlyBySource = new Set<string>();
+/** In-flight background (warm) downloads — aborted when a detected clip needs the bandwidth. */
+const backgroundFetchControllers = new Map<string, AbortController>();
 
 let activeBlobFetches = 0;
 const blobFetchQueue: Array<() => void> = [];
@@ -102,9 +105,9 @@ const evictBlobCacheIfNeeded = (keepUrl?: string) => {
   }
 };
 
-const fetchVideoBlobOnce = async (url: string): Promise<string | null> => {
+const fetchVideoBlobOnce = async (url: string, signal?: AbortSignal): Promise<string | null> => {
   try {
-    const response = await fetch(url, { mode: 'cors', credentials: 'omit' });
+    const response = await fetch(url, { mode: 'cors', credentials: 'omit', signal });
     if (!response.ok) {
       viewerLog('warn', 'video blob fetch failed', {
         status: response.status,
@@ -148,6 +151,12 @@ const fetchVideoBlobOnce = async (url: string): Promise<string | null> => {
     });
     return blobUrl;
   } catch (error) {
+    if (signal?.aborted) {
+      viewerLog('debug', 'background video fetch paused for detected clip', {
+        url: url.slice(0, 96),
+      });
+      return null;
+    }
     viewerLog('warn', 'video blob fetch error', {
       message: error instanceof Error ? error.message : String(error),
       url: url.slice(0, 96),
@@ -163,20 +172,42 @@ const pumpBlobFetchQueue = () => {
   }
 };
 
+const abortBackgroundFetches = (exceptUrl: string) => {
+  for (const [url, controller] of backgroundFetchControllers) {
+    if (url === exceptUrl) continue;
+    controller.abort();
+    backgroundFetchControllers.delete(url);
+  }
+};
+
 /** Queue network fetches so multi-target albums do not starve mobile bandwidth. */
 const startBlobFetch = (url: string, priority = false): Promise<string | null> => {
   const cached = blobUrlBySource.get(url);
   if (cached) return Promise.resolve(cached);
+  if (progressiveOnlyBySource.has(url)) return Promise.resolve(null);
 
   const pending = pendingBySource.get(url);
-  if (pending) return pending;
+  if (pending) {
+    if (priority) {
+      backgroundFetchControllers.delete(url);
+      abortBackgroundFetches(url);
+    }
+    return pending;
+  }
+
+  if (priority) abortBackgroundFetches(url);
 
   const promise = new Promise<string | null>((resolve) => {
     const run = () => {
       activeBlobFetches += 1;
-      void fetchVideoBlobOnce(url)
+      const controller = priority ? undefined : new AbortController();
+      if (controller) backgroundFetchControllers.set(url, controller);
+      void fetchVideoBlobOnce(url, controller?.signal)
         .then(resolve)
         .finally(() => {
+          if (controller && backgroundFetchControllers.get(url) === controller) {
+            backgroundFetchControllers.delete(url);
+          }
           activeBlobFetches -= 1;
           pumpBlobFetchQueue();
         });
@@ -189,10 +220,26 @@ const startBlobFetch = (url: string, priority = false): Promise<string | null> =
     } else {
       blobFetchQueue.push(run);
     }
+  }).finally(() => {
+    if (pendingBySource.get(url) === promise) pendingBySource.delete(url);
   });
 
   pendingBySource.set(url, promise);
   return promise;
+};
+
+/**
+ * Download the first few album clips while the guest is still aiming the camera,
+ * so the first detection plays from memory instead of the network.
+ */
+export const warmAlbumVideos = (urls: Array<string | null | undefined>): void => {
+  const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
+  if (connection?.saveData) return;
+
+  const unique = [...new Set(urls.filter((url): url is string => Boolean(url)))];
+  for (const url of unique.slice(0, MAX_WARM_VIDEOS)) {
+    void startBlobFetch(url);
+  }
 };
 
 /** Start hinting the browser about a video URL — does not download the full blob. */
@@ -364,35 +411,27 @@ export const getPrimedVideoBlobUrl = (url: string | null | undefined): string | 
   return null;
 };
 
-/** Block until a same-origin blob is ready for overlay playback (required on iOS). */
-export const ensureVideoBlobForPlayback = (
+/** Wait up to `timeoutMs` for a same-origin blob; each caller gets its own deadline. */
+export const ensureVideoBlobForPlayback = async (
   url: string,
   timeoutMs = 20_000,
 ): Promise<string | null> => {
   const immediate = getPrimedVideoBlobUrl(url);
-  if (immediate) return Promise.resolve(immediate);
+  if (immediate) return immediate;
 
-  const inflight = ensureBlobBySource.get(url);
-  if (inflight) return inflight;
-
-  const promise = (async () => {
-    boostVideoBlobPriority(url);
-    const pending = startBlobFetch(url, true);
-    const raced = await Promise.race([
-      pending,
-      new Promise<null>((resolve) => window.setTimeout(() => resolve(null), timeoutMs)),
-    ]);
-    const blob = getPrimedVideoBlobUrl(url) ?? raced;
-    if (!blob) {
-      viewerLog('warn', 'video blob not ready', { timeoutMs, url: url.slice(0, 96) });
-    }
-    return blob;
-  })().finally(() => {
-    ensureBlobBySource.delete(url);
-  });
-
-  ensureBlobBySource.set(url, promise);
-  return promise;
+  const pending = startBlobFetch(url, true);
+  const raced = await Promise.race([
+    pending,
+    new Promise<null>((resolve) => window.setTimeout(() => resolve(null), timeoutMs)),
+  ]);
+  const blob = getPrimedVideoBlobUrl(url) ?? raced;
+  if (!blob && !progressiveOnlyBySource.has(url)) {
+    viewerLog('debug', 'video blob not ready — streaming instead', {
+      timeoutMs,
+      url: url.slice(0, 96),
+    });
+  }
+  return blob;
 };
 
 export const resolvePlayableVideoUrl = async (

@@ -103,15 +103,12 @@ export class ViewerController {
 
     const totalSize = asset.sizeBytes;
     const range = parseByteRange(req.headers.range, totalSize);
-    const stream = await this.viewerService.openMappingVideoStream(
-      albumSlug,
-      targetId,
-      range ?? undefined,
-    );
+    const stream = await this.viewerService.openMappingVideoStream(asset, range ?? undefined);
 
     res.setHeader('Content-Type', stream.contentType || asset.contentType || 'video/mp4');
     res.setHeader('Accept-Ranges', 'bytes');
-    res.setHeader('Cache-Control', 'public, max-age=3600');
+    // URL carries the video media id, so a replaced clip gets a new URL.
+    res.setHeader('Cache-Control', 'public, max-age=86400');
 
     if (range && totalSize > 0) {
       const chunkSize = range.end - range.start + 1;
