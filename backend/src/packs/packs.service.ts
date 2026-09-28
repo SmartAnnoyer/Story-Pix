@@ -565,6 +565,35 @@ export class PacksService implements OnModuleInit {
     );
   }
 
+  /** Ledger line for +plays on existing photos (paid by studio or granted by admin). */
+  async recordScanRenewal(input: {
+    studioId: string;
+    albumId: string;
+    albumName: string;
+    photoCount: number;
+    scansPerPhoto: number;
+    unitPriceInr: number;
+    totalPriceInr: number;
+    performedBy?: string | null;
+    notes?: string | null;
+  }) {
+    const entry = await this.ledgerModel.create({
+      studioId: new Types.ObjectId(input.studioId),
+      packId: null,
+      creditId: null,
+      albumId: new Types.ObjectId(input.albumId),
+      packCode: 'scan_renewal',
+      packName: `+${input.scansPerPhoto.toLocaleString('en-IN')} plays · ${input.albumName}`,
+      action: PackLedgerAction.SCAN_RENEWAL,
+      quantity: input.photoCount,
+      unitPriceInr: input.unitPriceInr,
+      totalPriceInr: input.totalPriceInr,
+      performedBy: input.performedBy ? new Types.ObjectId(input.performedBy) : null,
+      notes: input.notes ?? null,
+    });
+    return this.serializeLedger(entry);
+  }
+
   async listLedger(query: QueryPackLedgerDto) {
     const page = query.page ?? 1;
     const limit = Math.min(query.limit ?? 20, 100);
@@ -661,7 +690,7 @@ export class PacksService implements OnModuleInit {
       studioId: entry.studioId.toString(),
       studioName,
       studioCode,
-      packId: entry.packId.toString(),
+      packId: entry.packId?.toString() ?? null,
       creditId: entry.creditId?.toString() ?? null,
       albumId: entry.albumId?.toString() ?? null,
       packCode: entry.packCode,

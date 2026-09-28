@@ -5,6 +5,8 @@ export default registerAs('billing', () => ({
   currency: process.env.BILLING_CURRENCY ?? 'INR',
   trialReminderDays: parseInt(process.env.BILLING_TRIAL_REMINDER_DAYS ?? '3', 10),
   renewalReminderDays: parseInt(process.env.BILLING_RENEWAL_REMINDER_DAYS ?? '7', 10),
+  /** Price per photo for +1000 guest plays (studio self-serve renewal). */
+  scanRenewalPriceInr: parseInt(process.env.SCAN_RENEWAL_PRICE_INR ?? '49', 10),
   razorpay: {
     keyId: process.env.RAZORPAY_KEY_ID ?? '',
     keySecret: process.env.RAZORPAY_KEY_SECRET ?? '',

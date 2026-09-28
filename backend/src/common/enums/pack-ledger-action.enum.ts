@@ -3,4 +3,5 @@ export enum PackLedgerAction {
   PURCHASE = 'purchase',
   CONSUME = 'consume',
   REVOKE = 'revoke',
+  SCAN_RENEWAL = 'scan_renewal',
 }

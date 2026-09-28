@@ -9,7 +9,12 @@ import { getErrorMessage } from '@/api/client';
 import { readImageDimensions } from '@/features/media/utils/video-frame-capture';
 import { applyDisplayName, stripFileExtension } from '@/features/media/utils/cache-bust';
 import { compressImageFile } from '@/features/media/utils/compress-image';
-import { assertVideoWithinLimits, formatMb } from '@/features/media/utils/video-limits';
+import { compressVideoFile } from '@/features/media/utils/compress-video';
+import {
+  assertVideoUploadSize,
+  assertVideoWithinLimits,
+  formatMb,
+} from '@/features/media/utils/video-limits';
 import { PhotoCaptureModal } from './PhotoCaptureModal';
 import { PhotoCropModal } from './PhotoCropModal';
 import { PhotoFrameSelectModal } from './PhotoFrameSelectModal';
@@ -83,7 +88,22 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
         }
 
         if (mediaType === MediaType.VIDEO) {
-          await assertVideoWithinLimits(file);
+          updateTask(taskId, { status: 'compressing', progress: 2 });
+          let lastProgress = 2;
+          uploadFile = await compressVideoFile(file, (fraction) => {
+            const progress = Math.round(2 + fraction * 18);
+            if (progress === lastProgress) return;
+            lastProgress = progress;
+            updateTask(taskId, { progress });
+          });
+          assertVideoUploadSize(uploadFile);
+          updateTask(taskId, { file: uploadFile, progress: 20 });
+          if (uploadFile !== file) {
+            message.success(
+              `Video compressed to 720p ${formatMb(file.size)} → ${formatMb(uploadFile.size)}`,
+              2,
+            );
+          }
         }
 
         updateTask(taskId, { status: 'uploading', progress: 20 });
@@ -418,7 +438,9 @@ export const UploadArea = ({ albumId, mediaType, disabled, onComplete }: UploadA
           <InboxOutlined />
         </p>
         <p className="ant-upload-text">Drop videos here</p>
-        <p className="ant-upload-hint">MP4, MOV — many at once · prefer ≤25 MB (max 80 MB), ~90s</p>
+        <p className="ant-upload-hint">
+          MP4, MOV — many at once · up to ~90s · auto-compressed to 720p
+        </p>
       </Dragger>
 
       <VideoThumbnailSelectModal

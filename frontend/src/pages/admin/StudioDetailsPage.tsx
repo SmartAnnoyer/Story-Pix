@@ -30,6 +30,7 @@ import {
   useAdminStudioPackSummaryQuery,
   useAssignPackMutation,
 } from '@/hooks/usePackQueries';
+import { AdminScanRenewalsCard } from '@/features/packs/components/AdminScanRenewalsCard';
 import { StatusBadge } from '@/features/studios/components/StatusBadge';
 import { StudioAdminAccessCard } from '@/features/studios/components/StudioAdminAccessCard';
 import { UsageCards } from '@/features/studios/components/UsageCards';
@@ -223,6 +224,8 @@ export const StudioDetailsPage = () => {
           </Button>
         </Form>
       </Card>
+
+      <AdminScanRenewalsCard studioId={id} />
 
       <Card>
         <Descriptions column={{ xs: 1, sm: 2 }} bordered size="small">

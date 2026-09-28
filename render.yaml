@@ -4,7 +4,7 @@ services:
   - type: web
     name: story-pix-api
     runtime: node
-    plan: free
+    plan: starter
     region: singapore
     # Install devDependencies (@nestjs/cli, typescript) — required for nest build
     buildCommand: npm ci --include=dev && npm run build --workspace=backend
@@ -39,6 +39,9 @@ services:
         sync: false
       - key: BILLING_PROVIDER
         value: manual
+      # Studio price (INR) per photo for +1000 guest plays
+      - key: SCAN_RENEWAL_PRICE_INR
+        value: '49'
       - key: JWT_ACCESS_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET

@@ -12,6 +12,9 @@ export const packKeys = {
   studioSummary: () => [...packKeys.all, 'studio-summary'] as const,
   studioCredits: () => [...packKeys.all, 'studio-credits'] as const,
   studioHistory: () => [...packKeys.all, 'studio-history'] as const,
+  studioScanUsage: (studioId: string) => [...packKeys.all, 'scan-usage', studioId] as const,
+  renewalQuote: (albumId: string, arTargetIds: string[], blocks: number) =>
+    [...packKeys.all, 'renewal-quote', albumId, arTargetIds, blocks] as const,
 };
 
 /** Public signup / recharge pack prices — cached so Get started feels instant. */
@@ -61,12 +64,27 @@ export const useAssignPackMutation = () => {
   });
 };
 
+export const useAdminStudioScanUsageQuery = (studioId: string) =>
+  useQuery({
+    queryKey: packKeys.studioScanUsage(studioId),
+    queryFn: () => packService.getStudioScanUsage(studioId),
+    enabled: Boolean(studioId),
+  });
+
 export const useTopUpScansMutation = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: TopUpAlbumScansPayload) => packService.topUpScans(payload),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({ queryKey: ['albums'] });
+      void queryClient.invalidateQueries({ queryKey: ['ar-targets'] });
+      void queryClient.invalidateQueries({ queryKey: packKeys.ledger() });
+      if (variables.studioId) {
+        void queryClient.invalidateQueries({
+          queryKey: packKeys.studioScanUsage(variables.studioId),
+        });
+        void queryClient.invalidateQueries({ queryKey: packKeys.ledger(variables.studioId) });
+      }
     },
   });
 };

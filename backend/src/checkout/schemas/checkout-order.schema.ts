@@ -79,6 +79,18 @@ export class CheckoutOrder {
   @Prop({ type: Types.ObjectId, ref: 'User', default: null })
   userId?: Types.ObjectId | null;
 
+  /** scan_renewal only — album whose photos get extra plays. */
+  @Prop({ type: Types.ObjectId, ref: 'Album', default: null })
+  albumId?: Types.ObjectId | null;
+
+  /** scan_renewal only — photos (AR targets) being renewed. */
+  @Prop({ type: [Types.ObjectId], default: [] })
+  arTargetIds!: Types.ObjectId[];
+
+  /** scan_renewal only — plays added to each photo. */
+  @Prop({ type: Number, default: 0, min: 0 })
+  scansPerTarget!: number;
+
   @Prop({ type: Date, default: null })
   fulfilledAt?: Date | null;
 

@@ -99,6 +99,14 @@ export class ViewerService {
       return null;
     };
 
+    // Public R2/CDN URL built from the current STORAGE_PUBLIC_BASE_URL. Guests stream these
+    // straight from Cloudflare (no egress fees) and only fall back to the API proxy on failure.
+    const directMediaUrl = (r2ObjectKey?: string | null) => {
+      if (!r2ObjectKey) return null;
+      const url = this.storageService.getPublicUrl(r2ObjectKey);
+      return /^https?:\/\//i.test(url) && !url.includes('media.story-pix.app') ? url : null;
+    };
+
     const manifestTargets = targets.map((target) => {
       const photo = mediaById.get(target.photoMediaId.toString());
       const video = mediaById.get(target.videoMediaId.toString());
@@ -114,6 +122,7 @@ export class ViewerService {
         photoUrl,
         photoThumbnailUrl: photo?.thumbnailUrl ?? photoUrl,
         videoUrl,
+        videoDirectUrl: directMediaUrl(video?.r2ObjectKey),
         videoThumbnailUrl: video?.thumbnailUrl ?? null,
         // Viewer loads video via API proxy using r2ObjectKey — CDN URL is optional
         videoAvailable: Boolean(video?.r2ObjectKey || videoUrl),
@@ -168,6 +177,7 @@ export class ViewerService {
       mindFile: albumDoc.mindFileUrl
         ? {
             url: albumDoc.mindFileUrl,
+            directUrl: directMediaUrl(albumDoc.mindFileKey),
             hash: albumDoc.mindFileHash ?? null,
             targetDimensions: albumDoc.mindFileTargetDimensions ?? [],
             compiledAt: albumDoc.mindFileCompiledAt?.toISOString() ?? null,

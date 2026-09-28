@@ -20,6 +20,7 @@ import {
   loadArScripts,
   readMindCache,
 } from '../utils/mindar-loader';
+import { getMindFileUrls, getTargetPlaybackUrl } from '../utils/viewer-media-proxy';
 import {
   attachCameraStream,
   bootstrapGuestCameraLayout,
@@ -68,13 +69,15 @@ interface ARViewerProps {
   albumSlug: string;
   manifest: ViewerManifest;
   /** Populated when welcome-screen warmup finished before Start. */
-  prefetchedMindBundle?: { url: string; cacheKey: string } | null;
+  prefetchedMindBundle?: MindBundle | null;
   initialFacingMode?: CameraFacing;
 }
 
 type MindBundle = {
   url: string;
   cacheKey: string;
+  /** API proxy used when the direct R2 URL fails. */
+  fallbackUrl?: string | null;
 };
 
 const AR_INIT_TIMEOUT_MS = 35_000;
@@ -109,10 +112,8 @@ const buildServerMindBundle = (albumSlug: string, manifest: ViewerManifest): Min
     manifest.mindFile.hash,
   );
 
-  return {
-    url: viewerService.getMindFileUrl(albumSlug, manifest.mindFile.hash),
-    cacheKey,
-  };
+  const { url, fallbackUrl } = getMindFileUrls(albumSlug, manifest.mindFile);
+  return { url, cacheKey, fallbackUrl };
 };
 
 export const ARViewer = ({
@@ -237,12 +238,12 @@ export const ARViewer = ({
 
   const activeVideoUrl = useMemo(() => {
     if (!activeTarget?.videoAvailable) return null;
-    return viewerService.getMappingVideoUrl(albumSlug, activeTarget.id, activeTarget.videoMediaId);
+    return getTargetPlaybackUrl(albumSlug, activeTarget);
   }, [activeTarget, albumSlug]);
 
   const activeVideoFallbackUrl = useMemo(() => {
     if (!activeTarget?.videoAvailable) return null;
-    return activeTarget.videoUrl;
+    return activeTarget.videoFallbackUrl ?? null;
   }, [activeTarget]);
 
   const viewerPhase: ViewerPhase = useMemo(() => {
@@ -596,7 +597,7 @@ export const ARViewer = ({
         if (!mounted || !containerRef.current) return;
         viewerLog('info', 'AR scripts ready for scene');
 
-        const resolvedMind = await resolveMindUrlForScene(mindBundle.url);
+        const resolvedMind = await resolveMindUrlForScene(mindBundle.url, mindBundle.fallbackUrl);
         if (!mounted || !containerRef.current) {
           if (resolvedMind.revoke) URL.revokeObjectURL(resolvedMind.url);
           return;
@@ -683,12 +684,8 @@ export const ARViewer = ({
             isSwitch,
             videoAvailable: nextTarget.videoAvailable,
             videoMediaId: nextTarget.videoMediaId,
-            primaryUrl: viewerService.getMappingVideoUrl(
-              albumSlug,
-              nextTarget.id,
-              nextTarget.videoMediaId,
-            ),
-            fallbackUrl: nextTarget.videoUrl,
+            primaryUrl: getTargetPlaybackUrl(albumSlug, nextTarget),
+            fallbackUrl: nextTarget.videoFallbackUrl,
           });
 
           setActiveMindIndex(mindIndex);
@@ -706,11 +703,7 @@ export const ARViewer = ({
           setStatus('match_found');
           void recordEventRef.current(ScanEventType.SCAN_SUCCESS, nextTarget);
 
-          const playUrl = viewerService.getMappingVideoUrl(
-            albumSlug,
-            nextTarget.id,
-            nextTarget.videoMediaId,
-          );
+          const playUrl = getTargetPlaybackUrl(albumSlug, nextTarget);
 
           prefetchVideo(playUrl);
           boostVideoBlobPriority(playUrl);
@@ -959,11 +952,7 @@ export const ARViewer = ({
               const matchGroup = mappingsForMindIndex(targetsRef.current, mindIndex);
               const matchTarget = matchGroup.find((item) => item.videoAvailable) ?? matchGroup[0];
               if (matchTarget?.videoAvailable) {
-                const primeUrl = viewerService.getMappingVideoUrl(
-                  albumSlug,
-                  matchTarget.id,
-                  matchTarget.videoMediaId,
-                );
+                const primeUrl = getTargetPlaybackUrl(albumSlug, matchTarget);
                 boostVideoBlobPriority(primeUrl);
               }
 
@@ -1297,11 +1286,7 @@ export const ARViewer = ({
                 const group = mappingsForMindIndex(targetsRef.current, i);
                 const earlyTarget = group.find((item) => item.videoAvailable) ?? group[0];
                 if (earlyTarget?.videoAvailable) {
-                  const primeUrl = viewerService.getMappingVideoUrl(
-                    albumSlug,
-                    earlyTarget.id,
-                    earlyTarget.videoMediaId,
-                  );
+                  const primeUrl = getTargetPlaybackUrl(albumSlug, earlyTarget);
                   boostVideoBlobPriority(primeUrl);
                 }
                 confirmTargetMatchRef.current(i);
@@ -1394,8 +1379,8 @@ export const ARViewer = ({
         detachOverlayVideoPlane(targetEntitiesRef.current[activeMindIndexRef.current] ?? null);
         releaseMappedVideoDecoder(sceneHost);
       }
-      prefetchVideo(viewerService.getMappingVideoUrl(albumSlug, next.id, next.videoMediaId));
-      const nextUrl = viewerService.getMappingVideoUrl(albumSlug, next.id, next.videoMediaId);
+      const nextUrl = getTargetPlaybackUrl(albumSlug, next);
+      prefetchVideo(nextUrl);
       boostVideoBlobPriority(nextUrl);
       const mindIndexAtRequest = activeMindIndexRef.current;
       void (async () => {
@@ -1536,7 +1521,6 @@ export const ARViewer = ({
         overlayFrame={activeTarget?.overlayFrame}
         primaryUrl={activeVideoUrl}
         fallbackUrl={activeVideoFallbackUrl}
-        preferDirectUrl={false}
         title={activeTarget?.targetName}
         playbackKey={activeTarget?.videoMediaId ?? null}
         resumeAtSeconds={resumeAtSeconds}
@@ -1569,9 +1553,7 @@ export const ARViewer = ({
           if (activeTarget) void recordEvent(ScanEventType.VIDEO_PLAY, activeTarget);
           for (const sibling of siblingVideos) {
             if (!sibling.videoAvailable) continue;
-            prefetchVideo(
-              viewerService.getMappingVideoUrl(albumSlug, sibling.id, sibling.videoMediaId),
-            );
+            prefetchVideo(getTargetPlaybackUrl(albumSlug, sibling));
           }
         }}
         onError={(message) => {

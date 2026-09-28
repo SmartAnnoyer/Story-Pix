@@ -33,6 +33,7 @@ const actionColor: Record<PackLedgerAction, string> = {
   purchase: 'purple',
   consume: 'blue',
   revoke: 'red',
+  scan_renewal: 'gold',
 };
 
 function parseTab(value: string | null): CatalogTab {

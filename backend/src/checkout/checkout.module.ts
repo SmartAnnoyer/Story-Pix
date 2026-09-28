@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { BillingProviderModule } from '../billing/billing-provider.module';
 import { PacksModule } from '../packs/packs.module';
+import { AlbumsModule } from '../albums/albums.module';
 import { CouponsModule } from '../coupons/coupons.module';
 import { StudiosModule } from '../studios/studios.module';
 import { UsersModule } from '../users/users.module';
@@ -16,6 +17,7 @@ import { StudioPackPurchaseController } from './studio-pack-purchase.controller'
     MongooseModule.forFeature([{ name: CheckoutOrder.name, schema: CheckoutOrderSchema }]),
     BillingProviderModule,
     PacksModule,
+    AlbumsModule,
     CouponsModule,
     StudiosModule,
     UsersModule,

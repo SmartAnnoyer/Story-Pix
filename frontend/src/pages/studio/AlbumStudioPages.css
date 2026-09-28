@@ -140,6 +140,38 @@
   }
 }
 
+.album-renew-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+  border: 1px solid rgba(212, 136, 6, 0.3);
+  background: #fffbe6;
+}
+
+.album-renew-banner--over {
+  border-color: rgba(212, 56, 13, 0.3);
+  background: #fff2e8;
+}
+
+.album-renew-banner strong {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #1c1b22;
+}
+
+.album-renew-banner p {
+  margin: 0.2rem 0 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: #6a6772;
+}
+
 .album-link-coach {
   display: flex;
   flex-direction: column;

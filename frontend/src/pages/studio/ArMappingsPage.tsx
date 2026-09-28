@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { LinkOutlined, PictureOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { message } from 'antd';
@@ -9,6 +10,10 @@ import {
 import { useAlbumQuery } from '@/hooks/useAlbumQueries';
 import { useStudioPackSummaryQuery } from '@/hooks/usePackQueries';
 import { MappingTable } from '@/features/ar/components/MappingTable';
+import { RenewPlaysModal, type RenewablePhoto } from '@/features/packs/components/RenewPlaysModal';
+import { useAuthStore } from '@/store/auth.store';
+import { UserRole } from '@/types/auth.types';
+import { ArTargetStatus } from '@/types/ar-target.types';
 import { AlbumStudioShell } from '@/features/albums/components/AlbumStudioShell';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { ROUTES } from '@/routes/paths';
@@ -23,10 +28,26 @@ export const ArMappingsPage = () => {
   const { data, isLoading, refetch } = useAlbumArTargetsQuery(id, { limit: 100 });
   const archiveMutation = useArchiveArTargetMutation();
   const deleteMutation = useDeleteArTargetMutation();
+  const canRenew = useAuthStore((s) => s.user?.role === UserRole.STUDIO_ADMIN);
+  const [renewIds, setRenewIds] = useState<string[] | null>(null);
 
   if (albumLoading || !album) return <LoadingSpinner />;
 
   const mappingCount = data?.items.length ?? 0;
+  const renewablePhotos: RenewablePhoto[] = (data?.items ?? [])
+    .filter((item) => item.status !== ArTargetStatus.ARCHIVED)
+    .map((item) => ({
+      id: item.id,
+      name: (item.photo?.originalFileName ?? '').replace(/\.[^.]+$/, '').trim() || item.targetName,
+      scanUsage: item.scanUsage ?? 0,
+      scanLimit: item.scanLimit ?? 1000,
+    }));
+  const finishedCount = renewablePhotos.filter(
+    (photo) => photo.scanUsage >= photo.scanLimit,
+  ).length;
+  const lowCount = renewablePhotos.filter(
+    (photo) => photo.scanUsage < photo.scanLimit && photo.scanUsage >= photo.scanLimit * 0.8,
+  ).length;
   const studioRemaining = packs?.remainingMappingSlots ?? packs?.remainingAlbumCredits ?? 0;
   const atMappingCap = studioRemaining <= 0;
   const isEmpty = !isLoading && mappingCount === 0;
@@ -135,18 +156,68 @@ export const ArMappingsPage = () => {
           </button>
         </div>
       ) : (
-        <MappingTable
-          items={data?.items ?? []}
-          loading={isLoading}
-          onEdit={(mappingId) =>
-            navigate(
-              ROUTES.ALBUM_AR_MAPPING_EDIT.replace(':id', id).replace(':mappingId', mappingId),
-            )
-          }
-          onDelete={handleDelete}
-          onArchive={handleArchive}
-        />
+        <>
+          {finishedCount > 0 || lowCount > 0 ? (
+            <div
+              className={`album-renew-banner${finishedCount ? ' album-renew-banner--over' : ''}`}
+              role="status"
+            >
+              <div>
+                <strong>
+                  {finishedCount
+                    ? `${finishedCount} photo${finishedCount === 1 ? ' has' : 's have'} used all guest plays`
+                    : `${lowCount} photo${lowCount === 1 ? ' is' : 's are'} running low on plays`}
+                </strong>
+                <p>
+                  {canRenew
+                    ? 'Renew to keep the videos playing — the QR code stays the same.'
+                    : 'Ask the studio owner to renew plays so guests can keep watching.'}
+                </p>
+              </div>
+              {canRenew ? (
+                <button
+                  type="button"
+                  className="studio-home__btn studio-home__btn--primary"
+                  onClick={() =>
+                    setRenewIds(
+                      renewablePhotos
+                        .filter((photo) => photo.scanUsage >= photo.scanLimit * 0.8)
+                        .map((photo) => photo.id),
+                    )
+                  }
+                >
+                  Renew plays
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+          <MappingTable
+            items={data?.items ?? []}
+            loading={isLoading}
+            onRenew={canRenew ? (mappingId) => setRenewIds([mappingId]) : undefined}
+            onEdit={(mappingId) =>
+              navigate(
+                ROUTES.ALBUM_AR_MAPPING_EDIT.replace(':id', id).replace(':mappingId', mappingId),
+              )
+            }
+            onDelete={handleDelete}
+            onArchive={handleArchive}
+          />
+        </>
       )}
+      {canRenew ? (
+        <RenewPlaysModal
+          open={renewIds !== null}
+          albumId={id}
+          albumName={album.albumName}
+          photos={renewablePhotos}
+          initialSelectedIds={renewIds ?? []}
+          onClose={() => {
+            setRenewIds(null);
+            void refetch();
+          }}
+        />
+      ) : null}
     </AlbumStudioShell>
   );
 };

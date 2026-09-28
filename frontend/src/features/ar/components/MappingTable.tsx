@@ -27,8 +27,13 @@ interface MappingTableProps {
   onEdit: (id: string) => void;
   onDelete: (id: string) => void | Promise<void>;
   onArchive: (id: string) => void;
+  /** Studio owner only — staff see a hint instead of the button. */
+  onRenew?: (id: string) => void;
   showAdvancedControls?: boolean;
 }
+
+/** Nudge renewal once a photo has used this share of its plays. */
+const RENEW_NUDGE_RATIO = 0.8;
 
 export const MappingTable = ({
   items,
@@ -36,6 +41,7 @@ export const MappingTable = ({
   onEdit,
   onDelete,
   onArchive,
+  onRenew,
   showAdvancedControls = false,
 }: MappingTableProps) => {
   const [pendingDelete, setPendingDelete] = useState<ArTarget | null>(null);
@@ -68,6 +74,7 @@ export const MappingTable = ({
         const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
         const canEdit =
           record.status === ArTargetStatus.DRAFT || record.status === ArTargetStatus.ACTIVE;
+        const lowOnPlays = over || (limit > 0 && used / limit >= RENEW_NUDGE_RATIO);
 
         return (
           <article key={record.id} className="mapping-card">
@@ -108,9 +115,25 @@ export const MappingTable = ({
               >
                 <i style={{ width: `${pct}%` }} />
               </div>
+              {over && !onRenew ? (
+                <p className="mapping-card__plays-hint">
+                  Guests can’t play this video. Ask the studio owner to renew plays.
+                </p>
+              ) : null}
             </div>
 
             <div className="mapping-card__actions">
+              {onRenew && canEdit ? (
+                <button
+                  type="button"
+                  className={`mapping-card__btn ${
+                    lowOnPlays ? 'mapping-card__btn--renew' : 'mapping-card__btn--ghost'
+                  }`}
+                  onClick={() => onRenew(record.id)}
+                >
+                  {over ? 'Renew plays' : '+ Plays'}
+                </button>
+              ) : null}
               {canEdit ? (
                 <button
                   type="button"

@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   ArrayMinSize,
   IsArray,
   IsEmail,
@@ -7,6 +8,7 @@ import {
   IsMongoId,
   IsOptional,
   IsString,
+  Max,
   Min,
   ValidateNested,
   Validate,
@@ -18,6 +20,7 @@ import {
   IsStrongPassword,
   PASSWORD_VALIDATION_MESSAGE,
 } from '../../common/validators/password.validator';
+import { MAX_SCAN_RENEWAL_BLOCKS } from '../../common/constants/pack.constants';
 
 @ValidatorConstraint({ name: 'MatchPasswords', async: false })
 class MatchPasswordsConstraint implements ValidatorConstraintInterface {
@@ -93,6 +96,26 @@ export class CreateRechargeOrderDto {
   @IsOptional()
   @IsString()
   couponCode?: string;
+}
+
+export class ScanRenewalDto {
+  @IsMongoId()
+  albumId!: string;
+
+  /** Photos to renew; omit or leave empty for every live photo in the album. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(500)
+  @IsMongoId({ each: true })
+  arTargetIds?: string[];
+
+  /** Number of +1000-play blocks per photo. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(MAX_SCAN_RENEWAL_BLOCKS)
+  blocks?: number;
 }
 
 export class VerifyCheckoutPaymentDto {

@@ -42,10 +42,31 @@ export class AdminPacksController {
     return this.packsService.assignToStudio(dto, user.userId);
   }
 
+  @Get('studios/:studioId/scan-usage')
+  studioScanUsage(@Param('studioId') studioId: string) {
+    return this.albumsService.getScanUsageOverview(studioId);
+  }
+
   @Post('top-up-scans')
   @RequirePermissions('platform:plans:write')
-  topUpScans(@Body() dto: TopUpAlbumScansDto) {
-    return this.albumsService.topUpAlbumScans(dto.albumId, dto.additionalScans);
+  async topUpScans(@Body() dto: TopUpAlbumScansDto, @CurrentUser() user: AuthenticatedUser) {
+    const result = await this.albumsService.renewMappingScans({
+      albumId: dto.albumId,
+      additionalScans: dto.additionalScans,
+      arTargetIds: dto.arTargetIds,
+    });
+    await this.packsService.recordScanRenewal({
+      studioId: result.album.studioId,
+      albumId: result.album.id,
+      albumName: result.album.albumName,
+      photoCount: result.renewedCount,
+      scansPerPhoto: dto.additionalScans,
+      unitPriceInr: 0,
+      totalPriceInr: 0,
+      performedBy: user.userId,
+      notes: dto.notes?.trim() || 'Complimentary renewal by super admin',
+    });
+    return result;
   }
 
   @Get(':id')

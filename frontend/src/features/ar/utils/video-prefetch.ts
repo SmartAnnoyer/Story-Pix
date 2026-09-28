@@ -476,7 +476,9 @@ export const prefetchManifestVideos = (
     const photoKey = target.photoMediaId ?? `mapping:${target.id}`;
     if (seenPhotos.has(photoKey)) continue;
     seenPhotos.add(photoKey);
-    const url = viewerService.getMappingVideoUrl(albumSlug, target.id, target.videoMediaId);
+    const url =
+      target.videoUrl ??
+      viewerService.getMappingVideoUrl(albumSlug, target.id, target.videoMediaId);
     prefetchVideo(url);
   }
 };

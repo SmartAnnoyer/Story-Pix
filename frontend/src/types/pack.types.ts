@@ -1,3 +1,5 @@
+import type { Album } from './album.types';
+
 export enum AlbumPackTier {
   PERSONAL = 'personal',
   MINIMAL = 'minimal',
@@ -11,6 +13,7 @@ export enum PackLedgerAction {
   PURCHASE = 'purchase',
   CONSUME = 'consume',
   REVOKE = 'revoke',
+  SCAN_RENEWAL = 'scan_renewal',
 }
 
 export interface AlbumPack {
@@ -68,7 +71,7 @@ export interface PackLedgerEntry {
   studioId: string;
   studioName: string | null;
   studioCode: string | null;
-  packId: string;
+  packId: string | null;
   creditId: string | null;
   albumId: string | null;
   packCode: string;
@@ -103,4 +106,53 @@ export interface AssignPackPayload {
 export interface TopUpAlbumScansPayload {
   albumId: string;
   additionalScans: number;
+  /** Omit or leave empty to renew every live photo in the album. */
+  arTargetIds?: string[];
+  notes?: string;
+  /** Used only to refresh the right admin view after the top-up. */
+  studioId?: string;
+}
+
+export interface ScanRenewalResult {
+  album: Album;
+  renewedCount: number;
+  arTargetIds: string[];
+}
+
+export interface ScanUsagePhoto {
+  id: string;
+  targetName: string;
+  status: string;
+  scanLimit: number;
+  scanUsage: number;
+  scansRemaining: number;
+  scansExhausted: boolean;
+}
+
+export interface StudioScanUsageAlbum {
+  id: string;
+  albumName: string;
+  albumCode: string;
+  slug: string;
+  status: string;
+  photoCount: number;
+  exhaustedCount: number;
+  photos: ScanUsagePhoto[];
+}
+
+export interface ScanRenewalRequest {
+  albumId: string;
+  arTargetIds?: string[];
+  blocks?: number;
+}
+
+export interface ScanRenewalQuote {
+  albumId: string;
+  albumName: string;
+  arTargetIds: string[];
+  photoCount: number;
+  blocks: number;
+  scansPerPhoto: number;
+  unitPriceInr: number;
+  amountInr: number;
 }

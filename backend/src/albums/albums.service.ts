@@ -187,35 +187,127 @@ export class AlbumsService {
 
   /** Add +1000 plays to every active mapping in the album (shop renewal). */
   async topUpAlbumScans(albumId: string, additionalScans = SCANS_PER_MAPPING) {
+    const result = await this.renewMappingScans({ albumId, additionalScans });
+    return result.album;
+  }
+
+  /**
+   * Photos in an album that can receive extra plays. When `arTargetIds` is empty,
+   * every live (non-archived) photo in the album is returned.
+   */
+  async resolveRenewableTargets(input: {
+    albumId: string;
+    studioId?: string;
+    arTargetIds?: string[] | null;
+  }) {
+    if (!Types.ObjectId.isValid(input.albumId)) throw new NotFoundException('Album not found');
+    const album = input.studioId
+      ? await this.findDocument(input.studioId, input.albumId)
+      : await this.albumModel.findOne({ _id: input.albumId, deletedAt: null }).exec();
+    if (!album) throw new NotFoundException('Album not found');
+
+    const filter: FilterQuery<ArTargetDocument> = {
+      albumId: album._id,
+      deletedAt: null,
+      status: { $ne: ArTargetStatus.ARCHIVED },
+    };
+    const requested = [...new Set(input.arTargetIds ?? [])];
+    if (requested.length) {
+      if (requested.some((id) => !Types.ObjectId.isValid(id))) {
+        throw new BadRequestException('Invalid photo selection');
+      }
+      filter._id = { $in: requested.map((id) => new Types.ObjectId(id)) };
+    }
+
+    const targets = await this.arTargetModel.find(filter).exec();
+    if (!targets.length) {
+      throw new BadRequestException('No live photos to renew in this album');
+    }
+    if (requested.length && targets.length !== requested.length) {
+      throw new BadRequestException('Some selected photos are not in this album anymore');
+    }
+    return { album, targets };
+  }
+
+  /** Increase lifetime play limit on selected photos (or all live photos) in an album. */
+  async renewMappingScans(input: {
+    albumId: string;
+    additionalScans: number;
+    studioId?: string;
+    arTargetIds?: string[] | null;
+  }) {
+    const { additionalScans } = input;
     if (!Number.isFinite(additionalScans) || additionalScans < 1) {
       throw new BadRequestException('additionalScans must be at least 1');
     }
-    const album = await this.albumModel.findById(albumId).exec();
-    if (!album || album.deletedAt) throw new NotFoundException('Album not found');
+    const { album, targets } = await this.resolveRenewableTargets(input);
+    const targetIds = targets.map((target) => target._id);
 
-    const perMapping = additionalScans;
     await this.arTargetModel
-      .updateMany(
-        {
-          albumId: album._id,
-          deletedAt: null,
-          status: { $ne: ArTargetStatus.ARCHIVED },
-        },
-        { $inc: { scanLimit: perMapping } },
-      )
+      .updateMany({ _id: { $in: targetIds } }, { $inc: { scanLimit: additionalScans } })
       .exec();
 
-    const mappingCount = await this.arTargetModel
-      .countDocuments({
-        albumId: album._id,
+    album.scanLimit = (album.scanLimit ?? 0) + additionalScans * targetIds.length;
+    await album.save();
+
+    return {
+      album: this.serialize(album),
+      renewedCount: targetIds.length,
+      arTargetIds: targetIds.map((id) => id.toString()),
+    };
+  }
+
+  /** Per-album play usage for every live photo in a studio (super admin renewals). */
+  async getScanUsageOverview(studioId: string) {
+    if (!Types.ObjectId.isValid(studioId)) throw new NotFoundException('Studio not found');
+    const albums = await this.albumModel
+      .find({ studioId: this.toObjectId(studioId), deletedAt: null })
+      .sort({ createdAt: -1 })
+      .select({ albumName: 1, albumCode: 1, slug: 1, status: 1 })
+      .exec();
+    if (!albums.length) return [];
+
+    const targets = await this.arTargetModel
+      .find({
+        albumId: { $in: albums.map((album) => album._id) },
         deletedAt: null,
         status: { $ne: ArTargetStatus.ARCHIVED },
       })
+      .select({ albumId: 1, targetName: 1, status: 1, scanLimit: 1, scanUsage: 1 })
+      .sort({ createdAt: 1 })
       .exec();
 
-    album.scanLimit = (album.scanLimit ?? 0) + perMapping * Math.max(mappingCount, 1);
-    await album.save();
-    return this.serialize(album);
+    const byAlbum = new Map<string, ArTargetDocument[]>();
+    for (const target of targets) {
+      const key = target.albumId.toString();
+      byAlbum.set(key, [...(byAlbum.get(key) ?? []), target]);
+    }
+
+    return albums.map((album) => {
+      const photos = (byAlbum.get(album._id.toString()) ?? []).map((target) => {
+        const scanLimit = target.scanLimit ?? SCANS_PER_MAPPING;
+        const scanUsage = target.scanUsage ?? 0;
+        return {
+          id: target._id.toString(),
+          targetName: target.targetName,
+          status: target.status,
+          scanLimit,
+          scanUsage,
+          scansRemaining: Math.max(0, scanLimit - scanUsage),
+          scansExhausted: scanUsage >= scanLimit,
+        };
+      });
+      return {
+        id: album._id.toString(),
+        albumName: album.albumName,
+        albumCode: album.albumCode,
+        slug: album.slug,
+        status: album.status,
+        photoCount: photos.length,
+        exhaustedCount: photos.filter((photo) => photo.scansExhausted).length,
+        photos,
+      };
+    });
   }
 
   async assertAlbumScanAvailable(_albumId: string) {

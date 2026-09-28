@@ -124,10 +124,10 @@ const buildSourceList = (
   fallbackUrl: string | null | undefined,
   preferDirect: boolean,
 ): string[] => {
-  const direct = fallbackUrl ?? null;
-  const proxied = primaryUrl ?? null;
-  const ordered = preferDirect || Boolean(direct) ? [direct, proxied] : [proxied, direct];
-  return ordered.filter((url): url is string => Boolean(url));
+  const primary = primaryUrl ?? null;
+  const fallback = fallbackUrl ?? null;
+  const ordered = preferDirect ? [primary, fallback] : [fallback, primary];
+  return [...new Set(ordered.filter((url): url is string => Boolean(url)))];
 };
 
 const waitForVideoReady = (video: HTMLVideoElement, timeoutMs = LOAD_TIMEOUT_MS): Promise<void> =>

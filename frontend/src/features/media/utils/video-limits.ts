@@ -1,12 +1,14 @@
-import { MAX_VIDEO_DURATION_SEC, MAX_VIDEO_UPLOAD_MB } from './media-limits';
+import { canCompressVideo } from './compress-video';
+import { MAX_VIDEO_DURATION_SEC, MAX_VIDEO_SOURCE_MB, MAX_VIDEO_UPLOAD_MB } from './media-limits';
 
 export const formatMb = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 
+/** Size + duration check on the original pick (before 720p compression). */
 export const assertVideoWithinLimits = async (file: File): Promise<void> => {
-  const maxBytes = MAX_VIDEO_UPLOAD_MB * 1024 * 1024;
-  if (file.size > maxBytes) {
+  const maxMb = canCompressVideo() ? MAX_VIDEO_SOURCE_MB : MAX_VIDEO_UPLOAD_MB;
+  if (file.size > maxMb * 1024 * 1024) {
     throw new Error(
-      `Video is too large (${formatMb(file.size)}). Max ${MAX_VIDEO_UPLOAD_MB} MB — compress the clip (e.g. 720p, under ~90s) and try again.`,
+      `Video is too large (${formatMb(file.size)}). Max ${maxMb} MB — trim the clip (under ~90s) and try again.`,
     );
   }
 
@@ -14,6 +16,15 @@ export const assertVideoWithinLimits = async (file: File): Promise<void> => {
   if (duration > MAX_VIDEO_DURATION_SEC) {
     throw new Error(
       `Video is too long (${Math.round(duration)}s). Keep clips under ${MAX_VIDEO_DURATION_SEC}s for reliable guest playback.`,
+    );
+  }
+};
+
+/** Final size check on the file that will actually be uploaded. */
+export const assertVideoUploadSize = (file: File): void => {
+  if (file.size > MAX_VIDEO_UPLOAD_MB * 1024 * 1024) {
+    throw new Error(
+      `Video is still ${formatMb(file.size)} after compression. Max ${MAX_VIDEO_UPLOAD_MB} MB — trim the clip and try again.`,
     );
   }
 };

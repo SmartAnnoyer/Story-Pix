@@ -204,6 +204,19 @@
   border-color: var(--mc-accent);
 }
 
+.mapping-card__btn--renew {
+  color: #fff;
+  background: var(--mc-warn);
+  border-color: var(--mc-warn);
+}
+
+.mapping-card__plays-hint {
+  margin: 0.45rem 0 0;
+  color: var(--mc-warn);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
 .mapping-card__btn--danger {
   color: var(--mc-warn);
   background: #fff5f5;

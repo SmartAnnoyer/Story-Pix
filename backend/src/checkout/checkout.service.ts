@@ -15,6 +15,11 @@ import {
   IBillingProvider,
 } from '../billing/interfaces/billing-provider.interface';
 import { PacksService } from '../packs/packs.service';
+import { AlbumsService } from '../albums/albums.service';
+import {
+  DEFAULT_SCAN_RENEWAL_PRICE_INR,
+  SCANS_PER_MAPPING,
+} from '../common/constants/pack.constants';
 import { CouponsService } from '../coupons/coupons.service';
 import { StudiosService } from '../studios/studios.service';
 import { UsersService } from '../users/users.service';
@@ -25,6 +30,7 @@ import {
   CreateRechargeOrderDto,
   CreateSignupOrderDto,
   QuoteCartDto,
+  ScanRenewalDto,
   VerifyCheckoutPaymentDto,
 } from './dto/checkout.dto';
 
@@ -37,6 +43,7 @@ export class CheckoutService {
     private readonly orderModel: Model<CheckoutOrderDocument>,
     @Inject(BILLING_PROVIDER) private readonly billingProvider: IBillingProvider,
     private readonly packsService: PacksService,
+    private readonly albumsService: AlbumsService,
     private readonly couponsService: CouponsService,
     private readonly studiosService: StudiosService,
     private readonly usersService: UsersService,
@@ -391,6 +398,152 @@ export class CheckoutService {
       alreadyProcessed: false,
       summary: await this.packsService.getStudioPackSummary(studioId),
     };
+  }
+
+  async quoteRenewal(studioId: string, dto: ScanRenewalDto) {
+    const { album, targets } = await this.albumsService.resolveRenewableTargets({
+      albumId: dto.albumId,
+      studioId,
+      arTargetIds: dto.arTargetIds,
+    });
+    const blocks = dto.blocks ?? 1;
+    const unitPriceInr = this.configService.get<number>(
+      'billing.scanRenewalPriceInr',
+      DEFAULT_SCAN_RENEWAL_PRICE_INR,
+    );
+    const photoCount = targets.length;
+    return {
+      albumId: album._id.toString(),
+      albumName: album.albumName,
+      arTargetIds: targets.map((target) => target._id.toString()),
+      photoCount,
+      blocks,
+      scansPerPhoto: blocks * SCANS_PER_MAPPING,
+      /** Price per photo for one +1000-play block. */
+      unitPriceInr,
+      amountInr: unitPriceInr * blocks * photoCount,
+    };
+  }
+
+  async createRenewalOrder(studioId: string, userId: string, dto: ScanRenewalDto) {
+    const quote = await this.quoteRenewal(studioId, dto);
+    if (quote.amountInr <= 0) {
+      throw new BadRequestException('Invalid renewal total');
+    }
+
+    const currency = this.configService.get<string>('billing.currency', 'INR');
+    const orderResult = await this.billingProvider.createOrder({
+      studioId,
+      amount: Math.round(quote.amountInr * 100),
+      currency,
+      receipt: `renew_${studioId}_${Date.now()}`,
+      notes: {
+        kind: CheckoutOrderKind.SCAN_RENEWAL,
+        studioId,
+        userId,
+        albumId: quote.albumId,
+      },
+    });
+
+    const order = await this.orderModel.create({
+      kind: CheckoutOrderKind.SCAN_RENEWAL,
+      status: CheckoutOrderStatus.PENDING,
+      items: [],
+      amountInr: quote.amountInr,
+      subtotalInr: quote.amountInr,
+      discountInr: 0,
+      currency,
+      razorpayOrderId: orderResult.orderId,
+      studioId: new Types.ObjectId(studioId),
+      userId: new Types.ObjectId(userId),
+      albumId: new Types.ObjectId(quote.albumId),
+      arTargetIds: quote.arTargetIds.map((id) => new Types.ObjectId(id)),
+      scansPerTarget: quote.scansPerPhoto,
+      expiresAt: new Date(Date.now() + ORDER_TTL_MS),
+    });
+
+    this.logger.log(
+      `Scan renewal order ${order._id} → ${orderResult.orderId} album=${quote.albumId} ` +
+        `photos=${quote.photoCount} scans=${quote.scansPerPhoto} amount=${quote.amountInr}`,
+    );
+
+    return {
+      checkoutId: order._id.toString(),
+      orderId: orderResult.orderId,
+      amount: orderResult.amount,
+      currency: orderResult.currency,
+      keyId: orderResult.keyId,
+      quote,
+      provider: this.configService.get<string>('billing.provider', 'manual'),
+    };
+  }
+
+  async verifyRenewalPayment(studioId: string, userId: string, dto: VerifyCheckoutPaymentDto) {
+    this.assertSignature(dto);
+    const order = await this.orderModel
+      .findOne({ razorpayOrderId: dto.razorpayOrderId, kind: CheckoutOrderKind.SCAN_RENEWAL })
+      .exec();
+
+    if (!order) throw new NotFoundException('Checkout order not found');
+    if (order.studioId?.toString() !== studioId) {
+      throw new BadRequestException('Checkout order does not belong to this studio');
+    }
+    this.ensureOrderOpen(order);
+    if (order.status === CheckoutOrderStatus.FULFILLED || !order.albumId) {
+      return { alreadyProcessed: true, renewedCount: order.arTargetIds.length };
+    }
+
+    // Claim the order atomically so a double submit cannot add plays twice.
+    const claimed = await this.orderModel
+      .findOneAndUpdate(
+        { _id: order._id, fulfilledAt: null },
+        {
+          $set: {
+            fulfilledAt: new Date(),
+            status: CheckoutOrderStatus.PAID,
+            razorpayPaymentId: dto.razorpayPaymentId,
+          },
+        },
+        { new: true },
+      )
+      .exec();
+    if (!claimed) {
+      return { alreadyProcessed: true, renewedCount: order.arTargetIds.length };
+    }
+
+    try {
+      const result = await this.albumsService.renewMappingScans({
+        albumId: order.albumId.toString(),
+        studioId,
+        arTargetIds: order.arTargetIds.map((id) => id.toString()),
+        additionalScans: order.scansPerTarget,
+      });
+
+      await this.packsService.recordScanRenewal({
+        studioId,
+        albumId: result.album.id,
+        albumName: result.album.albumName,
+        photoCount: result.renewedCount,
+        scansPerPhoto: order.scansPerTarget,
+        unitPriceInr: result.renewedCount ? order.amountInr / result.renewedCount : 0,
+        totalPriceInr: order.amountInr,
+        performedBy: userId,
+        notes: `checkout:${order._id.toString()}`,
+      });
+
+      claimed.status = CheckoutOrderStatus.FULFILLED;
+      await claimed.save();
+
+      return {
+        alreadyProcessed: false,
+        renewedCount: result.renewedCount,
+        scansPerPhoto: order.scansPerTarget,
+        album: result.album,
+      };
+    } catch (error) {
+      await this.orderModel.updateOne({ _id: order._id }, { $set: { fulfilledAt: null } }).exec();
+      throw error;
+    }
   }
 
   private assertSignature(dto: VerifyCheckoutPaymentDto) {

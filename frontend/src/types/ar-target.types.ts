@@ -87,7 +87,12 @@ export interface ViewerManifestTarget {
   videoMediaId: string;
   photoUrl: string | null;
   photoThumbnailUrl: string | null;
+  /** Playback URL: public CDN when configured, otherwise the API proxy. */
   videoUrl: string | null;
+  /** Public R2/CDN URL from the server (absent when no public bucket URL is configured). */
+  videoDirectUrl?: string | null;
+  /** API proxy, used only when `videoUrl` is the CDN URL and it fails. */
+  videoFallbackUrl?: string | null;
   videoThumbnailUrl: string | null;
   videoAvailable: boolean;
   overlayFrame?: OverlayFrame | null;
@@ -99,6 +104,8 @@ export interface ViewerManifestTarget {
 
 export interface ViewerManifestMindFile {
   url: string;
+  /** Public R2/CDN URL (immutable, hash in key); null when no public bucket URL is configured. */
+  directUrl?: string | null;
   hash: string | null;
   targetDimensions: Array<{ width: number; height: number }>;
   compiledAt: string | null;

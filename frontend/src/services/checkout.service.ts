@@ -1,6 +1,6 @@
 import { apiClient } from '@/api/client';
 import type { ApiResponse } from '@/types/api.types';
-import type { AlbumPack } from '@/types/pack.types';
+import type { AlbumPack, ScanRenewalQuote, ScanRenewalRequest } from '@/types/pack.types';
 import type { LoginResponse } from '@/types/auth.types';
 
 export type CartItem = { packId: string; quantity: number };
@@ -182,6 +182,30 @@ export const checkoutService = {
     const { data } = await apiClient.post<
       ApiResponse<{ alreadyProcessed: boolean; summary: unknown }>
     >('/studio/packs/purchase/verify', payload);
+    return data.data;
+  },
+
+  async quoteRenewal(payload: ScanRenewalRequest): Promise<ScanRenewalQuote> {
+    const { data } = await apiClient.post<ApiResponse<ScanRenewalQuote>>(
+      '/studio/packs/purchase/renewal/quote',
+      payload,
+    );
+    return data.data;
+  },
+
+  async createRenewalOrder(
+    payload: ScanRenewalRequest,
+  ): Promise<Omit<CheckoutOrderResult, 'quote'> & { quote: ScanRenewalQuote }> {
+    const { data } = await apiClient.post<
+      ApiResponse<Omit<CheckoutOrderResult, 'quote'> & { quote: ScanRenewalQuote }>
+    >('/studio/packs/purchase/renewal/order', payload);
+    return data.data;
+  },
+
+  async verifyRenewal(payload: CheckoutVerifyPayload) {
+    const { data } = await apiClient.post<
+      ApiResponse<{ alreadyProcessed: boolean; renewedCount: number; scansPerPhoto?: number }>
+    >('/studio/packs/purchase/renewal/verify', payload);
     return data.data;
   },
 };

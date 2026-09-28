@@ -1,12 +1,13 @@
 import { apiClient } from '@/api/client';
 import type { ApiResponse } from '@/types/api.types';
-import type { Album } from '@/types/album.types';
 import type {
   AlbumPack,
   AssignPackPayload,
   PaginatedPackLedger,
+  ScanRenewalResult,
   StudioPackCredit,
   StudioPackSummary,
+  StudioScanUsageAlbum,
   TopUpAlbumScansPayload,
 } from '@/types/pack.types';
 
@@ -42,8 +43,19 @@ export const packService = {
     return data.data;
   },
 
-  async topUpScans(payload: TopUpAlbumScansPayload): Promise<Album> {
-    const { data } = await apiClient.post<ApiResponse<Album>>('/admin/packs/top-up-scans', payload);
+  async topUpScans(payload: TopUpAlbumScansPayload): Promise<ScanRenewalResult> {
+    const { studioId: _studioId, ...body } = payload;
+    const { data } = await apiClient.post<ApiResponse<ScanRenewalResult>>(
+      '/admin/packs/top-up-scans',
+      body,
+    );
+    return data.data;
+  },
+
+  async getStudioScanUsage(studioId: string): Promise<StudioScanUsageAlbum[]> {
+    const { data } = await apiClient.get<ApiResponse<StudioScanUsageAlbum[]>>(
+      `/admin/packs/studios/${studioId}/scan-usage`,
+    );
     return data.data;
   },
 

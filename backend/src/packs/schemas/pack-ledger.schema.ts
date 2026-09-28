@@ -9,8 +9,9 @@ export class PackLedgerEntry {
   @Prop({ type: Types.ObjectId, ref: 'Studio', required: true, index: true })
   studioId!: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'AlbumPack', required: true })
-  packId!: Types.ObjectId;
+  /** Null for entries not tied to a catalog pack (e.g. scan renewals). */
+  @Prop({ type: Types.ObjectId, ref: 'AlbumPack', default: null })
+  packId?: Types.ObjectId | null;
 
   @Prop({ type: Types.ObjectId, ref: 'StudioPackCredit', default: null })
   creditId?: Types.ObjectId | null;
