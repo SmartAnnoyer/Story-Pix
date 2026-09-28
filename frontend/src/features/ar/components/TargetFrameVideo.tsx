@@ -191,9 +191,9 @@ export const TargetFrameVideo = ({
   mode,
   playbackKey = null,
   resumeAtSeconds = null,
-  videoCount: _videoCount = 1,
-  videoIndex: _videoIndex = 0,
-  onCycleVideo: _onCycleVideo,
+  videoCount = 1,
+  videoIndex = 0,
+  onCycleVideo,
   title,
   preferDirectUrl = true,
   onModeChange,
@@ -230,6 +230,7 @@ export const TargetFrameVideo = ({
   const [duration, setDuration] = useState(0);
   const [scrubbing, setScrubbing] = useState(false);
   const [fsHintVisible, setFsHintVisible] = useState(false);
+  const [fsExitHintVisible, setFsExitHintVisible] = useState(false);
   const lastTapAtRef = useRef(0);
   const lastTapPosRef = useRef<{ x: number; y: number } | null>(null);
   const prevPrimaryUrlRef = useRef<string | null>(null);
@@ -934,6 +935,9 @@ export const TargetFrameVideo = ({
         label: string,
         timeoutMs = loadTimeout,
       ) => {
+        // The playback element is shared across photos: a load that finished after the
+        // guest moved to another print must never write its clip into it.
+        if (isStale?.()) return;
         viewerLog('debug', 'video trying source', {
           label,
           blob: src.startsWith('blob:'),
@@ -941,8 +945,9 @@ export const TargetFrameVideo = ({
           iosHtmlCamera,
           src: src.slice(0, 120),
         });
+        const expectedSrc = new URL(src, window.location.href).href;
         const alreadyReady =
-          video.src === src &&
+          video.src === expectedSrc &&
           video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
           video.videoWidth > 0;
         if (!alreadyReady) {
@@ -951,6 +956,9 @@ export const TargetFrameVideo = ({
           await waitForVideoReady(video, timeoutMs);
         }
         if (isStale?.()) return;
+        if (video.src !== expectedSrc) {
+          throw new Error('Playback source was replaced during load');
+        }
         applyResumeSeek(video);
         const played = await tryPlay(soundOnRef.current);
         if (isStale?.()) return;
@@ -1305,6 +1313,15 @@ export const TargetFrameVideo = ({
     if (video && Number.isFinite(video.currentTime)) setCurrentTime(video.currentTime);
   }, []);
 
+  const handleSkip = useCallback((deltaSeconds: number) => {
+    const video = videoRef.current;
+    if (!video || !Number.isFinite(video.currentTime)) return;
+    const max = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : Infinity;
+    const next = Math.min(Math.max(0, video.currentTime + deltaSeconds), max);
+    video.currentTime = next;
+    setCurrentTime(next);
+  }, []);
+
   const handleMuteClick = useCallback(
     (event: { stopPropagation: () => void }) => {
       event.stopPropagation();
@@ -1380,6 +1397,16 @@ export const TargetFrameVideo = ({
     const hideTimer = window.setTimeout(() => setFsHintVisible(false), FS_HINT_VISIBLE_MS);
     return () => window.clearTimeout(hideTimer);
   }, [active, isPlaying, reveal, needsTap, mode, primaryUrl]);
+
+  useEffect(() => {
+    if (!active || mode !== 'fullscreen') {
+      setFsExitHintVisible(false);
+      return undefined;
+    }
+    setFsExitHintVisible(true);
+    const hideTimer = window.setTimeout(() => setFsExitHintVisible(false), 3_500);
+    return () => window.clearTimeout(hideTimer);
+  }, [active, mode]);
 
   const handleDownload = useCallback(async () => {
     const source = playbackUrl || primaryUrl || fallbackUrl;
@@ -1513,6 +1540,8 @@ export const TargetFrameVideo = ({
 
   const seekMax = Number.isFinite(duration) && duration > 0 ? duration : Math.max(currentTime, 0.1);
 
+  const hasSiblingVideos = videoCount > 1 && Boolean(onCycleVideo);
+
   const fullscreenTransport =
     showFullscreen && active && !needsTap ? (
       <div
@@ -1522,61 +1551,149 @@ export const TargetFrameVideo = ({
         onTouchStart={(event) => event.stopPropagation()}
         onClick={(event) => event.stopPropagation()}
       >
-        <button
-          type="button"
-          className="ar-video-fs-controls__play"
-          aria-label={isPlaying ? 'Pause' : 'Play'}
-          onClick={handleTogglePlayPause}
-        >
-          {isPlaying ? (
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden>
-              <path d="M6 5h4v14H6V5zm8 0h4v14h-4V5z" />
-            </svg>
-          ) : (
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden>
-              <path d="M8 5v14l11-7L8 5z" />
-            </svg>
-          )}
-        </button>
-        <span className="ar-video-fs-controls__time">{formatClock(currentTime)}</span>
-        <input
-          className="ar-video-fs-controls__seek"
-          type="range"
-          min={0}
-          max={seekMax}
-          step={0.05}
-          value={Math.min(currentTime, seekMax)}
-          aria-label="Seek"
-          style={
-            {
-              '--seek-pct': `${seekMax > 0 ? Math.min(100, (currentTime / seekMax) * 100) : 0}%`,
-            } as CSSProperties
-          }
-          onPointerDown={(event) => {
-            event.stopPropagation();
-            seekingRef.current = true;
-            setScrubbing(true);
-            const end = () => {
+        <div className="ar-video-fs-controls__row">
+          <span className="ar-video-fs-controls__time">{formatClock(currentTime)}</span>
+          <input
+            className="ar-video-fs-controls__seek"
+            type="range"
+            min={0}
+            max={seekMax}
+            step={0.05}
+            value={Math.min(currentTime, seekMax)}
+            aria-label="Seek"
+            style={
+              {
+                '--seek-pct': `${seekMax > 0 ? Math.min(100, (currentTime / seekMax) * 100) : 0}%`,
+              } as CSSProperties
+            }
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              seekingRef.current = true;
+              setScrubbing(true);
+              const end = () => {
+                handleSeekCommit();
+                window.removeEventListener('pointerup', end);
+                window.removeEventListener('pointercancel', end);
+              };
+              window.addEventListener('pointerup', end);
+              window.addEventListener('pointercancel', end);
+            }}
+            onChange={(event) => handleSeekInput(Number(event.target.value))}
+            onPointerUp={(event) => {
+              event.stopPropagation();
               handleSeekCommit();
-              window.removeEventListener('pointerup', end);
-              window.removeEventListener('pointercancel', end);
-            };
-            window.addEventListener('pointerup', end);
-            window.addEventListener('pointercancel', end);
-          }}
-          onChange={(event) => handleSeekInput(Number(event.target.value))}
-          onPointerUp={(event) => {
-            event.stopPropagation();
-            handleSeekCommit();
-          }}
-          onTouchEnd={(event) => {
-            event.stopPropagation();
-            handleSeekCommit();
-          }}
-          onMouseUp={handleSeekCommit}
-          onBlur={handleSeekCommit}
-        />
-        <span className="ar-video-fs-controls__time">{formatClock(duration)}</span>
+            }}
+            onTouchEnd={(event) => {
+              event.stopPropagation();
+              handleSeekCommit();
+            }}
+            onMouseUp={handleSeekCommit}
+            onBlur={handleSeekCommit}
+          />
+          <span className="ar-video-fs-controls__time">{formatClock(duration)}</span>
+        </div>
+
+        <div className="ar-video-fs-controls__row ar-video-fs-controls__row--buttons">
+          <button
+            type="button"
+            className="ar-video-fs-controls__btn"
+            aria-label="Download video"
+            onClick={() => void handleDownload()}
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden>
+              <path d="M11 4h2v9.17l3.59-3.58L18 11l-6 6-6-6 1.41-1.41L11 13.17V4zM5 18h14v2H5v-2z" />
+            </svg>
+          </button>
+
+          <div className="ar-video-fs-controls__center">
+            {hasSiblingVideos ? (
+              <button
+                type="button"
+                className="ar-video-fs-controls__btn"
+                aria-label="Previous video"
+                onClick={() => onCycleVideo?.(-1)}
+              >
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden>
+                  <path d="M6 6h2v12H6V6zm3.5 6 8.5 6V6l-8.5 6z" />
+                </svg>
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="ar-video-fs-controls__btn ar-video-fs-controls__btn--skip"
+              aria-label="Back 10 seconds"
+              onClick={() => handleSkip(-10)}
+            >
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden>
+                <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" />
+              </svg>
+              <span>10</span>
+            </button>
+            <button
+              type="button"
+              className="ar-video-fs-controls__play"
+              aria-label={isPlaying ? 'Pause' : 'Play'}
+              onClick={handleTogglePlayPause}
+            >
+              {isPlaying ? (
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden>
+                  <path d="M6 5h4v14H6V5zm8 0h4v14h-4V5z" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden>
+                  <path d="M8 5v14l11-7L8 5z" />
+                </svg>
+              )}
+            </button>
+            <button
+              type="button"
+              className="ar-video-fs-controls__btn ar-video-fs-controls__btn--skip"
+              aria-label="Forward 10 seconds"
+              onClick={() => handleSkip(10)}
+            >
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden>
+                <path d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z" />
+              </svg>
+              <span>10</span>
+            </button>
+            {hasSiblingVideos ? (
+              <button
+                type="button"
+                className="ar-video-fs-controls__btn"
+                aria-label="Next video"
+                onClick={() => onCycleVideo?.(1)}
+              >
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden>
+                  <path d="M16 6h2v12h-2V6zM6 18l8.5-6L6 6v12z" />
+                </svg>
+              </button>
+            ) : null}
+          </div>
+
+          <button
+            type="button"
+            className="ar-video-fs-controls__btn"
+            aria-label="Back to photo"
+            onClick={handleToggleFullscreen}
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden>
+              <path d="M9 3H3v6h2V5h4V3zm12 0h-6v2h4v4h2V3zM5 15H3v6h6v-2H5v-4zm16 0h-2v4h-4v2h6v-6z" />
+            </svg>
+          </button>
+        </div>
+        {hasSiblingVideos ? (
+          <p className="ar-video-fs-controls__count">
+            Video {videoIndex + 1} of {videoCount}
+          </p>
+        ) : null}
+      </div>
+    ) : null;
+
+  const fullscreenExitHint =
+    showFullscreen && active && fsExitHintVisible ? (
+      <div className="ar-video-fs-hint ar-video-fs-hint--scan" aria-live="polite">
+        <span className="ar-video-fs-hint__dot" aria-hidden />
+        <span className="ar-video-fs-hint__label">Double tap to go back</span>
       </div>
     ) : null;
 
@@ -1658,6 +1775,7 @@ export const TargetFrameVideo = ({
       </div>
 
       {frameFullscreenHint}
+      {fullscreenExitHint}
       {fullscreenDblTapExit}
       {fullscreenTransport}
       {playbackChrome}

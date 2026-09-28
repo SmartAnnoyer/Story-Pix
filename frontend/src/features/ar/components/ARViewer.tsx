@@ -1397,9 +1397,10 @@ export const ARViewer = ({
       prefetchVideo(viewerService.getMappingVideoUrl(albumSlug, next.id, next.videoMediaId));
       const nextUrl = viewerService.getMappingVideoUrl(albumSlug, next.id, next.videoMediaId);
       boostVideoBlobPriority(nextUrl);
+      const mindIndexAtRequest = activeMindIndexRef.current;
       void (async () => {
         const blobUrl = await ensureVideoBlobForPlayback(nextUrl, 30_000);
-        if (!blobUrl) return;
+        if (!blobUrl || activeMindIndexRef.current !== mindIndexAtRequest) return;
         void primeVideoDecoder(nextUrl);
         clearVideoResumeIfDifferent(next.videoMediaId);
         setResumeAtSeconds(null);
@@ -1418,18 +1419,31 @@ export const ARViewer = ({
     startScanTimers();
   }, [startScanTimers, stopVideoPlayback]);
 
-  const handleExitFullscreen = useCallback(() => {
-    setVideoMode('frame');
-    // Only return to in-frame playback if the print is still in view.
-    if (!targetTrackedRef.current || activeMindIndexRef.current == null) {
-      viewerLog('info', 'exit fullscreen — print not tracked, resume scanning');
+  const handleExitFullscreen = useCallback(
+    (keepPosition = true) => {
+      setVideoMode('frame');
+      if (targetTrackedRef.current && activeMindIndexRef.current != null) return;
+
+      // Print left the camera while watching fullscreen: keep the playhead so pointing
+      // back at the photo continues the clip on the print instead of restarting it.
+      const mediaId = activeVideoMediaIdRef.current;
+      const resumeAt = getPlaybackCurrentTime();
+      viewerLog('info', 'exit fullscreen — print not tracked, resume scanning', {
+        keepPosition,
+        resumeAt,
+      });
       resumeScanningAfterVideo();
-    }
-  }, [resumeScanningAfterVideo]);
+      if (keepPosition && mediaId) {
+        saveVideoResumePosition(mediaId, resumeAt);
+        setStatusDetail('Point at the photo to keep watching');
+      }
+    },
+    [resumeScanningAfterVideo],
+  );
 
   const handleFullscreenEnded = useCallback(() => {
     clearVideoResumePosition();
-    handleExitFullscreen();
+    handleExitFullscreen(false);
   }, [handleExitFullscreen]);
 
   const handleRetryScan = () => {
