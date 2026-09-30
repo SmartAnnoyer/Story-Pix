@@ -8,22 +8,49 @@ export type MindArSceneResult = {
   targetEntities: HTMLElement[];
 };
 
+type MindArUpdate = { type: string; targetIndex?: number; worldMatrix?: number[] | null };
+
+type MindArController = {
+  inputWidth: number;
+  inputHeight: number;
+  dummyRun: (video: HTMLVideoElement) => Promise<void>;
+  processVideo: (video: HTMLVideoElement) => void;
+  stopProcessVideo: () => void;
+  trackingStates?: Array<{
+    showing?: boolean;
+    isTracking?: boolean;
+    trackCount?: number;
+    trackMiss?: number;
+  }>;
+  processingVideo?: boolean;
+  debugMode?: boolean;
+  markerDimensions?: unknown[] | null;
+  inputLoader?: { width: number; height: number };
+  cropDetector?: object;
+  projectionTransform?: number[][];
+  projectionMatrix?: number[];
+  onUpdate?: ((data: MindArUpdate) => void) | null;
+  addImageTargets?: (src: string) => Promise<unknown>;
+  _glProjectionMatrix?: (options: {
+    projectionTransform: number[][];
+    width: number;
+    height: number;
+    near: number;
+    far: number;
+  }) => number[];
+  _spReconfiguring?: boolean;
+  _spReconfigurePending?: boolean;
+};
+
 type MindArImageSystem = {
   pause: (keepVideo?: boolean) => void;
   unpause: () => void;
-  controller?: {
-    inputWidth: number;
-    inputHeight: number;
-    dummyRun: (video: HTMLVideoElement) => Promise<void>;
-    processVideo: (video: HTMLVideoElement) => void;
-    stopProcessVideo: () => void;
-    trackingStates?: Array<{
-      showing?: boolean;
-      isTracking?: boolean;
-      trackCount?: number;
-      trackMiss?: number;
-    }>;
-  };
+  controller?: MindArController;
+  imageTargetSrc?: string;
+  anchorEntities?: Array<{
+    el?: { el?: HTMLElement & { object3D?: { visible?: boolean } } };
+    targetIndex: number;
+  }>;
   video?: HTMLVideoElement | null;
   _resize?: () => void;
   _spResizePatched?: boolean;
@@ -343,6 +370,181 @@ const syncMindArTrackingViewport = (host: HTMLElement): void => {
   applyGuestCameraLayout(host);
 };
 
+const INPUT_RECONFIGURE_DEBOUNCE_MS = 300;
+const PROCESS_LOOP_EXIT_TIMEOUT_MS = 1_200;
+const RELOCK_TIMEOUT_MS = 1_500;
+const reconfigureTimers = new WeakMap<HTMLElement, number>();
+
+const nextFrame = () =>
+  new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+
+type Constructible = new (...args: unknown[]) => unknown;
+const rebuildLike = <T extends object>(instance: T, ...args: unknown[]): T =>
+  new (instance.constructor as Constructible)(...args) as T;
+
+/** True while MindAR is being rebuilt for a new camera shape (poses are stale). */
+export const isMindArInputReconfiguring = (host: HTMLElement): boolean =>
+  host.dataset.spInputReconfig === '1';
+
+/**
+ * MindAR bakes the camera size into its detector, input texture, projection, tracker and
+ * worker when it starts. Phones swap the stream to landscape when the screen auto-rotates,
+ * so tracking must be rebuilt for the new shape or it runs on a stretched image.
+ */
+const mindArNeedsInputReconfigure = (host: HTMLElement): boolean => {
+  const controller = getMindArSystem(host)?.controller;
+  const video = getCameraVideo(host);
+  const built = controller?.inputLoader;
+  if (!controller?.markerDimensions || !built || !video?.videoWidth || !video.videoHeight) {
+    return false;
+  }
+  return built.width !== video.videoWidth || built.height !== video.videoHeight;
+};
+
+const reconfigureMindArInput = async (host: HTMLElement): Promise<void> => {
+  const arSystem = getMindArSystem(host);
+  const controller = arSystem?.controller;
+  const video = getCameraVideo(host);
+  if (!arSystem || !controller || !video || !arSystem.imageTargetSrc) return;
+  if (!controller.addImageTargets || !controller._glProjectionMatrix) return;
+  if (!controller.inputLoader || !controller.cropDetector) return;
+  if (controller._spReconfiguring) {
+    controller._spReconfigurePending = true;
+    return;
+  }
+  if (!mindArNeedsInputReconfigure(host)) return;
+
+  controller._spReconfiguring = true;
+  host.dataset.spInputReconfig = '1';
+  const from = { w: controller.inputLoader.width, h: controller.inputLoader.height };
+  const originalProcessVideo = controller.processVideo;
+  const originalOnUpdate = controller.onUpdate ?? null;
+  const wasShowing = new Set(
+    (arSystem.anchorEntities ?? [])
+      .filter((anchor) => anchor.el?.el?.object3D?.visible)
+      .map((anchor) => anchor.targetIndex),
+  );
+
+  // Other recovery paths must not restart the loop on half-rebuilt internals.
+  controller.processVideo = () => undefined;
+
+  const finish = () => {
+    controller.onUpdate = originalOnUpdate;
+    controller._spReconfiguring = false;
+    delete host.dataset.spInputReconfig;
+    if (controller._spReconfigurePending) {
+      controller._spReconfigurePending = false;
+      scheduleMindArInputReconfigure(host);
+    }
+  };
+
+  try {
+    const wasRunning = Boolean(controller.processingVideo);
+    let markLoopExited = () => {};
+    const loopExited = new Promise<void>((resolve) => {
+      markLoopExited = resolve;
+    });
+    controller.onUpdate = (data) => {
+      if (data.type === 'processDone') markLoopExited();
+      if (data.type !== 'updateMatrix') originalOnUpdate?.(data);
+    };
+    controller.stopProcessVideo();
+    if (wasRunning) {
+      await Promise.race([
+        loopExited,
+        new Promise((resolve) => window.setTimeout(resolve, PROCESS_LOOP_EXIT_TIMEOUT_MS)),
+      ]);
+    }
+    await nextFrame();
+    await nextFrame();
+
+    const width = video.videoWidth;
+    const height = video.videoHeight;
+    controller.inputWidth = width;
+    controller.inputHeight = height;
+    controller.cropDetector = rebuildLike(
+      controller.cropDetector,
+      width,
+      height,
+      controller.debugMode,
+    );
+    controller.inputLoader = rebuildLike(controller.inputLoader, width, height);
+    const focal = height / 2 / Math.tan((45 * Math.PI) / 180 / 2);
+    controller.projectionTransform = [
+      [focal, 0, width / 2],
+      [0, focal, height / 2],
+      [0, 0, 1],
+    ];
+    controller.projectionMatrix = controller._glProjectionMatrix({
+      projectionTransform: controller.projectionTransform,
+      width,
+      height,
+      near: 10,
+      far: 100_000,
+    });
+    // Recreates the tracker and re-sends worker setup with the new size + projection.
+    await controller.addImageTargets(arSystem.imageTargetSrc);
+
+    controller.processVideo = originalProcessVideo;
+    syncMindArTrackingViewport(host);
+    await controller.dummyRun(video);
+
+    const pendingRelock = new Set(wasShowing);
+    let relockTimer = 0;
+    const endRelock = () => {
+      window.clearTimeout(relockTimer);
+      finish();
+    };
+    controller.onUpdate = (data) => {
+      originalOnUpdate?.(data);
+      if (data.type !== 'updateMatrix' || data.targetIndex == null || !data.worldMatrix) return;
+      pendingRelock.delete(data.targetIndex);
+      if (pendingRelock.size === 0) endRelock();
+    };
+    controller.processVideo(video);
+    viewerLog('info', 'MindAR rebuilt for new camera shape', {
+      from,
+      to: { w: width, h: height },
+      relock: [...wasShowing],
+    });
+
+    if (pendingRelock.size === 0) {
+      finish();
+      return;
+    }
+    // Print not found again in the new orientation — report it lost so playback stops cleanly.
+    relockTimer = window.setTimeout(() => {
+      for (const targetIndex of pendingRelock) {
+        originalOnUpdate?.({ type: 'updateMatrix', targetIndex, worldMatrix: null });
+      }
+      finish();
+    }, RELOCK_TIMEOUT_MS);
+  } catch (error) {
+    viewerLog('warn', 'MindAR input rebuild failed', {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    controller.processVideo = originalProcessVideo;
+    finish();
+    try {
+      controller.processVideo(video);
+    } catch {
+      // ignore — soft refresh will retry
+    }
+  }
+};
+
+export const scheduleMindArInputReconfigure = (host: HTMLElement): void => {
+  window.clearTimeout(reconfigureTimers.get(host));
+  reconfigureTimers.set(
+    host,
+    window.setTimeout(() => {
+      reconfigureTimers.delete(host);
+      if (!host.isConnected) return;
+      void reconfigureMindArInput(host);
+    }, INPUT_RECONFIGURE_DEBOUNCE_MS),
+  );
+};
+
 const watchCoverLayout = (host: HTMLElement): void => {
   if (host.dataset.spCoverWatch === '1') return;
   host.dataset.spCoverWatch = '1';
@@ -371,7 +573,10 @@ const watchCoverLayout = (host: HTMLElement): void => {
     if (!video || video.dataset.spCoverBound === '1') return;
     video.dataset.spCoverBound = '1';
     video.addEventListener('loadedmetadata', () => syncMindArTrackingViewport(host));
-    video.addEventListener('resize', () => syncMindArTrackingViewport(host));
+    video.addEventListener('resize', () => {
+      syncMindArTrackingViewport(host);
+      scheduleMindArInputReconfigure(host);
+    });
     video.addEventListener('play', schedule);
 
     // MindAR repeatedly writes inline width/height/transform — fight back.
@@ -384,7 +589,10 @@ const watchCoverLayout = (host: HTMLElement): void => {
 
   bindVideoWatchers(getCameraVideo(host));
   window.addEventListener('resize', () => syncMindArTrackingViewport(host));
-  window.addEventListener('orientationchange', () => syncMindArTrackingViewport(host));
+  window.addEventListener('orientationchange', () => {
+    syncMindArTrackingViewport(host);
+    scheduleMindArInputReconfigure(host);
+  });
   window.setTimeout(() => syncMindArTrackingViewport(host), 0);
   window.setTimeout(apply, 200);
   window.setTimeout(apply, 800);
@@ -460,7 +668,7 @@ export const restartMindArTracking = (host: HTMLElement): void => {
   releaseMappedVideoDecoder(host);
   const system = getMindArSystem(host);
   const video = getCameraVideo(host);
-  if (!system || !video) return;
+  if (!system || !video || isMindArInputReconfiguring(host)) return;
 
   try {
     system.controller?.stopProcessVideo();
@@ -497,6 +705,11 @@ export const softRefreshMindArTracking = async (host: HTMLElement): Promise<bool
   const system = getMindArSystem(host);
   const video = getCameraVideo(host);
   if (!system || !video) return false;
+  if (isMindArInputReconfiguring(host)) return true;
+  if (mindArNeedsInputReconfigure(host)) {
+    scheduleMindArInputReconfigure(host);
+    return true;
+  }
 
   ensureCameraPreviewVisible(host);
   keepMindArCameraPlaying(host);
@@ -512,11 +725,6 @@ export const softRefreshMindArTracking = async (host: HTMLElement): Promise<bool
     system.unpause();
   } catch {
     // ignore
-  }
-
-  if (video.videoWidth > 0 && system.controller) {
-    system.controller.inputWidth = video.videoWidth;
-    system.controller.inputHeight = video.videoHeight;
   }
 
   try {
@@ -634,8 +842,6 @@ export const attachCameraStream = async (
       ensureCameraPreviewVisible(host);
 
       if (arSystem?.controller && video.videoWidth > 0) {
-        arSystem.controller.inputWidth = video.videoWidth;
-        arSystem.controller.inputHeight = video.videoHeight;
         patchMindArVideoResize(host);
         arSystem._resize?.call(arSystem);
         applyGuestCameraLayout(host);
@@ -645,6 +851,7 @@ export const attachCameraStream = async (
         } catch {
           // processVideo may throw before arReady; retry
         }
+        scheduleMindArInputReconfigure(host);
       }
 
       const scene = host.querySelector('a-scene') as HTMLElement | null;
@@ -689,13 +896,12 @@ export const flipMindArCamera = async (
   await video.play();
   ensureCameraPreviewVisible(host);
 
-  arSystem.controller.inputWidth = video.videoWidth;
-  arSystem.controller.inputHeight = video.videoHeight;
   patchMindArVideoResize(host);
   arSystem._resize?.call(arSystem);
   applyGuestCameraLayout(host);
   await arSystem.controller.dummyRun(video);
   arSystem.controller.processVideo(video);
+  scheduleMindArInputReconfigure(host);
 
   const scene = host.querySelector('a-scene') as HTMLElement | null;
   if (scene) scene.dataset.cameraFacing = nextFacing;

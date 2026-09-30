@@ -18,6 +18,7 @@ import { clearVideoResumePosition } from '../utils/playback-resume';
 import {
   ensureTransparentRenderer,
   hideIosTrackingCanvas,
+  isMindArInputReconfiguring,
   keepMindArCameraPlaying,
   setOverlayPlaybackActive,
 } from '../utils/mindar-scene';
@@ -49,6 +50,7 @@ import {
   shouldStreamVideoProgressively,
 } from '../utils/video-prefetch';
 import { dumpArOverlayDebug } from '../utils/ar-overlay-debug';
+import { OneEuroVectorFilter } from '../utils/one-euro-filter';
 import { logViewerDiagnostics } from '../utils/viewer-debug-diagnostics';
 import { viewerLog } from '../utils/viewer-debug-log';
 import './TargetFrameVideo.css';
@@ -100,6 +102,13 @@ const PLAY_READY_FALLBACK_MS = 280;
 const FS_HINT_VISIBLE_MS = 8_000;
 const DOUBLE_TAP_MS = 750;
 const DOUBLE_TAP_SLOP_PX = 180;
+/** Screen-space pose smoothing: ~1 Hz when still (no shiver), opens up with speed (no lag). */
+const QUAD_MIN_CUTOFF_HZ = 1.1;
+const QUAD_BETA = 0.018;
+/** Jumps larger than this share of the short screen edge are re-locks — snap, don't glide. */
+const QUAD_SNAP_FRACTION = 0.35;
+/** Keep the last quad through brief tracking drop-outs (fast moves, motion blur). */
+const QUAD_HOLD_MS = 350;
 
 const isIOS = () => typeof navigator !== 'undefined' && /iP(hone|od|ad)/.test(navigator.userAgent);
 
@@ -515,6 +524,16 @@ export const TargetFrameVideo = ({
     let smoothBox: { left: number; top: number; width: number; height: number } | null = null;
     const srcSize = 400;
     const SMOOTH = 0.42;
+    const quadFilter = new OneEuroVectorFilter(QUAD_MIN_CUTOFF_HZ, QUAD_BETA);
+    let lastQuadCorners: Parameters<typeof quadToCssMatrix3d>[2] | null = null;
+    let lastQuadBox: { left: number; top: number; width: number; height: number } | null = null;
+    let lastQuadAt = 0;
+    const resetQuadSmoothing = () => {
+      quadFilter.reset();
+      lastQuadCorners = null;
+      lastQuadBox = null;
+      lastQuadAt = 0;
+    };
 
     let blitCanvas: HTMLCanvasElement | null = null;
     let blitCtx: CanvasRenderingContext2D | null = null;
@@ -592,11 +611,43 @@ export const TargetFrameVideo = ({
       stage.style.pointerEvents = visible ? 'auto' : 'none';
     };
 
-    const applyQuad = (corners: Parameters<typeof quadToCssMatrix3d>[2]) => {
+    const smoothQuad = (corners: Parameters<typeof quadToCssMatrix3d>[2]) => {
+      if (lastQuadCorners) {
+        const snapPx =
+          Math.min(window.innerWidth || 1, window.innerHeight || 1) * QUAD_SNAP_FRACTION;
+        const jump = corners.reduce(
+          (max, corner, index) =>
+            Math.max(
+              max,
+              Math.hypot(
+                corner.x - lastQuadCorners![index].x,
+                corner.y - lastQuadCorners![index].y,
+              ),
+            ),
+          0,
+        );
+        if (jump > snapPx) quadFilter.reset();
+      }
+      const flat = quadFilter.filter(
+        corners.flatMap((corner) => [corner.x, corner.y]),
+        performance.now() / 1000,
+      );
+      return corners.map((_, index) => ({
+        x: flat[index * 2],
+        y: flat[index * 2 + 1],
+      })) as Parameters<typeof quadToCssMatrix3d>[2];
+    };
+
+    const applyQuad = (rawCorners: Parameters<typeof quadToCssMatrix3d>[2]) => {
       if (!stage) return false;
+      const corners = smoothQuad(rawCorners);
       const matrix = quadToCssMatrix3d(srcSize, srcSize, corners);
-      if (!matrix) return false;
-      // Perspective quads already track the photo; skip AABB smoothing here.
+      if (!matrix) {
+        quadFilter.reset();
+        return false;
+      }
+      lastQuadCorners = corners;
+      lastQuadAt = performance.now();
       smoothBox = null;
       stage.style.position = 'fixed';
       stage.style.left = '0px';
@@ -640,9 +691,9 @@ export const TargetFrameVideo = ({
       // Always prefer a perspective quad so the clip stays glued to the print when
       // the guest rotates the phone (AABB shrinks/squashes width on tilt).
       const quad = getOverlayQuadScreenCorners(host, entity, aspectRatio, frame);
-      if (quad?.visible && applyQuad(quad.corners)) {
-        const xs = quad.corners.map((corner) => corner.x);
-        const ys = quad.corners.map((corner) => corner.y);
+      if (quad?.visible && applyQuad(quad.corners) && lastQuadCorners) {
+        const xs = lastQuadCorners.map((corner) => corner.x);
+        const ys = lastQuadCorners.map((corner) => corner.y);
         const quadBox = {
           left: Math.min(...xs),
           top: Math.min(...ys),
@@ -650,8 +701,16 @@ export const TargetFrameVideo = ({
           height: Math.max(...ys) - Math.min(...ys),
         };
         lastBox = quadBox;
+        lastQuadBox = quadBox;
         return quadBox;
       }
+
+      // Brief drop-out (fast move / blur): hold the last perspective quad instead of
+      // snapping to an axis-aligned box, which reads as a glitch.
+      if (lastQuadBox && performance.now() - lastQuadAt < QUAD_HOLD_MS) {
+        return lastQuadBox;
+      }
+      if (lastQuadCorners) resetQuadSmoothing();
 
       const box = tryAabb();
       if (box) return box;
@@ -708,6 +767,15 @@ export const TargetFrameVideo = ({
 
     const tick = () => {
       if (cancelled) return;
+      // Screen rotated: MindAR is rebuilding for the new camera shape — any pose now is stale.
+      if (isMindArInputReconfiguring(host)) {
+        setStageVisible(false);
+        resetQuadSmoothing();
+        smoothBox = null;
+        lastBox = null;
+        window.requestAnimationFrame(tick);
+        return;
+      }
       keepMindArCameraPlaying(host);
       hideIosTrackingCanvas(host);
       if (useIosBlit && videoRef.current?.parentElement !== host) parkDecoder();
@@ -768,6 +836,7 @@ export const TargetFrameVideo = ({
       syncMindArCameraToHost(host);
       smoothBox = null;
       lastBox = null;
+      resetQuadSmoothing();
     };
     window.addEventListener('orientationchange', onViewportChange);
     window.addEventListener('resize', onViewportChange);
